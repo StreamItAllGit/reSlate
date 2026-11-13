@@ -1,0 +1,13 @@
+{
+    "state":  "active",
+    "project":  "reStation",
+    "group":  "Personal",
+    "relative_path":  "Personal/reStation",
+    "tier":  "Tier A (6-Folder)",
+    "version":  "0.1.0",
+    "state_changed_at":  "2026-11-13",
+    "last_version_at":  "2026-11-13",
+    "production_subpath":  null,
+    "superseded_by":  null,
+    "notes":  "Initialized project."
+}
