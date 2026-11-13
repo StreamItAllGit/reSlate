@@ -1,0 +1,200 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Foundation.Core</name>
+    </assembly>
+    <members>
+        <member name="T:Foundation.Core.AudioRingBuffer">
+            <summary>
+            Lock-free Single-Producer Single-Consumer (SPSC) audio ring buffer for interleaved PCM samples.
+            On underrun, smoothly ramps remaining output samples toward zero to eliminate audible clicks/pops.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.CrashBundlePayload">
+            <summary>
+            Canonical JSON crash bundle schema written to logs\crashes\crash_&lt;appId&gt;_&lt;timestamp&gt;.json (Standard 13).
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.CrashBundleService">
+            <summary>
+            Registers global unhandled exception hooks and writes self-contained JSON crash dumps.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.DpapiSecretStore">
+            <summary>
+            Stores sensitive secrets (Discord webhooks, API tokens, credentials) encrypted at rest in data\secrets.dpapi
+            using Windows DPAPI (DataProtectionScope.CurrentUser) per Standard 19 §2.3 so secrets never appear in plaintext settings.json.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.GranularSettingsManager">
+            <summary>
+            Manages granular domain settings files (settings.json, settings.notifications.json, settings.scheduler.json)
+            with atomic .tmp -> .bak -> replace writes, corrupt JSON self-healing from .bak, and 20-snapshot rotation in data\config_history\.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.HeartbeatLogger">
+            <summary>
+            Emits structured [HEARTBEAT] telemetry at least once every 15 seconds for long-running operations
+            and renders in-place \r\x1b[K terminal status lines when attached to an interactive console (Standard 13).
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.HighResFramePacer">
+            <summary>
+            High-resolution frame pacer supporting locked FPS targets or unlocked pacing (targetFps &lt;= 0)
+            with rolling 120-frame FPS, average frame time, and P99 frame time telemetry.
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.HighResFramePacer.WaitForNextFrame">
+            <summary>
+            Waits until the next target frame deadline (unless TargetFps &lt;= 0) and records frame timing telemetry.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.HybridModuleLoader">
+            <summary>
+            Discovers and instantiates both lightweight in-assembly Folder Slices (Features\&lt;Slice&gt;\)
+            and compiled external .dll plugin modules (app\modules\*.dll) implementing IFoundationModule (Standard 08 §8).
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.Contracts.ModuleType">
+            <summary>
+            Distinguishes lightweight in-assembly folder slices from compiled external .dll plugin modules (Standard 18: moduleType).
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.Contracts.SchemaSettingDescriptor">
+            <summary>
+            Declarative setting definition allowing Foundation.UI's SchemaSettingsRenderer to build forms automatically without editing SettingsPage.
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.Contracts.SchemaSettingDescriptor.#ctor(System.String,System.String,System.String,System.Object,System.String,System.String,System.String,System.Nullable{System.Double},System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>
+            Declarative setting definition allowing Foundation.UI's SchemaSettingsRenderer to build forms automatically without editing SettingsPage.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.Contracts.IFoundationModule">
+            <summary>
+            Unified plug-in contract implemented by both lightweight Folder Slices (Features\&lt;Slice&gt;\)
+            and compiled external .dll modules (app\modules\*.dll) for zero-surgery extensibility.
+            </summary>
+        </member>
+        <member name="P:Foundation.Core.Contracts.IFoundationModule.ModuleId">
+            <summary>Canonical lowercase-kebab-case module identifier (Standard 18: moduleId).</summary>
+        </member>
+        <member name="P:Foundation.Core.Contracts.IFoundationModule.DisplayName">
+            <summary>Human-facing Title Case display name (Standard 18: displayName).</summary>
+        </member>
+        <member name="P:Foundation.Core.Contracts.IFoundationModule.ModuleType">
+            <summary>Whether this module is an in-assembly folder slice or an external .dll plugin (Standard 18: moduleType).</summary>
+        </member>
+        <member name="P:Foundation.Core.Contracts.IFoundationModule.Category">
+            <summary>Navigation category and icon identifier for automatic sidebar rail population.</summary>
+        </member>
+        <member name="P:Foundation.Core.Contracts.IFoundationModule.SettingsSchema">
+            <summary>Declarative settings owned by this module, rendered automatically by SchemaSettingsRenderer.</summary>
+        </member>
+        <member name="M:Foundation.Core.Contracts.IFoundationModule.ExecuteCliAsync(System.Collections.Generic.IReadOnlyList{System.String},System.Threading.CancellationToken)">
+            <summary>Executes the module's headless CLI or background worker action with mandatory CancellationToken propagation.</summary>
+        </member>
+        <member name="T:Foundation.Core.DualJobCancellationCoordinator">
+            <summary>
+            Coordinates dual-scope job cancellation per Standard 09 §4.5 / SIS-05:
+            - StopCurrentJob cancels ONLY the active job while allowing queued jobs to proceed.
+            - StopAllJobs cancels the active job AND signals the queue to drain/abort all pending jobs.
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.DualJobCancellationCoordinator.StopCurrentJob">
+            <summary>
+            Cancels only the currently executing job so the next queued job can still run.
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.DualJobCancellationCoordinator.StopAllJobs">
+            <summary>
+            Cancels the currently executing job AND signals the job queue to clear all pending jobs.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.JobObjectGuard">
+            <summary>
+            Wraps a Windows Job Object configured with JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE so child tools (7z, chdman, rclone)
+            never survive if the parent process crashes or terminates.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.PidSafeLockEnvelope">
+            <summary>
+            Canonical JSON lockfile envelope per Standard 19 §4.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.PidSafeLockfile">
+            <summary>
+            Manages PID-safe lockfiles (e.g. .hklock / .sllock) that verify both PID and process start time
+            and automatically break stale orphan locks left behind by crashed processes.
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.PidSafeLockfile.IsLockedByLiveProcess(System.String,Foundation.Core.PidSafeLockEnvelope@)">
+            <summary>
+            Inspects a lockfile on disk and returns true ONLY if the holding process is still alive with a matching start time
+            and an unexpired lease.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.PixelOverlayCanvas">
+            <summary>
+            Pure-.NET RGBA pixel canvas with Porter-Duff SrcOver alpha compositing and built-in 5x7 bitmap text rendering
+            for SDL3/headless HUD overlays and deterministic PNG screenshot capture.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.RgbaPngWriter">
+            <summary>
+            Pure-.NET lossless 8-bit RGBA PNG encoder with zero GDI+ or System.Drawing dependencies.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.SafeNetworkTransfer">
+            <summary>
+            Enforces all 6 pillars of Standard 19 §5 Network Transfer Safety:
+            1. ConnectTimeout (10s) &amp; Per-Read Stall Timeout (30s)
+            2. Exponential Backoff + Full Jitter (MaxRetries = 3, respecting Retry-After)
+            3. HTTP Range Resume on .partial_&lt;jobId&gt; staging files
+            4. Disk Free-Space Pre-Flight Check (1.2x expected size + 512 MB reserve)
+            5. Token-Bucket Bandwidth Throttling
+            6. Streaming SHA-256 &amp; SHA-1 Verification before atomic rename
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.UiPresentationMode">
+            <summary>
+            Canonical 4 UI presentation modes per Standard 17 §4 (Suite Tab, Standalone Window, Local Browser, Scoped Mobile PWA).
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.SandboxEnvironment">
+            <summary>
+            Resolves standard CLI flags and environment variables for fail-closed Sandbox and Production execution (Standard 02).
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.SandboxEnvironment.AssertPathContained(System.String,System.String)">
+            <summary>
+            Fail-closed containment guard ensuring a candidate path resolves strictly inside an allowed root directory.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.SqliteWalPool">
+            <summary>
+            Standardized SQLite connection factory enforcing WAL mode, busy_timeout = 15000, Cache = Default (non-blocking WAL MVCC snapshot isolation),
+            synchronous = NORMAL, foreign_keys = ON, and online atomic VACUUM INTO backups.
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.SqliteWalPool.VacuumIntoAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Executes an online atomic SQLite backup using VACUUM INTO via a temporary staging file.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.ToolResolver">
+            <summary>
+            Resolves external binaries (7z, chdman, flips, xdelta3, rclone, etc.) using the Dev Bible 4-tier hierarchy:
+            1. Explicit settings.json override
+            2. Bundled app\tools\ (or BaseDirectory\tools\)
+            3. System PATH (or standard Program Files folders)
+            4. Graceful degradation (never throwing an unhandled startup exception)
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.WavCaptureWriter">
+            <summary>
+            Writes deterministic uncompressed 16-bit PCM RIFF/WAV audio captures and patches RIFF/data byte lengths on Dispose.
+            </summary>
+        </member>
+    </members>
+</doc>

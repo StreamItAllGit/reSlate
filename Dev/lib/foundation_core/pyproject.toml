@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "foundation-core"
+version = "0.1.2"
+description = "Shared Foundation SDK for Python 3.12+ suite services (sandbox containment, WAL SQLite, PID-safe lockfiles, <= 15s heartbeats)."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

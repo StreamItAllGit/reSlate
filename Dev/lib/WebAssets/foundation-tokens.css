@@ -1,0 +1,117 @@
+/* @module: Foundation.UI.WebAssets.Tokens */
+/* @purpose: Canonical Standard 09 Deep Slate design tokens, sidebar rail dimensions, docked terminal resize layout, and 2-line tooltip styles. */
+/* @depends-on: CSS Custom Properties */
+/* @exports: :root tokens, .app-shell, .sidebar-nav-rail, .docked-terminal-drawer, .foundation-tooltip */
+
+:root {
+  --surface-0: #0B0F17;
+  --surface-1: #111827;
+  --surface-2: #1E293B;
+  --surface-3: #334155;
+  --border-subtle: #1F2937;
+  --border-strong: #374151;
+  --text-primary: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --brand-accent: #6366F1;
+  --brand-accent-hover: #4F46E5;
+  --status-pass: #10B981;
+  --status-warn: #F59E0B;
+  --status-fail: #EF4444;
+  --status-info: #0EA5E9;
+  --sidebar-width-expanded: 220px;
+  --sidebar-width-collapsed: 56px;
+  --terminal-default-height: 280px;
+  --terminal-min-height: 120px;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+.app-shell {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--surface-0);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.sidebar-nav-rail {
+  width: var(--sidebar-width-expanded);
+  min-width: var(--sidebar-width-expanded);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface-1);
+  border-right: 1px solid var(--border-subtle);
+  transition: width 160ms ease, min-width 160ms ease;
+}
+
+.sidebar-nav-rail.is-collapsed {
+  width: var(--sidebar-width-collapsed);
+  min-width: var(--sidebar-width-collapsed);
+}
+
+.app-body-column {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-main-pane {
+  flex: 1;
+  min-height: 160px;
+  overflow-y: auto;
+}
+
+.docked-terminal-drawer {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--surface-1);
+  border-top: 1px solid var(--border-strong);
+  min-height: var(--terminal-min-height);
+}
+
+.docked-terminal-sash {
+  height: 6px;
+  cursor: ns-resize;
+  background-color: transparent;
+  transition: background-color 120ms ease;
+}
+
+.docked-terminal-sash:hover,
+.docked-terminal-sash:focus-visible {
+  background-color: var(--brand-accent);
+  outline: none;
+}
+
+.foundation-tooltip {
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background-color: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.4;
+  z-index: 9999;
+}
+
+.foundation-tooltip-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.foundation-tooltip-body {
+  color: var(--text-secondary);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

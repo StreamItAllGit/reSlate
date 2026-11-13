@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Foundation.UI</name>
+    </assembly>
+    <members>
+        <member name="T:Foundation.UI.TableColumnSchema">
+            <summary>
+            Declarative column mapping for UniversalDataTable, bound strictly to Standard 18 canonical keys and Title Case headers.
+            </summary>
+        </member>
+        <member name="M:Foundation.UI.TableColumnSchema.#ctor(System.String,System.String,System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Declarative column mapping for UniversalDataTable, bound strictly to Standard 18 canonical keys and Title Case headers.
+            </summary>
+        </member>
+        <member name="T:Foundation.UI.ShellBrandingOptions">
+            <summary>
+            Per-application customization contract for Foundation.UI's shared shell (Collapsible Sidebar, Docked Resizable Terminal,
+            SchemaSettingsRenderer, and UniversalDataTable).
+            </summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.AppId">
+            <summary>Canonical application slug (Standard 18: appId).</summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.DisplayName">
+            <summary>Application Title Case display name.</summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.SdkVersion">
+            <summary>Pinned Foundation SDK version (Standard 18: sdkVersion — Full SemVer MAJOR.MINOR.PATCH).</summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.BrandAccentHex">
+            <summary>Custom CSS brand accent color ("--brand-accent").</summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.BrandIconUri">
+            <summary>Path or URI to the app's sidebar brand icon (.svg or .png).</summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.SidebarInitiallyExpanded">
+            <summary>Whether the left vertical sidebar starts expanded (220px) or collapsed (56px).</summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.DefaultTerminalPreset">
+            <summary>Default docked terminal preset ("S" = 25%, "M" = 40%, "L" = 60%).</summary>
+        </member>
+        <member name="P:Foundation.UI.ShellBrandingOptions.ShowDriveTelemetryStrip">
+            <summary>Whether to show the live drive free-space strip at the bottom of the left sidebar rail.</summary>
+        </member>
+    </members>
+</doc>
