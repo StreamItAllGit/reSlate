@@ -7,8 +7,8 @@
     "version":  "0.1.0",
     "state_changed_at":  "2026-11-13",
     "last_version_at":  "2026-11-13",
-    "lastUpdated":  "2026-11-13T21:20:12.307Z",
+    "lastUpdated":  "2026-11-13T21:49:00.000Z",
     "production_subpath":  null,
     "superseded_by":  null,
-    "notes":  "v0.1.0 Wave 3 integration: T1-T6 complete, 84/84 tests pass; awaiting Gate 2 before build_release.ps1 packaging."
+    "notes":  "v0.1.0 shipped (2026-11-13): T1-T8 complete (87/87 tests pass, 0 warnings), @dean Gate 2 PASS, signed reEngine side-by-side installer + 6-file Releases + SharedLibs\\reStation\\v0.1.0\\, @inspecter Sandbox\\ 5/5 Acceptance Gates PASS."
 }
