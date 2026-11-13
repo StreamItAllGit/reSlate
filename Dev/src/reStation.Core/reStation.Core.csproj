@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>reStation.Core</AssemblyName>
+    <RootNamespace>reStation.Core</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="reStation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\reStation.Contracts\reStation.Contracts.csproj" />
+    <Reference Include="Foundation.Core">
+      <HintPath>$(ReStationLibDir)Foundation.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Foundation.Retro">
+      <HintPath>$(ReStationLibDir)Foundation.Retro.dll</HintPath>
+    </Reference>
+    <Reference Include="reEngine.Core">
+      <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

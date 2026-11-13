@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <AssemblyName>reStation-Setup-v0.1.0-win-x64</AssemblyName>
+    <RootNamespace>reStation.Installer</RootNamespace>
+    <ApplicationTitle>reStation Setup</ApplicationTitle>
+    <ApplicationIcon>..\..\assets\reStation.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="reStation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Foundation.Core">
+      <HintPath>$(ReStationLibDir)Foundation.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Foundation.Installer">
+      <HintPath>$(ReStationLibDir)Foundation.Installer.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="reEngine.Core">
+      <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Embeds Private=false SDK assemblies as .dll.gz resources resolved by Program's static AssemblyResolve handler. -->
+  <Target Name="CompressEmbeddedAssemblies" BeforeTargets="AssignTargetPaths;PrepareResourceNames;PrepareResources">
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;$files = @('$(ReStationLibDir)Foundation.Core.dll','$(ReStationLibDir)Foundation.Installer.dll','$(ReStationLibDir)reEngine.Core.dll'); foreach ($src in $files) { if (-not (Test-Path $src)) { throw ('Missing assembly: ' + $src) }; $name = [System.IO.Path]::GetFileName($src); $dst = Join-Path '$(MSBuildProjectDirectory)\$(IntermediateOutputPath)' ($name + '.gz'); $bytes = [System.IO.File]::ReadAllBytes($src); $fs = [System.IO.File]::Create($dst); try { $gz = New-Object System.IO.Compression.GZipStream($fs, [System.IO.Compression.CompressionLevel]::Optimal); try { $gz.Write($bytes, 0, $bytes.Length) } finally { $gz.Dispose() } } finally { $fs.Dispose() } }&quot;" />
+    <ItemGroup>
+      <EmbeddedResource Remove="$(IntermediateOutputPath)Foundation.Core.dll.gz;$(IntermediateOutputPath)Foundation.Installer.dll.gz;$(IntermediateOutputPath)reEngine.Core.dll.gz" />
+      <EmbeddedResource Include="$(IntermediateOutputPath)Foundation.Core.dll.gz" LogicalName="Foundation.Core.dll.gz" />
+      <EmbeddedResource Include="$(IntermediateOutputPath)Foundation.Installer.dll.gz" LogicalName="Foundation.Installer.dll.gz" />
+      <EmbeddedResource Include="$(IntermediateOutputPath)reEngine.Core.dll.gz" LogicalName="reEngine.Core.dll.gz" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Packaging-time payloads (passed by Dev\scripts\build_release.ps1); absent during Debug/test builds. -->
+  <ItemGroup Condition="'$(InstallerPayloadZip)' != '' and Exists('$(InstallerPayloadZip)')">
+    <EmbeddedResource Include="$(InstallerPayloadZip)" LogicalName="reStation.Installer.Embedded.payload.zip" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(ReEngineBootstrapExe)' != '' and Exists('$(ReEngineBootstrapExe)')">
+    <EmbeddedResource Include="$(ReEngineBootstrapExe)" LogicalName="reStation.Installer.Embedded.reEngine-Setup.exe" />
+  </ItemGroup>
+
+</Project>

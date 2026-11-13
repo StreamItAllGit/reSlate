@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>reStation.Compiler</AssemblyName>
+    <RootNamespace>reStation.Compiler</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="reStation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\reStation.Contracts\reStation.Contracts.csproj" />
+    <ProjectReference Include="..\reStation.Core\reStation.Core.csproj" />
+    <Reference Include="Foundation.Core">
+      <HintPath>$(ReStationLibDir)Foundation.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Foundation.Retro">
+      <HintPath>$(ReStationLibDir)Foundation.Retro.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

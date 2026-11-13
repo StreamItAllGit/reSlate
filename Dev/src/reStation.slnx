@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="reStation.Contracts/reStation.Contracts.csproj" />
+    <Project Path="reStation.Core/reStation.Core.csproj" />
+    <Project Path="reStation.Compiler/reStation.Compiler.csproj" />
+    <Project Path="reStation.Player/reStation.Player.csproj" />
+    <Project Path="reStation.Launcher/reStation.Launcher.csproj" />
+    <Project Path="reStation.Installer/reStation.Installer.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="reStation.Tests/reStation.Tests.csproj" />
+  </Folder>
+</Solution>

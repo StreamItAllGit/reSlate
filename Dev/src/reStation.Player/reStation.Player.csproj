@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>reStation.Player</AssemblyName>
+    <RootNamespace>reStation.Player</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>..\..\assets\reStation.ico</ApplicationIcon>
+    <ApplicationTitle>reStation</ApplicationTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="reStation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ppy.SDL3-CS" Version="2026.1002.1" ExcludeAssets="compile" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\reStation.Contracts\reStation.Contracts.csproj" />
+    <ProjectReference Include="..\reStation.Core\reStation.Core.csproj" />
+    <Reference Include="Foundation.Core">
+      <HintPath>$(ReStationLibDir)Foundation.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Foundation.Retro">
+      <HintPath>$(ReStationLibDir)Foundation.Retro.dll</HintPath>
+    </Reference>
+    <Reference Include="reEngine.Core">
+      <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(ReStationAssetsDir)native\7z.exe" Link="7z.exe" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(ReStationAssetsDir)native\7z.dll" Link="7z.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(ReStationAssetsDir)native\LICENSE-7ZIP.txt" Link="LICENSE-7ZIP.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

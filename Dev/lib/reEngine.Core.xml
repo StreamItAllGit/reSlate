@@ -1,0 +1,361 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>reEngine.Core</name>
+    </assembly>
+    <members>
+        <member name="T:reEngine.Core.Associations.FileAssociationRecord">
+            <summary>
+            Persisted shell association metadata for <c>.recomp</c> packages.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.FileAssociationRecord.#ctor(System.Int32,System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Persisted shell association metadata for <c>.recomp</c> packages.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Associations.IFileAssociationStore">
+            <summary>
+            Abstracts <c>.recomp</c> file association registration across live HKCU and sandbox virtual storage.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.IFileAssociationStore.RegisterRecompAssociation(System.String,System.String)">
+            <summary>Registers the <c>.recomp</c> open handler pointing to <paramref name="executablePath"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.IFileAssociationStore.ReadRecompAssociation">
+            <summary>Reads the currently registered <c>.recomp</c> association, or returns <see langword="null"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.IFileAssociationStore.UnregisterRecompAssociation">
+            <summary>Removes the <c>.recomp</c> association if present.</summary>
+        </member>
+        <member name="T:reEngine.Core.Associations.VirtualRegistryAssociationStore">
+            <summary>
+            Fail-closed sandboxed association store persisting records atomically to <c>&lt;dataDir&gt;\virtual_registry.json</c>.
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Associations.VirtualRegistryAssociationStore.RegistryFilePath">
+            <summary>Gets the resolved path to <c>virtual_registry.json</c>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.#ctor(System.String,System.String)">
+            <summary>
+            Initializes a virtual association store strictly contained inside <paramref name="allowedRootDir"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.RegisterRecompAssociation(System.String,System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.ReadRecompAssociation">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.UnregisterRecompAssociation">
+            <inheritdoc />
+        </member>
+        <member name="T:reEngine.Core.Associations.WindowsRegistryAssociationStore">
+            <summary>
+            Live per-user Windows Registry association store writing strictly under <c>HKCU\Software\Classes</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.#ctor(System.Boolean)">
+            <summary>
+            Initializes the live HKCU association store; throws fail-closed if <paramref name="testMode"/> is <see langword="true"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.RegisterRecompAssociation(System.String,System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.ReadRecompAssociation">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.UnregisterRecompAssociation">
+            <inheritdoc />
+        </member>
+        <member name="T:reEngine.Core.Bootstrap.ReEnginePackagingConstants">
+            <summary>
+            Canonical branding, packaging, and containment constants for <c>reEngine</c>.
+            </summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.AppId">
+            <summary>Canonical lowercase application identifier.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.DisplayName">
+            <summary>Human-facing Title Case display name.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.Version">
+            <summary>Current packaged SemVer version.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.BrandAccentHex">
+            <summary>Brand accent color hex (Sky Cyan).</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.AllowAutoStart">
+            <summary>Zero-daemon invariant: <c>reEngine</c> never auto-starts at Windows sign-in.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.DefaultPreloadRomDir">
+            <summary>Default relative preload directory inside game module roots.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.VirtualRegistryFileName">
+            <summary>Filename of the virtualized association store in <c>--test-mode</c>.</summary>
+        </member>
+        <member name="T:reEngine.Core.Bootstrap.ReEngineBootstrapResult">
+            <summary>
+            Outcome of bootstrapping or verifying a <c>reEngine</c> installation root.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapResult.#ctor(System.Boolean,System.String,System.String,System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Outcome of bootstrapping or verifying a <c>reEngine</c> installation root.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Bootstrap.ReEngineBootstrapHelper">
+            <summary>
+            Reusable SDK helper exported via <c>SharedLibs\reEngine</c> so child <c>re*</c> and <c>&lt;Game&gt;Recomp</c>
+            installers can deploy/upgrade <c>reEngine</c> idempotently and install side-by-side platform engines.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(System.String,System.String,System.Boolean)">
+            <summary>
+            Resolves the target <c>reEngine</c> installation root while enforcing fail-closed containment in <c>--test-mode</c>
+            and zero literal host paths in compiled binaries.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveEnginesRootDir(System.String)">
+            <summary>Returns the side-by-side <c>engines\</c> subdirectory under <paramref name="reEngineInstallDir"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.BuildEngineVersionInstallDir(System.String,System.String,System.String)">
+            <summary>
+            Returns the immutable side-by-side engine folder path:
+            <c>&lt;reEngineInstallDir&gt;\engines\&lt;engineId&gt;\v&lt;version&gt;</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.EnsureReEngineInstalledAsync(System.String,System.String,System.Boolean,System.Boolean,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Ensures <c>reEngine</c> is installed at <paramref name="targetReEngineDir"/> at or above the packaged SDK version,
+            invoking <paramref name="bundledInstallerPath"/> silently via <see cref="T:Foundation.Core.JobObjectGuard"/> when needed.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.RecompPackageManifest">
+            <summary>
+            Canonical Standard 18 manifest schema for <c>.recomp</c> modules (<c>module.recomp.json</c> / <c>*.recomp</c>).
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.SchemaVersion">
+            <summary>Manifest schema version (currently 1).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.ModuleId">
+            <summary>Canonical lowercase-kebab-case module identifier.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.Title">
+            <summary>Human-facing module display title.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.Version">
+            <summary>Module semantic version string.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.EngineId">
+            <summary>Target platform engine identifier (e.g., <c>reStation</c>, <c>re64</c>, <c>reCube</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.EngineVersion">
+            <summary>Minimum compatible engine SemVer required by this module.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.CompatibleEngineTrack">
+            <summary>Compatible engine track selector (e.g., <c>0.1.x</c>, <c>1.x</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.PreloadRomDir">
+            <summary>Relative preload media directory inside the module root (defaults to <c>data/rom</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.EntryExecutable">
+            <summary>Optional module-specific entrypoint executable relative path.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.ExtensionData">
+            <summary>Forward-compatible unknown JSON properties preserved across round-trips.</summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.PreloadRomDiscoveryResult">
+            <summary>
+            Result of scanning a module's gitignored <c>data\rom\</c> preload directory.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Manifests.PreloadRomDiscoveryResult.#ctor(System.String,System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},System.String)">
+            <summary>
+            Result of scanning a module's gitignored <c>data\rom\</c> preload directory.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.RecompPackageLoadResult">
+            <summary>
+            Result of loading a <c>.recomp</c> package manifest and discovering its preloaded optical/ROM media.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Manifests.RecompPackageLoadResult.#ctor(reEngine.Core.Manifests.RecompPackageManifest,System.String,System.String,reEngine.Core.Manifests.PreloadRomDiscoveryResult)">
+            <summary>
+            Result of loading a <c>.recomp</c> package manifest and discovering its preloaded optical/ROM media.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.RecompPackageReader">
+            <summary>
+            Reads JSON or ZIP-packaged <c>.recomp</c> manifests with fail-closed Zip-Slip and path containment guards.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Manifests.RecompPackageReader.Load(System.String)">
+            <summary>
+            Loads a <c>.recomp</c> JSON file or ZIP archive and discovers preloaded media in <c>data\rom\</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Manifests.RecompPackageReader.DiscoverPreloadMedia(System.String,reEngine.Core.Manifests.RecompPackageManifest)">
+            <summary>
+            Discovers optical discs and ROM images under the module's configured <c>preloadRomDir</c>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Resolution.SemVer">
+            <summary>
+            Universal Semantic Version (<c>MAJOR.MINOR.PATCH[-prerelease]</c>) supporting <c>-hf.&lt;n&gt;</c> and <c>-nightly.&lt;n&gt;</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.SemVer.#ctor(System.Int32,System.Int32,System.Int32,System.String)">
+            <summary>
+            Universal Semantic Version (<c>MAJOR.MINOR.PATCH[-prerelease]</c>) supporting <c>-hf.&lt;n&gt;</c> and <c>-nightly.&lt;n&gt;</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.SemVer.TryParse(System.String,reEngine.Core.Resolution.SemVer@)">
+            <summary>Attempts to parse a SemVer string (with optional leading <c>v</c>).</summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.SemVer.CompareTo(reEngine.Core.Resolution.SemVer)">
+            <summary>Compares two semantic versions per SemVer 2.0.0 precedence (stable &gt; prerelease).</summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.SemVer.ToString">
+            <summary>Formats the version without a leading <c>v</c>.</summary>
+        </member>
+        <member name="T:reEngine.Core.Resolution.InstalledEngineCandidate">
+            <summary>
+            Represents an installed side-by-side engine version under <c>engines\&lt;engineId&gt;\v&lt;Ver&gt;\</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.InstalledEngineCandidate.#ctor(System.String,reEngine.Core.Resolution.SemVer,System.String,System.String,System.String)">
+            <summary>
+            Represents an installed side-by-side engine version under <c>engines\&lt;engineId&gt;\v&lt;Ver&gt;\</c>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Resolution.EngineResolutionResult">
+            <summary>
+            Result of resolving the highest compatible engine installation for a <c>.recomp</c> manifest.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineResolutionResult.#ctor(System.Boolean,reEngine.Core.Resolution.InstalledEngineCandidate,System.Collections.Generic.IReadOnlyList{reEngine.Core.Resolution.InstalledEngineCandidate},System.String)">
+            <summary>
+            Result of resolving the highest compatible engine installation for a <c>.recomp</c> manifest.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Resolution.EngineTrackMatcher">
+            <summary>
+            Matches candidate engine versions against <c>compatibleEngineTrack</c> selectors.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineTrackMatcher.IsTrackCompatible(System.String,reEngine.Core.Resolution.SemVer)">
+            <summary>
+            Evaluates whether <paramref name="candidate"/> matches <paramref name="compatibleEngineTrack"/>
+            (<c>X.Y.x</c>, <c>X.Y.*</c>, <c>X.Y</c>, <c>X.x</c>, <c>X.*</c>, or exact <c>X.Y.Z</c>).
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Resolution.EngineVersionResolver">
+            <summary>
+            Discovers installed side-by-side <c>re*</c> engines and resolves the highest compatible candidate for a module.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineVersionResolver.DiscoverInstalledEngines(System.String,System.String)">
+            <summary>
+            Enumerates installed engine directories under <paramref name="enginesRootDir"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineVersionResolver.ResolveForManifest(System.String,reEngine.Core.Manifests.RecompPackageManifest)">
+            <summary>
+            Resolves the highest installed engine matching <paramref name="manifest"/>'s track and minimum version.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Updates.ReEngineSettings">
+            <summary>
+            Persisted <c>data\settings.json</c> schema following Standard 18 &amp; Standard 19.
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.SchemaVersion">
+            <summary>Settings schema version (currently 1).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.AppId">
+            <summary>Canonical application identifier.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.UpdatedAtUtc">
+            <summary>ISO-8601 UTC timestamp of the last save.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.ShouldCheckUpdates">
+            <summary>Whether launch-time compatible update checks are enabled.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.ShouldAutoStagePatches">
+            <summary>Whether compatible patch updates on the active track are automatically staged.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.LastUpdateFeedUrl">
+            <summary>Optional feed URL or local sandbox feed path used for update checks.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.EnginesDirectoryOverride">
+            <summary>Optional override path to the <c>engines\</c> root directory.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.PreferredResolutionScale">
+            <summary>Optional global pass-through resolution scale preference (1..8).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.WindowWidth">
+            <summary>Saved manager window width.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.WindowHeight">
+            <summary>Saved manager window height.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.ExtensionData">
+            <summary>Preserves unknown forward-compatible settings properties across round-trips.</summary>
+        </member>
+        <member name="T:reEngine.Core.Updates.UpdateFeedEntry">
+            <summary>
+            Single engine release entry inside an update feed manifest.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateFeedEntry.#ctor(System.String,System.String,System.String,System.String,System.Int64,System.String)">
+            <summary>
+            Single engine release entry inside an update feed manifest.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Updates.UpdateFeedManifest">
+            <summary>
+            Update feed manifest listing available engine versions.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateFeedManifest.#ctor(System.Int32,System.String,System.Collections.Generic.IReadOnlyList{reEngine.Core.Updates.UpdateFeedEntry})">
+            <summary>
+            Update feed manifest listing available engine versions.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Updates.UpdateCheckOutcome">
+            <summary>
+            Result of evaluating an update feed against the active engine version and compatibility track.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCheckOutcome.#ctor(System.Boolean,System.Boolean,System.Boolean,System.String,System.Boolean,System.String,System.String)">
+            <summary>
+            Result of evaluating an update feed against the active engine version and compatibility track.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Updates.UpdateCoordinator">
+            <summary>
+            Coordinates schema-versioned settings persistence and track-safe engine update checks/staging.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.#ctor(System.String,System.String)">
+            <summary>
+            Initializes an update coordinator bound to <paramref name="dataDirectory"/> and <paramref name="configPath"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.LoadSettings">
+            <summary>Loads <c>settings.json</c> with automatic backup self-healing.</summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.SaveSettings(reEngine.Core.Updates.ReEngineSettings)">
+            <summary>Persists <paramref name="settings"/> atomically with timestamp update.</summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.CheckAndStageAsync(reEngine.Core.Updates.ReEngineSettings,System.String,reEngine.Core.Resolution.SemVer,System.String,System.String,System.Net.Http.HttpMessageHandler,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Checks <paramref name="feedSource"/> for compatible track patches (auto-staging when enabled)
+            and newer breaking releases (alert-only, never overwriting existing tracks).
+            </summary>
+        </member>
+    </members>
+</doc>

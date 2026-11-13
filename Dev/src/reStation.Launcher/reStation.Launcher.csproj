@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>reStation</AssemblyName>
+    <RootNamespace>reStation.Launcher</RootNamespace>
+    <ApplicationIcon>..\..\assets\reStation.ico</ApplicationIcon>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Foundation.Launcher">
+      <HintPath>$(ReStationLibDir)Foundation.Launcher.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <EmbeddedResource Include="$(ReStationLibDir)Foundation.Launcher.dll" LogicalName="Foundation.Launcher.dll" />
+  </ItemGroup>
+
+</Project>

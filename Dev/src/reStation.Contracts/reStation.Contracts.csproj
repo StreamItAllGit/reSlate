@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>reStation.Contracts</AssemblyName>
+    <RootNamespace>reStation.Contracts</RootNamespace>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Foundation.Core">
+      <HintPath>$(ReStationLibDir)Foundation.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Foundation.Retro">
+      <HintPath>$(ReStationLibDir)Foundation.Retro.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

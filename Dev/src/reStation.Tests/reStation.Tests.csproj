@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>reStation.Tests</AssemblyName>
+    <RootNamespace>reStation.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\reStation.Contracts\reStation.Contracts.csproj" />
+    <ProjectReference Include="..\reStation.Core\reStation.Core.csproj" />
+    <ProjectReference Include="..\reStation.Compiler\reStation.Compiler.csproj" />
+    <ProjectReference Include="..\reStation.Player\reStation.Player.csproj" />
+    <ProjectReference Include="..\reStation.Installer\reStation.Installer.csproj" />
+    <Reference Include="Foundation.Core">
+      <HintPath>$(ReStationLibDir)Foundation.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Foundation.Retro">
+      <HintPath>$(ReStationLibDir)Foundation.Retro.dll</HintPath>
+    </Reference>
+    <Reference Include="Foundation.Installer">
+      <HintPath>$(ReStationLibDir)Foundation.Installer.dll</HintPath>
+    </Reference>
+    <Reference Include="reEngine.Core">
+      <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

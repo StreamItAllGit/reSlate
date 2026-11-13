@@ -31,3 +31,12 @@ Thumbs.db
 # Canonical user ROM/disc preload directories
 **/data/rom/
 data/rom/
+
+# T1 SDK/asset guard: never commit large bootstrap/lib EXEs; track SDK DLL/XML/deps.json + native 7-Zip tools
+Dev/assets/bootstrap/*.exe
+Dev/lib/*.exe
+!Dev/lib/*.dll
+!Dev/lib/*.xml
+!Dev/lib/*.deps.json
+!Dev/assets/native/
+!Dev/assets/native/**
