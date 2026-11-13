@@ -19,7 +19,7 @@ public sealed class DiscFileEntry
     [JsonPropertyName("sectorCount")] public uint SectorCount { get; set; }
     /// <summary>True for Form2/XA/raw MDEC streams that must be read sector-by-sector from the image.</summary>
     [JsonPropertyName("isForm2Raw")] public bool IsForm2Raw { get; set; }
-    [JsonPropertyName("sha256")] public string Sha256 { get; set; } = string.Empty;
+    [JsonPropertyName("sha256Hex")] public string Sha256 { get; set; } = string.Empty;
 }
 
 /// <summary>Module-aware disc manifest persisted under <c>&lt;dataDir&gt;\gamedata\</c>.</summary>

@@ -57,6 +57,8 @@ public sealed class RecompSettings
     [JsonPropertyName("targetFps")] public int TargetFps { get; set; } = 60;
     [JsonPropertyName("isVsyncEnabled")] public bool IsVsyncEnabled { get; set; }
     [JsonPropertyName("keyBindings")] public KeyBindingsConfig KeyBindings { get; set; } = new();
+    /// <summary>Preserves forward/unknown settings keys across load-save cycles (Standard 19 §2.3).</summary>
+    [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
 
     /// <summary>Normalizes every field into its legal range (called after load and before save).</summary>
     public void Clamp()

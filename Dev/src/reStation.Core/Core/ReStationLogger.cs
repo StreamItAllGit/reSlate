@@ -1,46 +1,51 @@
 // @module: reStation.Core.ReStationLogger
-// @purpose: Thread-safe runtime.log writer with recent-line ring (CrashBundleService) and <= 15s PsxTelemetrySnapshot heartbeat gate.
-// @depends-on: System.Diagnostics, System.Text, Foundation.Core, reStation.Contracts
+// @purpose: Thread-safe runtime.log sink (Foundation CappedSharedLogSink + HeartbeatLogger <= 15s) and recent-line ring for crash bundles.
+// @depends-on: Foundation.Core, reStation.Contracts
 // @exports: ReStationLogger
-// @owner: devv-cpu-cd (T2) — public surface T1-locked; internals may adopt Foundation CappedSharedLogSink.
+// @owner: devv-cpu-cd (T2)
 
-using System.Diagnostics;
-using System.Text;
 using Foundation.Core;
 using reStation.Contracts;
 
 namespace reStation.Core;
 
-/// <summary>Structured runtime logger; file output only when enabled, recent ring always populated.</summary>
+/// <summary>Structured runtime logger backed by Foundation CappedSharedLogSink and HeartbeatLogger.</summary>
 public sealed class ReStationLogger : IDisposable
 {
     private readonly object _sync = new();
     private readonly Queue<string> _recent = new();
     private readonly int _recentCapacity;
-    private readonly Stopwatch _clock = Stopwatch.StartNew();
-    private readonly TimeSpan _heartbeatInterval;
-    private StreamWriter? _writer;
-    private long _lastHeartbeatMs = long.MinValue / 2;
+    private readonly CappedSharedLogSink _sink;
+    private readonly HeartbeatLogger _heartbeat;
     private bool _disposed;
 
-    public ReStationLogger(string logDirectory, bool enabled = false, string fileName = "runtime.log", int recentCapacity = 200, TimeSpan? heartbeatInterval = null)
+    public ReStationLogger(
+        string logDirectory,
+        bool enabled = false,
+        string fileName = "runtime.log",
+        int recentCapacity = 200,
+        TimeSpan? heartbeatInterval = null,
+        long maxLogBytes = 4L * 1024 * 1024)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(logDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         LogDirectory = Path.GetFullPath(logDirectory);
         LogFilePath = Path.Combine(LogDirectory, fileName);
         _recentCapacity = Math.Max(16, recentCapacity);
-        TimeSpan requested = heartbeatInterval ?? TimeSpan.FromSeconds(HeartbeatLogger.MaxHeartbeatIntervalSeconds);
-        _heartbeatInterval = requested > TimeSpan.FromSeconds(HeartbeatLogger.MaxHeartbeatIntervalSeconds) || requested <= TimeSpan.Zero
-            ? TimeSpan.FromSeconds(HeartbeatLogger.MaxHeartbeatIntervalSeconds)
-            : requested;
+        _sink = new CappedSharedLogSink(LogFilePath, maxLogBytes);
+        _heartbeat = new HeartbeatLogger(
+            ReStationEngineInfo.EngineId,
+            logSink: line => Write("INFO", "HEARTBEAT", line),
+            terminalWriter: null,
+            enableInPlaceAnsi: false,
+            heartbeatInterval: heartbeatInterval);
         SetEnabled(enabled);
     }
 
     public string LogDirectory { get; }
     public string LogFilePath { get; }
     public bool IsEnabled { get; private set; }
-    public int HeartbeatCount { get; private set; }
+    public int HeartbeatCount => _heartbeat.HeartbeatEmitCount;
 
     public void SetEnabled(bool enabled)
     {
@@ -48,11 +53,7 @@ public sealed class ReStationLogger : IDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             IsEnabled = enabled;
-            if (enabled && _writer is null)
-            {
-                Directory.CreateDirectory(LogDirectory);
-                _writer = new StreamWriter(new FileStream(LogFilePath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite), new UTF8Encoding(false)) { AutoFlush = true };
-            }
+            if (enabled) Directory.CreateDirectory(LogDirectory);
         }
     }
 
@@ -60,19 +61,17 @@ public sealed class ReStationLogger : IDisposable
     public void Warn(string category, string message) => Write("WARN", category, message);
     public void Error(string category, string message) => Write("ERROR", category, message);
 
-    /// <summary>Emits a heartbeat line when forced or when the <= 15s interval elapsed; returns true when emitted.</summary>
+    /// <summary>Emits a structured heartbeat line when forced or when the <= 15s interval elapsed; returns true when emitted.</summary>
     public bool TryHeartbeat(PsxTelemetrySnapshot snapshot, bool force = false)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        long nowMs = _clock.ElapsedMilliseconds;
         lock (_sync)
         {
-            if (!force && nowMs - _lastHeartbeatMs < _heartbeatInterval.TotalMilliseconds) return false;
-            _lastHeartbeatMs = nowMs;
-            HeartbeatCount++;
+            if (_disposed) return false;
+            int before = _heartbeat.HeartbeatEmitCount;
+            _heartbeat.ReportProgress(snapshot.FrameNumber, 0, snapshot.ToHeartbeatLine(), forceEmit: force);
+            return _heartbeat.HeartbeatEmitCount > before;
         }
-        Write("INFO", "HEARTBEAT", snapshot.ToHeartbeatLine());
-        return true;
     }
 
     /// <summary>Snapshot of the most recent log lines (for crash bundles and the HUD).</summary>
@@ -84,23 +83,22 @@ public sealed class ReStationLogger : IDisposable
     private void Write(string level, string category, string message)
     {
         string line = $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ} [{level}] [{category}] {message}";
+        bool writeFile;
         lock (_sync)
         {
             if (_disposed) return;
             _recent.Enqueue(line);
             while (_recent.Count > _recentCapacity) _recent.Dequeue();
-            if (IsEnabled) _writer?.WriteLine(line);
+            writeFile = IsEnabled;
         }
+        if (writeFile) _sink.AppendLine(line);
     }
 
     public void Dispose()
     {
         lock (_sync)
         {
-            if (_disposed) return;
             _disposed = true;
-            _writer?.Dispose();
-            _writer = null;
         }
     }
 }

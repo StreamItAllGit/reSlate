@@ -1,8 +1,8 @@
 // @module: reStation.Installer.Program
-// @purpose: 4-pillar zero-PII single-EXE installer entry: static AssemblyResolve (.dll.gz), NoInlining core, AllowAutoStart=false, StandardInstallerHost.
-// @depends-on: System.IO.Compression, System.Reflection, System.Runtime.CompilerServices, Foundation.Installer
+// @purpose: 4-pillar zero-PII single-EXE installer entry: static AssemblyResolve (.dll.gz), NoInlining core, AllowAutoStart=false, reEngine auto-bootstrap, StandardInstallerHost.
+// @depends-on: System.IO.Compression, System.Reflection, System.Runtime.CompilerServices, Foundation.Installer, reStation.Installer.ReStationInstallerBootstrap
 // @exports: Program
-// @owner: devv-pkg-test (T7) — T1 skeleton; reEngine auto-bootstrap + side-by-side engines\reStation\v0.1.0 resolution lands in T7.
+// @owner: devv-pkg-test (T7)
 
 using System.IO.Compression;
 using System.Reflection;
@@ -13,12 +13,12 @@ namespace reStation.Installer;
 
 internal static class Program
 {
-    public const string ProductName = "reStation";
-    public const string Version = "0.1.0";
-    public const string BrandAccentHex = "#38BDF8";
-    public const string PayloadResourceName = "reStation.Installer.Embedded.payload.zip";
-    public const string ReEngineBootstrapResourceName = "reStation.Installer.Embedded.reEngine-Setup.exe";
-    public const bool AllowAutoStart = false;
+    public const string ProductName = ReStationInstallerTheme.ProductName;
+    public const string Version = ReStationInstallerTheme.Version;
+    public const string BrandAccentHex = ReStationInstallerTheme.BrandAccentHex;
+    public const string PayloadResourceName = ReStationInstallerTheme.PayloadResourceName;
+    public const string ReEngineBootstrapResourceName = ReStationInstallerTheme.ReEngineBootstrapResourceName;
+    public const bool AllowAutoStart = ReStationInstallerTheme.AllowAutoStart;
 
     private static readonly string[] EmbeddedAssemblies = { "Foundation.Core", "Foundation.Installer", "reEngine.Core" };
 
@@ -40,25 +40,27 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args) => RunInstallerCore(args ?? Array.Empty<string>());
 
+    /// <summary>Kept NoInlining so the JIT never resolves Foundation/reEngine assemblies before the AssemblyResolve handler is attached.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static int RunInstallerCore(string[] args) =>
-        StandardInstallerHost.Run(CreateDescriptor(), SanitizeArgs(args), typeof(Program).Assembly);
+    private static int RunInstallerCore(string[] args)
+    {
+        InstallerAppDescriptor descriptor = CreateDescriptor();
+        string[] cleanArgs = SanitizeArgs(args);
+        int prepared = ReStationInstallerBootstrap.Prepare(cleanArgs, typeof(Program).Assembly, descriptor.UninstallerExeName, out string[] effectiveArgs);
+        return prepared != 0
+            ? prepared
+            : StandardInstallerHost.Run(descriptor, effectiveArgs, typeof(Program).Assembly);
+    }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    internal static InstallerAppDescriptor CreateDescriptor() => new(
-        ProductName: ProductName,
-        DisplayName: ProductName,
-        Publisher: "StreamItAll",
-        Version: Version,
-        MainExecutableRelativePath: "reStation.exe",
-        Subtitle: "PS1 Static Recompilation Engine for reEngine",
-        EmbeddedPayloadResourceName: PayloadResourceName,
-        BrandAccentHex: BrandAccentHex,
-        AllowAutoStart: AllowAutoStart);
+    internal static InstallerAppDescriptor CreateDescriptor() => ReStationInstallerTheme.CreateDescriptor();
 
-    /// <summary>Strips --autostart (zero Startup registration invariant).</summary>
+    /// <summary>Strips every <c>--autostart*</c> / <c>--auto-start*</c> argument (zero Startup registration invariant).</summary>
     internal static string[] SanitizeArgs(string[]? args) =>
         args is null
             ? Array.Empty<string>()
-            : args.Where(a => !string.Equals(a?.Trim(), "--autostart", StringComparison.OrdinalIgnoreCase)).ToArray();
+            : args.Where(a =>
+                a is not null &&
+                !a.Trim().StartsWith("--autostart", StringComparison.OrdinalIgnoreCase) &&
+                !a.Trim().StartsWith("--auto-start", StringComparison.OrdinalIgnoreCase)).ToArray();
 }

@@ -1,0 +1,285 @@
+// @module: reStation.Player.ReStationHost
+// @purpose: IReStationHost implementation: module registration, PS-X EXE boot loading, cooperative per-VBlank RunFrame coroutine, SPU frame rendering, telemetry.
+// @depends-on: System.Buffers.Binary, Foundation.Core, Foundation.Retro, reStation.Contracts, reStation.Core, reStation.Core.Cpu, reStation.Core.DiscIngestion, reStation.Core.Saves
+// @exports: ReStationHost
+// @owner: devv-player-ui (T6)
+
+using System.Buffers.Binary;
+using System.Diagnostics;
+using Foundation.Core;
+using Foundation.Retro;
+using reStation.Contracts;
+using reStation.Core;
+using reStation.Core.Cpu;
+using reStation.Core.DiscIngestion;
+using reStation.Core.Saves;
+
+namespace reStation.Player;
+
+/// <summary>
+/// Runs lifted game code on a dedicated emulation thread that parks at every VBlank, so <see cref="RunFrame"/>
+/// advances exactly one emulated frame and returns control to the SDL host thread.
+/// </summary>
+internal sealed class ReStationHost : IReStationHost, IDisposable
+{
+    /// <summary>44,100 Hz / 60 Hz VBlank (CyclesPerFrame = 33,868,800 / 60).</summary>
+    public const int SamplesPerFrame = 735;
+    private const int PsxExeHeaderSize = 0x800;
+
+    private readonly PsxCpu _cpu;
+    private readonly HighResFramePacer _pacer;
+    private readonly ReStationLogger _logger;
+    private readonly SemaphoreSlim _resumeEmu = new(0, 1);
+    private readonly SemaphoreSlim _frameReached = new(0, 1);
+    private readonly string _dataDirectory;
+    private Thread? _emuThread;
+    private uint _entryPc;
+    private bool _bootPending;
+    private volatile bool _emuFinished;
+    private volatile bool _disposing;
+    private Exception? _emuFault;
+    private long _lastMdecBlocks;
+    private long _lastMdecTicks = Stopwatch.GetTimestamp();
+    private double _mdecPerSec, _cpuMs, _gpuMs, _waitMs;
+
+    public ReStationHost(PsxCpu cpu, IReStationModuleManifest manifest, string dataDirectory, RecompHostOptions options,
+        HighResFramePacer pacer, ReStationLogger logger)
+    {
+        _cpu = cpu ?? throw new ArgumentNullException(nameof(cpu));
+        ModuleManifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
+        _pacer = pacer ?? throw new ArgumentNullException(nameof(pacer));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
+        _dataDirectory = Path.GetFullPath(dataDirectory);
+        Options = options ?? new RecompHostOptions();
+        GameDataDirectory = DiscManifest.GetGameDataDir(_dataDirectory);
+        SaveDirectory = Path.Combine(_dataDirectory, "saves");
+        Directory.CreateDirectory(SaveDirectory);
+        _cpu.OnVBlankFrame = OnVBlank;
+    }
+
+    public RecompHostOptions Options { get; private set; }
+    public IRecompRenderBackend RenderBackend => _cpu.Gpu.Backend;
+    public IPsxRenderBackend Backend => _cpu.Gpu.Backend;
+    public IReStationCpu Cpu => _cpu;
+    public PsxCpu Machine => _cpu;
+    public IReStationModuleManifest ModuleManifest { get; }
+    public string GameDataDirectory { get; }
+    public string SaveDirectory { get; }
+    public string DataDirectory => _dataDirectory;
+    public long FramesRun { get; private set; }
+    public bool IsBooted => _emuThread is not null;
+    public bool HasFinished => _emuFinished || _cpu.ExitRequested;
+
+    public RecompFrameStats GetFrameStats() => GetTelemetry().ToFrameStats();
+
+    /// <summary>Records the module's presentation target (the VBlank loop itself stays hardware-paced at 60 Hz).</summary>
+    public void SetTargetFps(double targetFps, bool unlock = false)
+    {
+        double fps = double.IsFinite(targetFps) && targetFps > 0 ? targetFps : 60.0;
+        Options = Options with { TargetFps = fps, UnlockFps = unlock };
+        _logger.Info("HOST", $"Module requested presentation targetFps={fps:F0} unlock={unlock}.");
+    }
+
+    public void RegisterModule(IRecompModule module) => _cpu.RegisterModule(module);
+
+    public void SetFramePatch(IGameFramePatch? patch) => _cpu.FramePatch = patch;
+
+    /// <summary>Loads a PS-X EXE from gamedata into RAM, sets PC/GP/SP/RA, and arms the emulation thread for the next RunFrame.</summary>
+    public bool LoadExecutable(string exeRelativePath, int exeId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(exeRelativePath);
+        string? path = ResolveExecutablePath(exeRelativePath);
+        if (path is null)
+        {
+            _logger.Error("BOOT", $"Executable '{exeRelativePath}' not found in gamedata.");
+            return false;
+        }
+
+        byte[] exe = File.ReadAllBytes(path);
+        if (exe.Length < PsxExeHeaderSize || !exe.AsSpan(0, 8).SequenceEqual("PS-X EXE"u8))
+        {
+            _logger.Error("BOOT", $"'{Path.GetFileName(path)}' is not a PS-X EXE.");
+            return false;
+        }
+
+        uint pc0 = BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(0x10));
+        uint gp0 = BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(0x14));
+        uint tAddr = BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(0x18));
+        uint tSize = BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(0x1C));
+        uint sAddr = BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(0x30));
+        uint sSize = BinaryPrimitives.ReadUInt32LittleEndian(exe.AsSpan(0x34));
+        int ramOffset = (int)(tAddr & 0x1FFFFFU);
+        int copyLen = (int)Math.Min(tSize, (uint)(exe.Length - PsxExeHeaderSize));
+        if (ramOffset + copyLen > _cpu.Ram.Length)
+        {
+            _logger.Error("BOOT", $"'{Path.GetFileName(path)}' text segment 0x{tAddr:X8}+0x{tSize:X} exceeds 2 MB RAM.");
+            return false;
+        }
+
+        exe.AsSpan(PsxExeHeaderSize, copyLen).CopyTo(_cpu.Ram.Slice(ramOffset, copyLen));
+        _cpu.Pc = pc0;
+        _cpu.R[28] = gp0;
+        if (sAddr != 0) _cpu.R[29] = _cpu.R[30] = sAddr + sSize;
+        _cpu.R[31] = IReStationCpu.ReturnSentinelPc;
+        _cpu.ActiveExeId = exeId;
+        _entryPc = pc0;
+        _bootPending = _emuThread is null;
+        _logger.Info("BOOT", $"Loaded '{Path.GetFileName(path)}' exeId={exeId} pc=0x{pc0:X8} text=0x{tAddr:X8}+0x{copyLen:X}.");
+        return true;
+    }
+
+    private string? ResolveExecutablePath(string exeRelativePath)
+    {
+        string rel = _cpu.Disc?.FindByName(exeRelativePath)?.RelativeFile ?? exeRelativePath;
+        foreach (string candidate in new[] { rel, exeRelativePath, Path.GetFileName(exeRelativePath) })
+        {
+            if (string.IsNullOrWhiteSpace(candidate)) continue;
+            string full = SandboxEnvironment.AssertPathContained(
+                Path.GetFullPath(Path.Combine(GameDataDirectory, candidate.Replace('/', Path.DirectorySeparatorChar))), GameDataDirectory);
+            if (File.Exists(full)) return full;
+        }
+        return null;
+    }
+
+    /// <summary>Advances exactly one VBlank: resumes the parked emulation thread (or ticks idle hardware) and renders 735 SPU frames.</summary>
+    public void RunFrame()
+    {
+        if (_disposing) return;
+        if (_bootPending && _emuThread is null)
+        {
+            _bootPending = false;
+            _emuThread = new Thread(EmulationThreadMain) { IsBackground = true, Name = "reStation.Emu" };
+            _emuThread.Start();
+        }
+
+        bool parked = true;
+        if (_emuThread is not null && !_emuFinished)
+        {
+            if (_resumeEmu.CurrentCount == 0) _resumeEmu.Release();
+            parked = _frameReached.Wait(TimeSpan.FromSeconds(2));
+            if (!parked) _logger.Warn("EMU", $"No VBlank within 2s (pc=0x{_cpu.Pc:X8} cycles={_cpu.TotalCycles}); keeping host responsive.");
+        }
+        else
+        {
+            _cpu.TotalCycles += PsxCpu.CyclesPerFrame;
+            _cpu.PollEvents();
+        }
+
+        if (_emuFault is { } fault)
+        {
+            _emuFault = null;
+            _logger.Error("EMU", $"Emulation thread faulted: {fault.GetType().Name}: {fault.Message}");
+            CrashBundleService.TryWriteCrashBundle(_logger.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, fault, _logger.GetRecentLines());
+            _cpu.RequestExit();
+        }
+
+        if (parked) _cpu.Spu.RenderFrames(SamplesPerFrame);
+        FramesRun++;
+    }
+
+    /// <summary>Steps the module one frame; if the module did not advance the machine itself, the host does.</summary>
+    public async Task StepModuleFrameAsync(IRecompGameModule module, CancellationToken ct)
+    {
+        long before = FramesRun;
+        await module.StepFrameAsync(ct).ConfigureAwait(false);
+        if (FramesRun == before) RunFrame();
+    }
+
+    /// <summary>Requests a quick-load at the next frame boundary (unwinds lifted code when booted).</summary>
+    public bool RequestQuickLoad(int slot)
+    {
+        if (_emuThread is not null && !_emuFinished)
+        {
+            _cpu.PendingQuickLoadSlot = slot;
+            _cpu.ShouldUnwind = true;
+            return true;
+        }
+        return QuickSaveManager.TryLoad(_cpu, _dataDirectory, ModuleManifest.ModuleId, slot);
+    }
+
+    private void EmulationThreadMain()
+    {
+        try
+        {
+            _resumeEmu.Wait();
+            if (_disposing) return;
+            _cpu.DispatchFunction(_entryPc);
+            while (!_disposing && !_cpu.ExitRequested && _cpu.PendingQuickLoadSlot >= 0)
+            {
+                int slot = _cpu.PendingQuickLoadSlot;
+                _cpu.PendingQuickLoadSlot = -1;
+                _cpu.ShouldUnwind = false;
+                if (!QuickSaveManager.TryLoad(_cpu, _dataDirectory, ModuleManifest.ModuleId, slot))
+                {
+                    _logger.Warn("SAVE", $"Quick-load slot {slot} unavailable.");
+                    break;
+                }
+                _logger.Info("SAVE", $"Quick-loaded slot {slot}; resuming at pc=0x{_cpu.Pc:X8}.");
+                _cpu.DispatchFunction(_cpu.Pc);
+            }
+            _logger.Info("EMU", $"Emulation thread finished frames={_cpu.FrameCount} exitRequested={_cpu.ExitRequested}.");
+        }
+        catch (Exception ex)
+        {
+            _emuFault = ex;
+        }
+        finally
+        {
+            _emuFinished = true;
+            if (_frameReached.CurrentCount == 0) _frameReached.Release();
+        }
+    }
+
+    private void OnVBlank(PsxCpu cpu)
+    {
+        if (!ReferenceEquals(Thread.CurrentThread, _emuThread)) return; // idle hardware tick on the host thread
+        _frameReached.Release();
+        _resumeEmu.Wait();
+        if (_disposing) cpu.RequestExit();
+    }
+
+    /// <summary>Stores per-frame host timings consumed by telemetry, HUD, and heartbeats.</summary>
+    public void RecordTimings(double cpuMs, double gpuMs, double waitMs)
+    {
+        _cpuMs = cpuMs;
+        _gpuMs = gpuMs;
+        _waitMs = waitMs;
+        long now = Stopwatch.GetTimestamp();
+        double elapsed = (now - _lastMdecTicks) / (double)Stopwatch.Frequency;
+        if (elapsed >= 1.0)
+        {
+            long blocks = _cpu.Mdec.MacroblocksDecoded;
+            _mdecPerSec = (blocks - _lastMdecBlocks) / elapsed;
+            _lastMdecBlocks = blocks;
+            _lastMdecTicks = now;
+        }
+    }
+
+    public PsxTelemetrySnapshot GetTelemetry() => new(
+        FramesRun, _cpuMs, _gpuMs, _waitMs, _pacer.CurrentFps, _pacer.P99FrameMs, Backend.ScaleFactor, Backend.BackendId,
+        CdSectorsPerSecProvider?.Invoke() ?? 0.0, _mdecPerSec, _cpu.Spu.ActiveVoiceCount, _cpu.Spu.XaDrops,
+        _cpu.Spu.AudioFillRatio, _cpu.Spu.AudioUnderruns);
+
+    /// <summary>Optional CD-ROM throughput source (wired by the host once PsxCpu exposes the rolling counter).</summary>
+    public Func<double>? CdSectorsPerSecProvider { get; set; }
+
+    public void Dispose()
+    {
+        if (_disposing) return;
+        _disposing = true;
+        _cpu.RequestExit();
+        _cpu.OnVBlankFrame = null;
+        if (_emuThread is { IsAlive: true } thread)
+        {
+            if (_resumeEmu.CurrentCount == 0) _resumeEmu.Release();
+            if (!thread.Join(TimeSpan.FromSeconds(2)))
+            {
+                _logger.Warn("EMU", "Emulation thread did not exit within 2s; abandoning background thread (semaphores left alive).");
+                return;
+            }
+        }
+        _resumeEmu.Dispose();
+        _frameReached.Dispose();
+    }
+}

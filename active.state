@@ -7,7 +7,8 @@
     "version":  "0.1.0",
     "state_changed_at":  "2026-11-13",
     "last_version_at":  "2026-11-13",
+    "lastUpdated":  "2026-11-13T21:20:12.307Z",
     "production_subpath":  null,
     "superseded_by":  null,
-    "notes":  "Initialized project."
+    "notes":  "v0.1.0 Wave 3 integration: T1-T6 complete, 84/84 tests pass; awaiting Gate 2 before build_release.ps1 packaging."
 }

@@ -47,7 +47,7 @@ public static class ModernInputController
     public static void ApplyKeyBindings(ReadOnlySpan<byte> keyboardState, RecompSettings settings, ref HostInputState state)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        KeyBindingsConfig kb = settings.KeyBindings;
+        KeyBindingsConfig kb = settings.KeyBindings ?? new KeyBindingsConfig();
         foreach ((BindableAction action, PsxPadButton button) in ButtonMap)
         {
             if (IsDown(keyboardState, kb.GetScancode(action))) state.Buttons |= button;
@@ -57,7 +57,11 @@ public static class ModernInputController
     }
 
     /// <summary>Pushes pad state into port 0; in ModernWasdMouse mode mouse motion drives the right stick.</summary>
-    public static void ApplyToCpu(PsxCpu cpu, in HostInputState input, RecompSettings settings)
+    public static void ApplyToCpu(PsxCpu cpu, in HostInputState input, RecompSettings settings) =>
+        ApplyToCpu(cpu, 0, in input, settings);
+
+    /// <summary>Pushes pad state into <paramref name="port"/> (0 or 1); in ModernWasdMouse mode mouse motion drives the right stick.</summary>
+    public static void ApplyToCpu(PsxCpu cpu, int port, in HostInputState input, RecompSettings settings)
     {
         ArgumentNullException.ThrowIfNull(cpu);
         ArgumentNullException.ThrowIfNull(settings);
@@ -68,7 +72,50 @@ public static class ModernInputController
             rx = Math.Clamp(rx + input.MouseDeltaX * k, -1f, 1f);
             ry = Math.Clamp(ry + input.MouseDeltaY * k, -1f, 1f);
         }
-        cpu.SetControllerState(0, (ushort)input.Buttons, ToAxis(input.LeftStickX), ToAxis(input.LeftStickY), ToAxis(rx), ToAxis(ry));
+        cpu.SetControllerState(port, (ushort)input.Buttons, ToAxis(input.LeftStickX), ToAxis(input.LeftStickY), ToAxis(rx), ToAxis(ry));
+    }
+
+    /// <summary>Parses a scripted frame-range token list (<c>start[-end]:up,cross;...</c>) for deterministic fixtures and tests.</summary>
+    public static HostInputState ParseScriptForFrame(string? script, long frame)
+    {
+        var state = new HostInputState();
+        if (string.IsNullOrWhiteSpace(script)) return state;
+        foreach (string token in script.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            string[] parts = token.Split(':');
+            if (parts.Length < 2) continue;
+            string[] range = parts[0].Split('-');
+            if (!long.TryParse(range[0], out long start)) continue;
+            long end = range.Length > 1 && long.TryParse(range[1], out long parsedEnd) ? parsedEnd : start;
+            if (frame < start || frame > end) continue;
+            foreach (string key in parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                switch (key.ToLowerInvariant())
+                {
+                    case "w": case "up": state.Buttons |= PsxPadButton.Up; break;
+                    case "s": case "down": state.Buttons |= PsxPadButton.Down; break;
+                    case "a": case "left": state.Buttons |= PsxPadButton.Left; break;
+                    case "d": case "right": state.Buttons |= PsxPadButton.Right; break;
+                    case "cross": state.Buttons |= PsxPadButton.Cross; break;
+                    case "circle": state.Buttons |= PsxPadButton.Circle; break;
+                    case "square": state.Buttons |= PsxPadButton.Square; break;
+                    case "triangle": state.Buttons |= PsxPadButton.Triangle; break;
+                    case "l1": state.Buttons |= PsxPadButton.L1; break;
+                    case "r1": state.Buttons |= PsxPadButton.R1; break;
+                    case "l2": state.Buttons |= PsxPadButton.L2; break;
+                    case "r2": state.Buttons |= PsxPadButton.R2; break;
+                    case "start": state.Buttons |= PsxPadButton.Start; break;
+                    case "select": state.Buttons |= PsxPadButton.Select; break;
+                    case "lookright": state.MouseDeltaX += 6.0f; break;
+                    case "lookleft": state.MouseDeltaX -= 6.0f; break;
+                    case "lookup": state.MouseDeltaY -= 6.0f; break;
+                    case "lookdown": state.MouseDeltaY += 6.0f; break;
+                    case "f5": case "quicksave": state.QuickSave = true; break;
+                    case "f9": case "quickload": state.QuickLoad = true; break;
+                }
+            }
+        }
+        return state;
     }
 
     /// <summary>Converts -1..1 to the PS1 analog byte range (0x00..0xFF, centre 0x80).</summary>

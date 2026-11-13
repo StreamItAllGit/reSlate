@@ -2,7 +2,7 @@
 // @purpose: Fail-closed reStation CLI flag parser delegating root resolution/containment to Foundation.Core.SandboxEnvironment.
 // @depends-on: System.Globalization, Foundation.Core, reStation.Contracts
 // @exports: CliOptions
-// @owner: devv-cpu-cd (T2) — public surface T1-locked; extend additively only.
+// @owner: devv-cpu-cd (T2)
 
 using System.Globalization;
 using Foundation.Core;
@@ -17,9 +17,10 @@ public sealed class CliOptions
         "reStation v" + ReStationEngineInfo.Version + " — PS1 static recompilation engine\n" +
         "Usage: reStation.exe [--module <module.recomp.json>] [--disc <image>] [options]\n" +
         "  --backend opengl|software   --scale 1|2|4|8      --fps-mode original|enhanced\n" +
-        "  --target-fps <n|0>          --vsync | --no-vsync --frames <n>   --fixture <spec.json>\n" +
+        "  --target-fps <n|unlocked>   --vsync [on|off]     --no-vsync   --frames <n>\n" +
+        "  --fixture <spec.json>       --dump-screenshot <png>\n" +
         "  --data-dir <dir>  --config <path>  --log-dir <dir>  --test-mode  --headless  --visible-test\n" +
-        "  --verify  --open-settings  --enable-logs  --show-fps  --dump-screenshot <png>  --help";
+        "  --verify  --open-settings  --enable-logs  --show-fps  --help";
 
     public IReadOnlyList<string> RawArgs { get; private init; } = Array.Empty<string>();
     public string? ModulePath { get; private init; }
@@ -78,8 +79,33 @@ public sealed class CliOptions
                         _ => throw new ArgumentException("--fps-mode must be 'original' or 'enhanced'.")
                     };
                     break;
-                case "--target-fps": targetFps = Math.Max(0, ParseInt(Next(args, ref i, arg), arg)); break;
-                case "--vsync": vsync = true; break;
+                case "--target-fps":
+                    string fpsVal = Next(args, ref i, arg);
+                    if (string.Equals(fpsVal, "unlocked", StringComparison.OrdinalIgnoreCase))
+                    {
+                        targetFps = 0;
+                    }
+                    else
+                    {
+                        int parsedFps = ParseInt(fpsVal, arg);
+                        if (parsedFps != 0 && parsedFps is < 30 or > 500)
+                        {
+                            throw new ArgumentException("--target-fps must be 0/'unlocked' or 30..500.");
+                        }
+                        targetFps = parsedFps;
+                    }
+                    break;
+                case "--vsync":
+                    if (i + 1 < args.Count && TryParseOnOff(args[i + 1], out bool parsedVsync))
+                    {
+                        vsync = parsedVsync;
+                        i++;
+                    }
+                    else
+                    {
+                        vsync = true;
+                    }
+                    break;
                 case "--no-vsync": vsync = false; break;
                 case "--frames": frames = Math.Max(1, ParseInt(Next(args, ref i, arg), arg)); break;
                 case "--fixture": fixture = Next(args, ref i, arg); break;
@@ -114,7 +140,11 @@ public sealed class CliOptions
         var sandbox = new SandboxEnvironment(ReStationEngineInfo.AppId, RawArgs, baseDirectoryOverride, "settings.json");
         if (sandbox.TestMode && string.IsNullOrWhiteSpace(DataDir))
             throw new InvalidOperationException("Fail-Closed Sandbox Violation: --test-mode requires an explicit --data-dir.");
-        if (sandbox.TestMode && string.IsNullOrWhiteSpace(ConfigPath)) sandbox.AssertSandboxPathContained(sandbox.ConfigFilePath);
+        if (sandbox.TestMode)
+        {
+            sandbox.AssertSandboxPathContained(sandbox.ConfigFilePath);
+            sandbox.AssertSandboxPathContained(sandbox.LogDirectory);
+        }
         return sandbox;
     }
 
@@ -130,6 +160,16 @@ public sealed class CliOptions
         if (ShowFps) settings.IsFpsOverlayEnabled = true;
         if (EnableLogs || TestMode) settings.ShouldEnableRuntimeLogs = true;
         settings.Clamp();
+    }
+
+    private static bool TryParseOnOff(string raw, out bool enabled)
+    {
+        switch (raw.Trim().ToLowerInvariant())
+        {
+            case "on" or "true" or "1": enabled = true; return true;
+            case "off" or "false" or "0": enabled = false; return true;
+            default: enabled = false; return false;
+        }
     }
 
     private static string Next(IReadOnlyList<string> args, ref int i, string flag)
