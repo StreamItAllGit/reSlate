@@ -13,4 +13,4 @@
 
 ## 3. Governance & Notion Human Hub
 - **Bible:** [`00_CORE_INVARIANTS_AND_GLOSSARY.md`](<PROJECTS_ROOT>/Personal/_DevBible/00_CORE_INVARIANTS_AND_GLOSSARY.md) (`Standard 00–19`, `@dean` Dual-Gate, `@tessa` Notion Steward)
-- **Notion (`🛠️ Projects`):** `<NOTION_PROJECTS_DB>` (`Project = "reStation"` in `<NOTION_TASKS_DB>`)
+- **Notion (`🛠️ Projects`):** `<NOTION_PAGE_ID>` (`Project = "reStation"` in `<NOTION_TASKS_DB>`)
