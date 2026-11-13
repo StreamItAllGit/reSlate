@@ -13,6 +13,7 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ### Changed
 - **Wave 3 Integration & Manual Shelf Sync:** Wired `HostVideoSurface.SyncViewport` -> `Backend.Resize(windowWidth, windowHeight, scale)` so `OpenGl33RenderBackend` blits to live viewport dimensions; aligned `DiscFileEntry.Sha256` JSON tag to `sha256Hex`; added `[JsonExtensionData]` on `RecompSettings`; hardened `--target-fps` CLI validation; updated `Dev\docs\{ARCHITECTURE,INTERFACES}.md` and `.gitignore`.
+- **Wave 4 Remediation (`DEF-01`–`DEF-03`):** Updated `CliOptions.CreateSandbox` (`ResolveSandboxBoundary`) to permit sibling `Sandbox\data` + `Sandbox\logs` while failing closed on escapes; updated `reStation.Launcher` & `reStation.Player` to preserve `Environment.CurrentDirectory` and skip `AttachConsole` / flush redirected `STDOUT`/`STDERR` streams cleanly; added regression tests.
 
 ## [0.1.0] - 2026-11-13
 ### Added

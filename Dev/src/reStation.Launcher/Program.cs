@@ -23,6 +23,11 @@ internal static class Program
         "--visible-test", "--fixture", "--verify", "--test-mode", "--headless", "--version", "--help", "-h", "/?"
     };
 
+    private static readonly HashSet<string> PathValueFlags = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "--module", "--disc", "--fixture", "--dump-screenshot", "--data-dir", "--config", "--log-dir"
+    };
+
     static Program()
     {
         AppDomain.CurrentDomain.AssemblyResolve += static (_, e) =>
@@ -46,35 +51,70 @@ internal static class Program
     private static int RunLauncher(string[] args) =>
         RequiresSyncWait(args)
             ? RunAndWait(args)
-            : RootLauncherHost.Run(PlayerRelativePath, "reStation", args);
+            : RootLauncherHost.Run(PlayerRelativePath, "reStation", ResolveRelativePathArgs(args, Environment.CurrentDirectory));
 
     /// <summary>SYNC-WAIT FIX: true when any argument asks for a verification/CLI run whose exit code the caller needs.</summary>
     private static bool RequiresSyncWait(string[] args) =>
         args.Any(a => SyncWaitFlags.Contains(a.Trim(), StringComparer.OrdinalIgnoreCase));
 
+    private static string[] ResolveRelativePathArgs(string[] args, string baseDir)
+    {
+        if (args.Length == 0) return args;
+        var resolved = (string[])args.Clone();
+        for (int i = 0; i < resolved.Length - 1; i++)
+        {
+            if (!PathValueFlags.Contains(resolved[i].Trim())) continue;
+            string val = resolved[i + 1].Trim().Trim('"');
+            if (!string.IsNullOrWhiteSpace(val) && !Path.IsPathRooted(val))
+                resolved[i + 1] = Path.GetFullPath(val, baseDir);
+            i++;
+        }
+        return resolved;
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static int RunAndWait(string[] args)
     {
         string playerExe = RootLauncherHost.ResolveTargetExecutable(AppContext.BaseDirectory, PlayerRelativePath, Environment.ProcessPath);
-        try { AttachConsole(AttachParentProcess); } catch (DllNotFoundException) { }
+        bool redirOut = Console.IsOutputRedirected;
+        bool redirErr = Console.IsErrorRedirected;
+        if (!redirOut && !redirErr)
+        {
+            try { _ = AttachConsole(AttachParentProcess); } catch (DllNotFoundException) { }
+        }
 
         if (!File.Exists(playerExe))
         {
             Console.Error.WriteLine($"reStation application binary not found at '{playerExe}'.");
+            Console.Error.Flush();
             return 1;
         }
 
         var psi = new ProcessStartInfo
         {
             FileName = playerExe,
-            WorkingDirectory = Path.GetDirectoryName(playerExe) ?? AppContext.BaseDirectory,
-            UseShellExecute = false
+            WorkingDirectory = Environment.CurrentDirectory,
+            UseShellExecute = false,
+            RedirectStandardOutput = redirOut,
+            RedirectStandardError = redirErr
         };
         foreach (string arg in args) psi.ArgumentList.Add(arg);
 
         using Process? proc = Process.Start(psi);
-        if (proc is null) return 1;
+        if (proc is null)
+        {
+            Console.Error.WriteLine($"Failed to start '{playerExe}'.");
+            Console.Error.Flush();
+            return 1;
+        }
+
+        Task? outTask = redirOut ? proc.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput()) : null;
+        Task? errTask = redirErr ? proc.StandardError.BaseStream.CopyToAsync(Console.OpenStandardError()) : null;
         proc.WaitForExit();
+        if (outTask is not null) outTask.GetAwaiter().GetResult();
+        if (errTask is not null) errTask.GetAwaiter().GetResult();
+        Console.Out.Flush();
+        Console.Error.Flush();
         return proc.ExitCode;
     }
 }

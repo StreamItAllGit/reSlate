@@ -11,7 +11,7 @@ Parsed fail-closed by [`CliOptions.Parse`](Dev/src/reStation.Core/Core/CliOption
 - `--backend <opengl|software>`: Selects `IPsxRenderBackend` (`OpenGl33RenderBackend` default or `SoftwareCpuRenderBackend` oracle).
 - `--fps-mode <original|enhanced>`, `--target-fps <0|unlocked|30..500>`, `--vsync <on|off>`.
 - `--fixture <spec.json>`: Runs deterministic `Foundation.Retro.SaveStateFixtureRunner` verification and writes PNG + WAV artifacts to `<logDir>\fixtures\`.
-- `--data-dir <path>`, `--config <path>`, `--log-dir <path>` *(under `--test-mode`, rejects escapes outside `--data-dir` / sandbox root)*.
+- `--data-dir <path>`, `--config <path>`, `--log-dir <path>` *(under `--test-mode`, allows sibling `Sandbox\data` + `Sandbox\logs` / `<root>\data` + `<root>\logs` while rejecting any escape outside the resolved sandbox root)*.
 - `--test-mode`, `--headless`, `--visible-test`, `--frames <n>`, `--verify`, `--open-settings`, `--enable-logs`, `--show-fps`, `--version`, `--help` / `-h` / `/?`.
   *(Note: `reStation.Launcher` waits synchronously and propagates exit codes whenever `--visible-test`, `--fixture`, `--verify`, `--test-mode`, `--headless`, `--version`, `--help`, `-h`, or `/?` are present.)*
 

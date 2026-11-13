@@ -24,8 +24,22 @@ internal static partial class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length > 0) _ = AttachConsole(AttachParentProcess);
+        if (args.Length > 0 && !Console.IsOutputRedirected && !Console.IsErrorRedirected)
+            _ = AttachConsole(AttachParentProcess);
 
+        try
+        {
+            return RunMain(args);
+        }
+        finally
+        {
+            Console.Out.Flush();
+            Console.Error.Flush();
+        }
+    }
+
+    private static int RunMain(string[] args)
+    {
         CliOptions options;
         try { options = CliOptions.Parse(args); }
         catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 2; }

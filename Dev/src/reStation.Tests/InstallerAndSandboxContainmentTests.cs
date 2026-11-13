@@ -143,6 +143,18 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
         }
     }
 
+    [Fact]
+    public void LauncherProgram_PreservesCallerWorkingDirectoryAndGuardsRedirectedConsole()
+    {
+        string launcherCs = Path.Combine(FindSrcRoot(), "reStation.Launcher", "Program.cs");
+        string content = File.ReadAllText(launcherCs);
+
+        Assert.Contains("WorkingDirectory = Environment.CurrentDirectory", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkingDirectory = Path.GetDirectoryName(playerExe)", content, StringComparison.Ordinal);
+        Assert.Contains("!redirOut && !redirErr", content, StringComparison.Ordinal);
+        Assert.Contains("RedirectStandardError = redirErr", content, StringComparison.Ordinal);
+    }
+
     private static string FindSrcRoot()
     {
         string? cur = AppContext.BaseDirectory;

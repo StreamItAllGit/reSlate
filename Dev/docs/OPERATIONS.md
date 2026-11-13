@@ -50,7 +50,7 @@ reStation.Compiler.exe (--disc <image> | --gamedata-dir <dir> | --exe-path <exe>
 All automated development, CI, and acceptance tests run inside `Sandbox\` (`app\`, `data\`, `logs\`) with `--test-mode` so production data under `<PROGRAMS_ROOT>\` is never touched.
 
 ### 2.1 Containment Guards (`SandboxEnvironment`)
-- `CliOptions.CreateSandbox()` throws `InvalidOperationException` (exit `3`) if `--test-mode` is passed without `--data-dir` or if `--config` / `--log-dir` escape `DataDirectory`.
+- `CliOptions.CreateSandbox()` throws `InvalidOperationException` (exit `3`) if `--test-mode` is passed without `--data-dir` or if `--config` / `--log-dir` escape the resolved sandbox boundary (`...\Sandbox\` when `--data-dir` resides inside `Sandbox\`, the parent of `...\data`, or `DataDirectory` otherwise).
 - `SandboxEnvironment.AssertPathContained` blocks path-traversal (`..`) across ISO-9660 extraction (`DiscVerifierAndExtractor`), `data\rom\` preload discovery (`PreloadRomDetector`), module `entryAssembly` loading (`ModuleAssemblyLoader`), quick-saves (`QuickSaveManager`), `.mcr` cards (`MemCardMcrStore`), and fixture save-states (`FixtureRunnerHost`).
 
 ### 2.2 Standard Build, Unit Test & Sandbox Commands

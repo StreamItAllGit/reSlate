@@ -134,7 +134,11 @@ public sealed class CliOptions
         };
     }
 
-    /// <summary>Resolves data/config/log roots via SandboxEnvironment; in --test-mode asserts config/logs stay inside the data root.</summary>
+    /// <summary>
+    /// Resolves data/config/log roots via SandboxEnvironment; in --test-mode asserts config/logs stay contained
+    /// within the resolved sandbox boundary (<c>Sandbox\</c> parent when <c>--data-dir</c> is <c>...\Sandbox\data</c>,
+    /// sibling parent when <c>--data-dir</c> ends in <c>\data</c>, or <c>DataDirectory</c> otherwise).
+    /// </summary>
     public SandboxEnvironment CreateSandbox(string? baseDirectoryOverride = null)
     {
         var sandbox = new SandboxEnvironment(ReStationEngineInfo.AppId, RawArgs, baseDirectoryOverride, "settings.json");
@@ -142,10 +146,36 @@ public sealed class CliOptions
             throw new InvalidOperationException("Fail-Closed Sandbox Violation: --test-mode requires an explicit --data-dir.");
         if (sandbox.TestMode)
         {
-            sandbox.AssertSandboxPathContained(sandbox.ConfigFilePath);
-            sandbox.AssertSandboxPathContained(sandbox.LogDirectory);
+            string boundary = ResolveSandboxBoundary(sandbox);
+            SandboxEnvironment.AssertPathContained(sandbox.DataDirectory, boundary);
+            SandboxEnvironment.AssertPathContained(sandbox.ConfigFilePath, boundary);
+            SandboxEnvironment.AssertPathContained(sandbox.LogDirectory, boundary);
         }
         return sandbox;
+    }
+
+    private static string ResolveSandboxBoundary(SandboxEnvironment sandbox)
+    {
+        string fullData = Path.GetFullPath(sandbox.DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        string? cursor = fullData;
+        while (!string.IsNullOrWhiteSpace(cursor))
+        {
+            if (string.Equals(Path.GetFileName(cursor), "Sandbox", StringComparison.OrdinalIgnoreCase))
+                return cursor;
+            cursor = Path.GetDirectoryName(cursor);
+        }
+
+        string? parent = Path.GetDirectoryName(fullData);
+        if (sandbox.TestMode &&
+            !string.IsNullOrWhiteSpace(parent) &&
+            string.Equals(Path.GetFileName(fullData), "data", StringComparison.OrdinalIgnoreCase))
+        {
+            string? root = Path.GetPathRoot(parent)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string trimmedParent = parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (!string.Equals(root, trimmedParent, StringComparison.OrdinalIgnoreCase))
+                return parent;
+        }
+        return fullData;
     }
 
     /// <summary>Applies CLI overrides onto loaded settings (in-memory only; never persisted implicitly).</summary>

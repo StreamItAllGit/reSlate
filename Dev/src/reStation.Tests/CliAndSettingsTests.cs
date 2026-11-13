@@ -4,6 +4,7 @@
 // @exports: CliAndSettingsTests
 // @owner: devv-pkg-test (T8)
 
+using System.Diagnostics;
 using System.Text.Json;
 using Foundation.Core;
 using reStation.Contracts;
@@ -182,5 +183,82 @@ public sealed class CliAndSettingsTests : IDisposable
         using var validLogger = new ReStationLogger(sbx.LogDirectory, enabled: true);
         validLogger.Info("TEST", "Heartbeat ok");
         Assert.True(File.Exists(validLogger.LogFilePath));
+    }
+
+    [Fact]
+    public void CliOptions_TestMode_AllowsSiblingSandboxDataAndLogs_WhileRejectingEscape()
+    {
+        string sbxRoot = Path.Combine(_tempRoot, "Sandbox");
+        string sbxData = Path.Combine(sbxRoot, "data");
+        string sbxLogs = Path.Combine(sbxRoot, "logs");
+        string escapedLogs = Path.Combine(_tempRoot, "outside_logs");
+        string escapedCfg = Path.Combine(_tempRoot, "outside_settings.json");
+
+        SandboxEnvironment sbx = CliOptions.Parse(new[]
+        {
+            "--test-mode", "--data-dir", sbxData, "--log-dir", sbxLogs
+        }).CreateSandbox();
+        Assert.Equal(Path.GetFullPath(sbxData), Path.GetFullPath(sbx.DataDirectory));
+        Assert.Equal(Path.GetFullPath(sbxLogs), Path.GetFullPath(sbx.LogDirectory));
+        Assert.Equal(Path.GetFullPath(Path.Combine(sbxData, "settings.json")), Path.GetFullPath(sbx.ConfigFilePath));
+
+        string runData = Path.Combine(_tempRoot, "run1", "data");
+        string runLogs = Path.Combine(_tempRoot, "run1", "logs");
+        SandboxEnvironment runSbx = CliOptions.Parse(new[]
+        {
+            "--test-mode", "--data-dir", runData, "--log-dir", runLogs
+        }).CreateSandbox();
+        Assert.Equal(Path.GetFullPath(runLogs), Path.GetFullPath(runSbx.LogDirectory));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            CliOptions.Parse(new[] { "--test-mode", "--data-dir", sbxData, "--log-dir", escapedLogs }).CreateSandbox());
+        Assert.Throws<InvalidOperationException>(() =>
+            CliOptions.Parse(new[] { "--test-mode", "--data-dir", sbxData, "--config", escapedCfg }).CreateSandbox());
+    }
+
+    [Fact]
+    public void PlayerProcess_RelativeSandboxArgs_PreservesWorkingDirAndCapturesRedirectedStderr()
+    {
+        string playerExe = Path.Combine(AppContext.BaseDirectory, "reStation.Player.exe");
+        Assert.True(File.Exists(playerExe), $"Missing test target: {playerExe}");
+        Directory.CreateDirectory(_tempRoot);
+
+        var okPsi = new ProcessStartInfo
+        {
+            FileName = playerExe,
+            WorkingDirectory = _tempRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        foreach (string a in new[] { "--test-mode", "--headless", "--frames", "1", "--data-dir", "Sandbox\\data", "--log-dir", "Sandbox\\logs" })
+            okPsi.ArgumentList.Add(a);
+
+        using (Process okProc = Process.Start(okPsi)!)
+        {
+            string okOut = okProc.StandardOutput.ReadToEnd();
+            string okErr = okProc.StandardError.ReadToEnd();
+            okProc.WaitForExit();
+            Assert.True(okProc.ExitCode == 0, $"Expected exit 0, got {okProc.ExitCode}. out='{okOut}' err='{okErr}'");
+        }
+        Assert.True(File.Exists(Path.Combine(_tempRoot, "Sandbox", "logs", "runtime.log")));
+
+        var badPsi = new ProcessStartInfo
+        {
+            FileName = playerExe,
+            WorkingDirectory = _tempRoot,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        foreach (string a in new[] { "--test-mode", "--data-dir", "Sandbox\\data", "--log-dir", "outside_logs" })
+            badPsi.ArgumentList.Add(a);
+
+        using Process badProc = Process.Start(badPsi)!;
+        _ = badProc.StandardOutput.ReadToEnd();
+        string badErr = badProc.StandardError.ReadToEnd();
+        badProc.WaitForExit();
+        Assert.Equal(3, badProc.ExitCode);
+        Assert.Contains("Fail-Closed Sandbox Violation", badErr, StringComparison.Ordinal);
     }
 }
