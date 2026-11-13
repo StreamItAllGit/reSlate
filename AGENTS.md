@@ -1,7 +1,7 @@
 # Project Context: reStation (``)
 
-- **Role:** Reusable PS1 Static Recompilation Engine, MIPS R3000A Lifter & Modular BYO-Media Player (`v0.1.0`, Tier A 6-folder, consumed by `CrownDepthsRecomp` & future PS1 titles).
-- **Boundaries:** `Foundation\` & `_DevBible\` strictly read-only; `.recomp` game modules supply clean-room manifests/patches only; fail-closed `--test-mode` in `Sandbox\`.
+- **Role:** Reusable PS1 Static Recompilation Engine, MIPS R3000A Lifter & Modular BYO-Media Player (`v0.1.0`, Tier A 6-folder, routed via [`reEngine`](<PROJECTS_ROOT>/Personal/reEngine/README.md) with immutable history in `<SHARED_LIBS_ROOT>\reStation\v<Ver>\`, consumed by `CrownDepthsRecomp` & future PS1 titles).
+- **Boundaries:** `Foundation\` & `_DevBible\` strictly read-only; `.recomp` game modules supply clean-room manifests/patches & optional `data\rom\` preloads; child `<Game>Recomp` fixes limited to strictly additive `PATCH+1` drops; fail-closed `--test-mode` in `Sandbox\`.
 - **Branding:** [`reStation.svg`](Dev/assets/reStation.svg) | [`reStation.ico`](Dev/assets/reStation.ico)
 
 ## 1. Root Quartet & Lifecycle State

@@ -8,7 +8,7 @@
 ---
 
 ## 1. What It Is & Core Goal
-`reStation` is a reusable **PlayStation 1 (`PS1`) static recompilation engine, offline MIPS R3000A lifter, and modular BYO-media player**. Rather than duplicating CPU/GPU/SPU/CD-ROM/MDEC emulation and disc ingestion inside every `<Game>Recomp` repository, `reStation` hosts the shared platform backend (`Foundation.Core` + `Foundation.Retro`) and loads external `.recomp` game modules paired with the user's own legal disc/archive copy (`.iso`, `.bin`+`.cue`, `.chd`, `.7z`, `.zip`).
+`reStation` is a reusable **PlayStation 1 (`PS1`) static recompilation engine, offline MIPS R3000A lifter, and modular BYO-media player**, routed via [`reEngine`](<PROJECTS_ROOT>/Personal/reEngine/README.md) and installed side-by-side under `<PROGRAMS_ROOT>\reEngine\engines\reStation\v<Ver>\` (with immutable SDK history in `<SHARED_LIBS_ROOT>\reStation\v<Ver>\`). Rather than duplicating CPU/GPU/SPU/CD-ROM/MDEC emulation and disc ingestion inside every `<Game>Recomp` repository, `reStation` hosts the shared platform backend (`Foundation.Core` + `Foundation.Retro`) and loads external `.recomp` game modules paired with the user's own legal disc/archive copy (preloaded in gitignored `data\rom\` or selected via `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, `.zip`).
 
 **Clean-Room & Zero-Asset Guarantee:** `reStation` distributes zero copyrighted Sony BIOS images, retail game assets, or title executables. Every title runs from user-supplied media verified via SHA-256 against its `.recomp` module manifest.
 

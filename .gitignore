@@ -27,3 +27,7 @@ UserSettings/
 *.bak
 Thumbs.db
 .DS_Store
+
+# Canonical user ROM/disc preload directories
+**/data/rom/
+data/rom/

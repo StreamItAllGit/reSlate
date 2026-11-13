@@ -5,7 +5,7 @@
 **Last Updated:** 2026-11-13
 
 ## 1. North Star Goal
-Provide a modular, clean-room **PS1 Static Recompilation Engine & Player** (`reStation`) that separates reusable R3000A lifting, CD/MDEC/SPU hardware timing, and OpenGL 3.3 Core / Software rendering from slim `<Game>Recomp` modules—loading any `.recomp` module with the user's legal `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip` copy at high, rock-solid framerates and faithful audio/visual parity.
+Provide a modular, clean-room **PS1 Static Recompilation Engine & Player** (`reStation`) under [`reEngine`](<PROJECTS_ROOT>/Personal/reEngine/README.md) (`engines\reStation\v<Ver>\` + immutable `SharedLibs\reStation\v<Ver>\` history) that separates reusable R3000A lifting, CD/MDEC/SPU hardware timing, and OpenGL 3.3 Core / Software rendering from slim `<Game>Recomp` modules—loading any `.recomp` module with the user's legal `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip` copy (including preloaded gitignored `data\rom\`) at high, rock-solid framerates and faithful audio/visual parity.
 
 ## 2. Active Milestone (`0.1.0` — Modular Engine Extraction & PS1 Parity Foundation)
 - [x] Tier A 6-folder scaffold, `active.state`, `AGENTS.md`, Root Quartet, Manual Shelf, and original `.svg`/`.png`/`.ico` logo bundle.
