@@ -221,7 +221,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     {
         uint c = code & 0xFFFFFU;
         if (c is 0x1C00 or 0x1800) return;
-        Logger?.Warn("CPU", $"break 0x{c:X5} at pc=0x{Pc:X8}");
+        Logger?.Warn("CPU", $"break 0x{c:X5} at pc=0x{Pc:X8} exe={ActiveExeId} ra=0x{R[31]:X8}");
     }
 
     public void PollEvents()

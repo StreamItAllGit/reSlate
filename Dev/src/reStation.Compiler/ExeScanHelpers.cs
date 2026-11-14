@@ -22,7 +22,13 @@ public sealed record GeneratedExeSpec(
     string ClassName,
     uint TextStart,
     uint TextEnd,
-    List<GeneratedFnSpec> Functions);
+    List<GeneratedFnSpec> Functions)
+{
+    public bool IsOverlay { get; init; }
+    public uint LoadRamAddress { get; init; }
+    public int ContentSizeBytes { get; init; }
+    public string ContentSha256Hex { get; init; } = string.Empty;
+}
 
 /// <summary>Discovers function boundaries from functions.json or automatic PS-X instruction scanning.</summary>
 public static class ExeScanHelpers

@@ -7,8 +7,8 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.1.4",
-  "activeMilestone": "0.1.4",
+  "version": "0.1.5",
+  "activeMilestone": "0.1.5",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-14",
   "lastVersionDate": "2026-11-14",
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Shipped v0.1.4: Fixed PsxBiosHle PAD_init/PAD_dr halfword byte-swap + Port-2 active-LOW masking, shipped 3-tier rebindable keyboard/mouse controls (Global 1:1 settings.controls.json, Game 1:1, Module Modern PC), InputScriptRunner + --input-script, topmost live --visible-test, 134/134 tests (0 warnings), Gate 2 PASS, 0-finding installer audit, and packaged Sandbox verification PASS.",
-  "updatedAtUtc": "2026-11-14T12:32:00.000Z"
+  "notes": "Verified & released v0.1.5 (138/138 tests, 0 warnings, @dean Gate 2 PASS, audit_installer 0 findings, @inspecter Sandbox + topmost --visible-test PASS, @tessa Quartet/Manual Shelf/Notion synced, D:\\Projects\\SharedLibs\\reStation\\v0.1.5\\ published without touching D:\\Programs\\): PsxJoypadPort digital non-0x42 NACK, separated 4-arg B0:0x12 InitPAD + RSTX v1 compat, PsxSpu unity defaults + SPUCNT/CD/Main Vol gating, PsxCpu.Break exe/ra logging, and FunctionChunkEmitter IOverlayRecompModule support.",
+  "updatedAtUtc": "2026-11-14T19:44:10.000Z"
 }

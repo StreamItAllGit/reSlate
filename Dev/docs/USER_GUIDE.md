@@ -1,6 +1,6 @@
 # reStation — User Guide
 
-**Synced Version:** `0.1.4` (`2026-11-14`)
+**Synced Version:** `0.1.5` (`2026-11-14`)
 
 ---
 
@@ -8,17 +8,17 @@
 
 `reStation` is a clean-room PlayStation 1 (`PS1`) static recompilation engine, MIPS R3000A + GTE lifter, and modular Bring-Your-Own-Media (`BYO-Media`) player designed to run under `reEngine` (`AllowAutoStart = false`, zero background daemons).
 
-- **Zero Copyrighted Assets Shipped:** `reStation` distributes no Sony BIOS images, retail game binaries, disc dumps, or artwork. BIOS calls are handled cleanly via HLE (`PsxBiosHle`), and retail game assets come strictly from your own legally dumped PS1 disc images.
-- **Pluggable Rendering & Hardware Timing:** Includes GPU-accelerated `OpenGL 3.3 Core` (`1x`–`8x` PGXP precision, centered `4:3` / `16:9` aspect-ratio letterboxing, and hardware alpha-blended `F1`/`F3` overlay rendering) and a `Software CPU` fallback, cycle-timed `2x` CD-ROM streaming (`150 sectors/s`), MDEC video decode, and a 24-voice SPU with full ADSR release envelopes and Form2 XA-ADPCM playback (`44.1 kHz`).
+- **Zero Copyrighted Assets Shipped:** `reStation` distributes no Sony BIOS images, retail game binaries, disc dumps, or artwork. BIOS calls are handled cleanly via HLE (`PsxBiosHle`, supporting both 4-argument `InitPAD` and `PAD_init` controller layouts alongside clean digital pad negotiation), and retail game assets come strictly from your own legally dumped PS1 disc images.
+- **Pluggable Rendering & Hardware Timing:** Includes GPU-accelerated `OpenGL 3.3 Core` (`1x`–`8x` PGXP precision, centered `4:3` / `16:9` aspect-ratio letterboxing, and hardware alpha-blended `F1`/`F3` overlay rendering) and a `Software CPU` fallback, cycle-timed `2x` CD-ROM streaming (`150 sectors/s`), MDEC video decode, and a 24-voice SPU with full ADSR release envelopes, hardware `SPUCNT` / CD-XA / main volume gating, and Form2 XA-ADPCM playback (`44.1 kHz`).
 
 ---
 
 ## 2. First-Run Setup via `reEngine` Side-by-Side
 
-Running `reStation-Setup-v0.1.4-win-x64.exe` automatically bootstraps or updates `reEngine` (`v0.1.3`, no background service or Windows Startup entries created) and installs `reStation` side-by-side into:
+Running `reStation-Setup-v0.1.5-win-x64.exe` automatically bootstraps or updates `reEngine` (`v0.1.3`, no background service or Windows Startup entries created) and installs `reStation` side-by-side into:
 
 ```text
-<reEngineInstallDir>\engines\reStation\v0.1.4\
+<reEngineInstallDir>\engines\reStation\v0.1.5\
 ├── reStation.exe               # Clean-root launcher
 ├── AGENTS.md                   # Runtime context anchor
 └── app\
@@ -32,11 +32,11 @@ Running `reStation-Setup-v0.1.4-win-x64.exe` automatically bootstraps or updates
 
 User disc media lives inside each `.recomp` game module's `data\rom\` directory rather than inside the shared engine directory. To uninstall, run `reStation-Uninstall.exe` or pass `--uninstall --install-dir <dir>` targeting either the `reEngine` base root, a parent directory containing `reEngine\`, or the versioned leaf engine folder directly.
 
-By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.4\`. Older `reStation` tracks (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`) remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.4"`).
+By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.5\`. Older `reStation` tracks (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, `v0.1.4`) remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.5"`).
 
 ### Ways to Launch
-1. **Through `reEngine` (Recommended):** Double-click any `.recomp` cartridge or `module.recomp.json` package or run `reEngine.exe --open "<path>\app\MyGame.recomp"`. `reEngine` resolves the matching `engines\reStation\v0.1.4\` track and forwards `--preload-media` / `--wait` automatically.
-2. **Direct Launcher:** Run `reStation.exe --module "<path>\app\MyGame.recomp"` (or `module.recomp.json`, optionally passing `--disc "<path>\disc.chd"`, `--preload-media "<path>"`, `--wait`, or `--version` to print `reStation v0.1.4`).
+1. **Through `reEngine` (Recommended):** Double-click any `.recomp` cartridge or `module.recomp.json` package or run `reEngine.exe --open "<path>\app\MyGame.recomp"`. `reEngine` resolves the matching `engines\reStation\v0.1.5\` track and forwards `--preload-media` / `--wait` automatically.
+2. **Direct Launcher:** Run `reStation.exe --module "<path>\app\MyGame.recomp"` (or `module.recomp.json`, optionally passing `--disc "<path>\disc.chd"`, `--preload-media "<path>"`, `--wait`, or `--version` to print `reStation v0.1.5`).
 3. **Interactive Gate:** Launch `reStation.exe` with no arguments to open the **First-Run Media Verification** window.
 
 ---
@@ -92,9 +92,9 @@ app\reStation.Compiler.exe (--disc <image> | --gamedata-dir <dir> | --exe-path <
 | `--gamedata-dir <dir>` | Scans an already-extracted game directory for `SYSTEM.CNF` and `PS-X EXE` binaries. |
 | `--exe-path <exe>` | Lifts a single `PS-X EXE` file directly. |
 | `--decomp-dir <dir>` / `--functions-json <file>` | Optional symbol/function boundary hints. When omitted, the compiler discovers `Pc0`, `JAL` call targets, stack prologues, and `.rdata` jump tables automatically. |
-| `--out-dir <dir>` | Destination folder for generated C# chunks (`PartNNN.g.cs`, `DispatchNN.g.cs`), `<PascalId>GameModule.g.cs`, `<moduleId>.Module.csproj`, and `module.recomp.json`. |
+| `--out-dir <dir>` | Destination folder for generated C# chunks (`PartNNN.g.cs`, `DispatchNN.g.cs`, including `IOverlayRecompModule` headers for `.text` overlays), `<PascalId>GameModule.g.cs`, `<moduleId>.Module.csproj`, and `module.recomp.json`. |
 | `--module-id`, `--serial`, `--title` | Required module ID (e.g., `kings_field`), PS1 disc serial (e.g., `SLUS-00158`), and display title. |
-| `--version <semver>` | Module SemVer (defaults to `0.1.4`). |
+| `--version <semver>` | Module SemVer (defaults to `0.1.5`). |
 | `--compile-dll` | Compiles `<moduleId>.Module.csproj` (`net8.0`, Release, deterministic) against engine libraries (`ReStationLibDir` / `RESTATION_LIB_DIR` / `RESTATION_SHARED_DIR` / `<outDir>\lib\`) to emit `<moduleId>.recomp.dll` and `<moduleId>.recomp.deps.json`. |
 
 Exit codes: `0` on success, `1` on lift/build failure, `2` on invalid CLI arguments.

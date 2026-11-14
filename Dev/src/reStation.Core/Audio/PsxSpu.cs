@@ -32,12 +32,18 @@ public sealed class PsxSpu
     private uint _transferAddr;
     private uint _endx;
     private long _xaDrops, _outputOverflows, _xaFramesDecoded;
+    private int _mainVolL = 0x3FFF, _mainVolR = 0x3FFF;
 
     public PsxSpu(RecompSettings settings)
     {
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         Output = new AudioRingBuffer(RingCapacitySamples, 2);
         for (int i = 0; i < VoiceCount; i++) _voices[i] = new SpuVoice();
+        _regs[0x180 >> 1] = 0x3FFF;
+        _regs[0x182 >> 1] = 0x3FFF;
+        _regs[0x1B0 >> 1] = 0x7FFF;
+        _regs[0x1B2 >> 1] = 0x7FFF;
+        _regs[0x1AA >> 1] = 0xC001;
     }
 
     public RecompSettings Settings { get; }
@@ -82,6 +88,8 @@ public sealed class PsxSpu
         }
         switch (reg)
         {
+            case 0x180: if ((value & 0x8000) == 0) _mainVolL = DecodeSigned15(value); break;
+            case 0x182: if ((value & 0x8000) == 0) _mainVolR = DecodeSigned15(value); break;
             case 0x188: KeyBits(0, value, true); break;
             case 0x18A: KeyBits(16, value, true); break;
             case 0x18C: KeyBits(0, value, false); break;
@@ -158,26 +166,60 @@ public sealed class PsxSpu
         }
         ActiveVoiceCount = active;
 
+        ushort cnt = _regs[0x1AA >> 1];
+        bool spuEnabled = (cnt & 0x8000) != 0;
+        bool voicesUnmuted = (cnt & 0x4000) != 0;
+        bool cdEnabled = (cnt & 0x0001) != 0;
+        if (!spuEnabled || !voicesUnmuted) { mixL = 0; mixR = 0; }
+
+        double cdScaleL = ScaleCdVol(_regs[0x1B0 >> 1]);
+        double cdScaleR = ScaleCdVol(_regs[0x1B2 >> 1]);
+        bool cdAudible = spuEnabled && cdEnabled && (cdScaleL != 0.0 || cdScaleR != 0.0);
         bool carriesXa = false;
         if (_xaCount > 0)
         {
             int slot = _xaHead * 2;
-            _lastXaL = _xaQueue[slot];
-            _lastXaR = _xaQueue[slot + 1];
+            short rawL = _xaQueue[slot];
+            short rawR = _xaQueue[slot + 1];
             _xaHead = (_xaHead + 1) % XaQueueCapacityFrames;
             _xaCount--;
-            _xaRampLeft = XaRampFrames;
-            mixL += _lastXaL;
-            mixR += _lastXaR;
-            carriesXa = true;
+            if (cdAudible)
+            {
+                _lastXaL = rawL;
+                _lastXaR = rawR;
+                _xaRampLeft = XaRampFrames;
+                mixL += ScaleSample(rawL, cdScaleL);
+                mixR += ScaleSample(rawR, cdScaleR);
+                carriesXa = true;
+            }
+            else
+            {
+                _xaRampLeft = 0;
+                _lastXaL = _lastXaR = 0;
+            }
         }
         else if (_xaRampLeft > 0)
         {
-            // Zero-ramp underrun guard: fade the last XA sample to silence instead of stepping to 0 (no pop/click).
-            _xaRampLeft--;
-            mixL += _lastXaL * _xaRampLeft / XaRampFrames;
-            mixR += _lastXaR * _xaRampLeft / XaRampFrames;
-            if (_xaRampLeft == 0) _lastXaL = _lastXaR = 0;
+            if (cdAudible)
+            {
+                // Zero-ramp underrun guard: fade the last XA sample to silence instead of stepping to 0 (no pop/click).
+                _xaRampLeft--;
+                mixL += ScaleSample(_lastXaL * _xaRampLeft / XaRampFrames, cdScaleL);
+                mixR += ScaleSample(_lastXaR * _xaRampLeft / XaRampFrames, cdScaleR);
+                if (_xaRampLeft == 0) _lastXaL = _lastXaR = 0;
+            }
+            else
+            {
+                _xaRampLeft = 0;
+                _lastXaL = _lastXaR = 0;
+            }
+        }
+
+        if (!spuEnabled) { mixL = 0; mixR = 0; }
+        else
+        {
+            mixL = ScaleSample(mixL, ScaleMainVol(_mainVolL));
+            mixR = ScaleSample(mixR, ScaleMainVol(_mainVolR));
         }
 
         double vol = Settings.MasterVolume;
@@ -226,9 +268,16 @@ public sealed class PsxSpu
         _xaHead = _xaCount = 0;
         _xaRampLeft = 0;
         _lastXaL = _lastXaR = 0;
+        if ((_regs[0x180 >> 1] & 0x8000) == 0) _mainVolL = DecodeSigned15(_regs[0x180 >> 1]);
+        if ((_regs[0x182 >> 1] & 0x8000) == 0) _mainVolR = DecodeSigned15(_regs[0x182 >> 1]);
         ActiveVoiceCount = active;
         Output.Clear();
     }
+
+    private static int DecodeSigned15(ushort v) => (v & 0x4000) != 0 ? (int)(v | 0xFFFFC000U) : (int)(v & 0x3FFF);
+    private static double ScaleMainVol(int v) => v == 0x3FFF ? 1.0 : Math.Clamp(v / 16384.0, -1.0, 1.0);
+    private static double ScaleCdVol(ushort raw) => raw == 0x7FFF ? 1.0 : Math.Clamp(unchecked((short)raw) / 32768.0, -1.0, 1.0);
+    private static int ScaleSample(int sample, double scale) => scale == 1.0 ? sample : (int)Math.Round(sample * scale);
 
     private static void WriteVoiceRegister(SpuVoice voice, uint offset, ushort value)
     {

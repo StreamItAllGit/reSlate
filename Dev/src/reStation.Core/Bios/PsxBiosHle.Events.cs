@@ -149,6 +149,7 @@ public sealed partial class PsxBiosHle
             w.Write(ev.ClassId); w.Write(ev.Spec); w.Write(ev.Mode); w.Write(ev.Callback);
             w.Write(ev.Enabled); w.Write(ev.Delivered);
         }
+        w.Write(_padBuf2Addr); w.Write(_padLen2);
         w.Flush();
         return ms.ToArray();
     }
@@ -174,5 +175,7 @@ public sealed partial class PsxBiosHle
                 ClassId = r.ReadUInt32(), Spec = r.ReadUInt32(), Mode = r.ReadUInt32(), Callback = r.ReadUInt32(),
                 Enabled = r.ReadBoolean(), Delivered = r.ReadBoolean()
             });
+        if (ms.Position + 8 <= ms.Length) { _padBuf2Addr = r.ReadUInt32(); _padLen2 = r.ReadUInt32(); }
+        else { _padBuf2Addr = 0; _padLen2 = 0; }
     }
 }

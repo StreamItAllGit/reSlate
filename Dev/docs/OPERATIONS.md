@@ -1,7 +1,7 @@
 # reStation — Operations & Verification Runbook
 
-**Synced Version:** `0.1.4` (`2026-11-14`)  
-**Owner:** `reStation` Engine (`@tessa` / Dev Bible Standard 16)
+**Synced Version:** `0.1.5` (`2026-11-14`)  
+**Owner:** `reStation` Engine (Dev Bible Standard 16)
 
 ---
 
@@ -15,8 +15,8 @@
 | `--module` | `<module.recomp.json>` | Loads and validates the `.recomp` manifest, entry assembly, and `IGameFramePatch` / `ISubTickFrameHook` / `IOverlayRecompModule`. |
 | `--disc` | `<image>` | Extracts and SHA-256-verifies `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip` into `<dataDir>\gamedata\`. Highest priority (`--disc` > `--preload-media` > `<module>\data\rom\`). |
 | `--preload-media` | `<path>` | Explicit preloaded disc/archive override forwarded by `reEngine` (`--open --wait`); verified fail-closed inside sandbox boundaries (`Exit 3` escape, `Exit 4` missing media). |
-| `--wait` | *(switch)* | Holds parent `reStation.exe` launcher cleanly via Windows `JobObjectGuard` until `reStation.Player.exe` exits and propagates child exit code (`v0.1.1`). |
-| `--version` | *(switch)* | Prints `reStation v0.1.4` cleanly across both `reStation.exe` and `app\reStation.Player.exe` and exits `0`. |
+| `--wait` | *(switch)* | Holds parent `reStation.exe` launcher cleanly via Windows `JobObjectGuard` until `reStation.Player.exe` exits and propagates child exit code (`v0.1.1+`). |
+| `--version` | *(switch)* | Prints `reStation v0.1.5` cleanly across both `reStation.exe` and `app\reStation.Player.exe` and exits `0`. |
 | `--backend` | `opengl \| software` | Selects `OpenGl33RenderBackend` (`opengl`, off-thread FIFO `Queue.cs`) or deterministic `SoftwareCpuRenderBackend` oracle (`software`). In `--headless`, `opengl` logs `[WARN] [GL_FALLBACK] reason=headless forced=software`. |
 | `--scale` | `1 \| 2 \| 4 \| 8` | Overrides internal render resolution multiplier (`1x`–`8x`). |
 | `--fps-mode` | `original \| enhanced` | Selects hardware `60.0 Hz` cap (`original`) or configurable `--target-fps` (`enhanced`). |
@@ -84,15 +84,15 @@ dotnet test  Dev\src\reStation.slnx -c Release --no-build --logger "console;verb
 - **`AllowAutoStart = false`:** `ReStationInstallerTheme.AllowAutoStart` and `Program.AllowAutoStart` are strictly `false` (Standard 12 / 19). `Program.SanitizeArgs` strips every `--autostart*` and `--auto-start*` CLI token before `ReStationInstallerBootstrap.Prepare` and `StandardInstallerHost.Run`.
 - **NoInlining AssemblyResolve:** `reStation.Installer.Program` resolves `Foundation.Core`, `Foundation.Installer`, and `reEngine.Core` from embedded `.dll.gz` streams before `RunInstallerCore` (`MethodImplOptions.NoInlining`) JITs.
 - **Side-by-Side `reEngine` Bootstrap (`ReStationInstallerBootstrap`):**
-  - Skipped for informational/verification runs (`--help`, `-h`, `/?`, `help`, `--version`, `-v`, `--verify`, `--dry-run`, `--visible-test`). During `--uninstall` (or `reStation-Uninstall.exe`), `NormalizeUninstallArgs` skips `reEngine` bootstrapping and normalizes base-directory `--install-dir` / `--target-dir` arguments (`<root>` or `<root>\reEngine`) to `<reEngineRoot>\engines\reStation\v0.1.4` (or sets `RESTATION_INSTALL_DIR` in live GUI mode when omitted), preserves direct leaf paths, and enforces `--test-mode` fail-closed containment (`Exit 3` on escape).
-  - **Live Mode:** Extracts embedded `reEngine-Setup.exe` (`v0.1.3`), ensures `reEngine` is installed, computes `<reEngineDir>\engines\reStation\v0.1.4`, and seeds `RESTATION_INSTALL_DIR` when `--install-dir` / `--target-dir` is omitted.
-  - **Contained `--test-mode`:** Resolves sandbox root (`--data-dir`, else `--install-dir`/`--target-dir`, else `%TEMP%\restation-setup-sandbox`), extracts/bootstraps `reEngine` inside `<sandboxRoot>\`, rewrites effective args to `--data-dir <sandboxRoot> --install-dir <sandboxRoot>\reEngine\engines\reStation\v0.1.4`, and deletes temporary `_bootstrap\` files on exit.
+  - Skipped for informational/verification runs (`--help`, `-h`, `/?`, `help`, `--version`, `-v`, `--verify`, `--dry-run`, `--visible-test`). During `--uninstall` (or `reStation-Uninstall.exe`), `NormalizeUninstallArgs` skips `reEngine` bootstrapping and normalizes base-directory `--install-dir` / `--target-dir` arguments (`<root>` or `<root>\reEngine`) to `<reEngineRoot>\engines\reStation\v0.1.5` (or sets `RESTATION_INSTALL_DIR` in live GUI mode when omitted), preserves direct leaf paths, and enforces `--test-mode` fail-closed containment (`Exit 3` on escape).
+  - **Live Mode:** Extracts embedded `reEngine-Setup.exe` (`v0.1.3`), ensures `reEngine` is installed, computes `<reEngineDir>\engines\reStation\v0.1.5`, and seeds `RESTATION_INSTALL_DIR` when `--install-dir` / `--target-dir` is omitted.
+  - **Contained `--test-mode`:** Resolves sandbox root (`--data-dir`, else `--install-dir`/`--target-dir`, else `%TEMP%\restation-setup-sandbox`), extracts/bootstraps `reEngine` inside `<sandboxRoot>\`, rewrites effective args to `--data-dir <sandboxRoot> --install-dir <sandboxRoot>\reEngine\engines\reStation\v0.1.5`, and deletes temporary `_bootstrap\` files on exit.
 
 ### 3.2 Packaging & Audit Pipeline (`Dev\scripts\build_release.ps1` + `sanitize_release_docs.ps1`)
 ```powershell
 # Single-pass Release Packager (LOC gate, build/test, --help/--version parity, sanitize_release_docs.ps1,
-# Builds\v0.1.4\ (with app\LICENSE, zero data\rom\), Authenticode sign, Installers\, <INSTALLERS_ROOT>\, audit_installer.ps1, max-2 Releases\, SharedLibs\, Archive\)
-powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.1.4
+# Builds\v0.1.5\ (with app\LICENSE, zero data\rom\), Authenticode sign, Installers\, <INSTALLERS_ROOT>\, audit_installer.ps1, max-2 Releases\, SharedLibs\, Archive\)
+powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.1.5
 ```
 
 To verify installer compliance standalone via `audit_installer.ps1`:
@@ -100,12 +100,12 @@ To verify installer compliance standalone via `audit_installer.ps1`:
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File "$env:USERPROFILE\.gemini\config\skills\release-packaging\scripts\audit_installer.ps1" `
   -InstallerPath "Installers" `
-  -StagingDir "Builds\v0.1.4" `
-  -ExpectedVersion "0.1.4"
+  -StagingDir "Builds\v0.1.5" `
+  -ExpectedVersion "0.1.5"
 ```
 Checks enforced by `audit_installer.ps1` & `sanitize_release_docs.ps1`:
-1. `Installers\` holds strictly versioned `.exe` files + UTF-8 sanitized `RELEASE_NOTES.md` (historical installers retained per Standard 03; `<INSTALLERS_ROOT>\` holds latest `reStation-Setup-v0.1.4-win-x64.exe`).
-2. Staging dir (`Builds\v0.1.4\`) contains `app\LICENSE` (`MPL-2.0`), zero engine `data\rom\` directory, and zero `.pdb`, `.db`, `.sqlite`, `.sqlite3`, `.log`, `.env`, `oauth_creds*.json`, or `*secret*.json` files; `Releases\` markdown docs contain zero `file:///`, agent-handle, internal-path, or UTF-8 mojibake leaks.
+1. `Installers\` holds strictly versioned `.exe` files + UTF-8 sanitized `RELEASE_NOTES.md` (historical installers retained per Standard 03; `<INSTALLERS_ROOT>\` holds latest `reStation-Setup-v0.1.5-win-x64.exe`).
+2. Staging dir (`Builds\v0.1.5\`) contains `app\LICENSE` (`MPL-2.0`), zero engine `data\rom\` directory, and zero `.pdb`, `.db`, `.sqlite`, `.sqlite3`, `.log`, `.env`, `oauth_creds*.json`, or `*secret*.json` files; `Releases\` markdown docs contain zero `file:///`, agent-handle, internal-path, or UTF-8 mojibake leaks.
 3. All `.exe` binaries carry a valid (or intact self-signed) Authenticode signature (`CertThumbprint` `A5414BDD36F7F113C7B2356F189B7A43F69C35E6`).
 4. ASCII and UTF-16LE binary scans confirm zero leaked host PII (`<USER_HOME_PREFIX>\...`, `<PROJECTS_ROOT>\`, `<PROGRAMS_ROOT>\`) or secret/token literals.
 
@@ -115,17 +115,17 @@ Checks enforced by `audit_installer.ps1` & `sanitize_release_docs.ps1`:
 
 ### 4.1 3-Tier Log Sweep Roots (Standard 15)
 Always inspect all three roots (with `20–50` lines of preceding context) before diagnosing runtime issues:
-1. **Production (Read-Only during Audits):** `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.4\logs\` (plus `data\logs\` if deployed with sidecar data).
+1. **Production (Read-Only during Audits):** `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.5\logs\` (plus `data\logs\` if deployed with sidecar data).
 2. **Development:** `Dev\logs\`
 3. **Sandbox:** `Sandbox\logs\` (`runtime.log`, `screenshots\`, `fixtures\`, `crashes\`).
 
 ### 4.2 `ReStationLogger` & `<= 15s` Telemetry Heartbeats
-- **Log Sink & Standard 15 Format:** `ReStationLogger` wraps `Foundation.Core.CappedSharedLogSink` (`runtime.log`, `4 MiB` max cap) plus an always-active `200`-line in-memory circular buffer (`GetRecentLines()`), stamping every line as `yyyy-MM-ddTHH:mm:ss.fffZ [v0.1.4] [PID:<pid>/T:<tid:D2>]`.
+- **Log Sink & Standard 15 Format:** `ReStationLogger` wraps `Foundation.Core.CappedSharedLogSink` (`runtime.log`, `4 MiB` max cap) plus an always-active `200`-line in-memory circular buffer (`GetRecentLines()`), stamping every line as `yyyy-MM-ddTHH:mm:ss.fffZ [v0.1.5] [PID:<pid>/T:<tid:D2>]`. `PsxCpu.Break` triage warnings emit `break 0x{c:X5} at pc=0x{Pc:X8} exe={ActiveExeId} ra=0x{R[31]:X8}` for active overlay diagnostics.
 - **Heartbeat Cadence:** `HeartbeatLogger` (`Foundation.Core`) emits a single-prefix `[HEARTBEAT]` line every `<= 15s` (plus forced frame `1` / `--verify` / `FixtureRunnerHost` ticks with positive denominators) formatted via `PsxTelemetrySnapshot.ToHeartbeatLine()`:
   ```text
-  2026-11-14T03:59:00.282Z [v0.1.1] [PID:54352/T:01] [INFO] [HEARTBEAT] reStation: 1/180 (0.6%) | 2.4s | frame=1 fps=13.3 p99Ms=75.03 cpuMs=66.73 gpuMs=3.99 waitMs=0.88 resolutionScale=4 backend=opengl sectorsPerSec=0.0 mdecMbPerSec=0 activeSpuVoices=0 xaDrops=0 audioFillPct=0.0 audioUnderruns=0
+  2026-11-14T19:32:24.036Z [v0.1.5] [PID:20864/T:01] [INFO] [HEARTBEAT] reStation: 1/180 (0.6%) | 1.6s | frame=1 fps=39.0 p99Ms=25.65 cpuMs=21.88 gpuMs=2.93 waitMs=0.22 resolutionScale=4 backend=opengl sectorsPerSec=0.0 mdecMbPerSec=0 activeSpuVoices=0 xaDrops=0 audioFillPct=0.0 audioUnderruns=0
   ```
-- **Healthy Parity Baselines:** `xaDrops = 0`, `audioUnderruns = 0`, `sectorsPerSec` near `150.0` during `2x` CD-ROM streaming (`75.0` at `1x`), `p99Ms` within frame budget, and `5/5` Wave 2 Gates `0.1.1-A..E` verified `PASS` ([`0.1.1.20261114-040030.-.sandbox-verify.md`](Dev/docs/reports/archive/0.1.1.20261114-040030.-.sandbox-verify.md)).
+- **Healthy Parity Baselines:** `xaDrops = 0`, `audioUnderruns = 0`, `sectorsPerSec` near `150.0` during `2x` CD-ROM streaming (`75.0` at `1x`), `p99Ms` within frame budget, `138/138` xUnit tests (`0` warnings), `audit_installer.ps1` (`0` findings), and packaged `Sandbox\` silent install + topmost `--visible-test` + `F1` drawer verification `PASS` ([`0.1.5.20261114_193351.-.sandbox-visible-test.md`](Dev/docs/reports/archive/0.1.5.20261114_193351.-.sandbox-visible-test.md)).
 
 ### 4.3 `CrashBundleService` Diagnostics
 `Program.cs` registers `CrashBundleService.RegisterGlobalHandlers(...)` (`AppDomain.CurrentDomain.UnhandledException` + `TaskScheduler.UnobservedTaskException`) and explicitly calls `TryWriteCrashBundle(...)` on fatal host exceptions and emulation-thread faults (`ReStationHost.RunFrame()`).
@@ -134,21 +134,21 @@ Always inspect all three roots (with `20–50` lines of preceding context) befor
 
 ---
 
-## 5. Immutable `SharedLibs\reStation\v0.1.4\` SDK Consumption Rules
+## 5. Immutable `SharedLibs\reStation\v0.1.5\` SDK Consumption Rules
 
-`Dev\scripts\build_release.ps1` preserves prior immutable releases (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`) and publishes clean engine SDK drops (recreating `Latest\` cleanly) to:
-- **Immutable Version Drop:** `<SHARED_LIBS_ROOT>\reStation\v0.1.4\`
-- **Rolling Convenience Pointer:** `<SHARED_LIBS_ROOT>\reStation\Latest\` *(refreshed atomically each release without overwriting `v0.1.0` / `v0.1.1` / `v0.1.2` / `v0.1.3`)*
+`Dev\scripts\build_release.ps1` preserves prior immutable releases (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, `v0.1.4`) and publishes clean engine SDK drops (recreating `Latest\` cleanly) to:
+- **Immutable Version Drop:** `<SHARED_LIBS_ROOT>\reStation\v0.1.5\`
+- **Rolling Convenience Pointer:** `<SHARED_LIBS_ROOT>\reStation\Latest\` *(refreshed atomically each release without overwriting `v0.1.0`..`v0.1.4`)*
 
 Published artifacts (indexed in `sdk-manifest.json` with `schemaVersion: 1`, `fileName`, `fileSizeBytes`, `sha256Hex`, plus `engine.manifest.json` declaring `"supportedEngineTracks": ["0.1.x"]`, root `LICENSE`, and root `README.md`):
 - `reStation.Contracts.dll` / `.xml` / `.deps.json`
 - `reStation.Core.dll` / `.xml` / `.deps.json`
 - `reStation.Compiler.exe` / `.dll` / `.deps.json` / `.runtimeconfig.json`
 - `Foundation.Core.dll` / `Foundation.Retro.dll`
-- `reStation-Setup-v0.1.4-win-x64.exe`
+- `reStation-Setup-v0.1.5-win-x64.exe`
 - `LICENSE`, `README.md`, `engine.manifest.json`, `sdk-manifest.json`
 
 ### Downstream Rules (Standard 00 §4 & Standard 01 §3.7)
 1. **Immutability:** Never modify or overwrite files inside an already-published `<SHARED_LIBS_ROOT>\reStation\v<Ver>\` folder. Existing `<Game>Recomp` modules remain pinned to their validated engine drop.
 2. **Type-Identity Reference Pattern:** Compiled `.recomp` modules reference `reStation.Contracts`, `reStation.Core`, `Foundation.Core`, and `Foundation.Retro` with `<Private>false</Private>` (via `-p:ReStationLibDir=...`, `RESTATION_LIB_DIR`, `RESTATION_SHARED_DIR`, or `<module>\lib\`) so `ModuleAssemblyLoader` shares host interface type identity cleanly across `AssemblyLoadContext`.
-3. **Child Module Fix Boundary:** Strictly additive, non-breaking fixes uncovered during downstream `<Game>Recomp` runs ship as an immutable `PATCH+1` (`v0.1.4` / `v0.1.(Z+1)`) drop (passing all `reStation` tests with `0` warnings and Gate 2 sign-off); breaking API/ABI changes or large features must be filed in `Dev\docs\reports\` for a dedicated parent `reStation` release.
+3. **Child Module Fix Boundary:** Strictly additive, non-breaking fixes uncovered during downstream `<Game>Recomp` runs ship as an immutable `PATCH+1` (`v0.1.5` / `v0.1.(Z+1)`) drop (passing all `reStation` tests with `0` warnings and Gate 2 sign-off); breaking API/ABI changes or large features must be filed in `Dev\docs\reports\` for a dedicated parent `reStation` release.

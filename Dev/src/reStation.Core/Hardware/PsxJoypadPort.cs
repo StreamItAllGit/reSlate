@@ -61,7 +61,7 @@ public sealed class PsxJoypadPort
                 _control = (ushort)(value & ~0x0050);
                 if ((value & 0x0010) != 0) _ackLine = false; // ACK: reset IRQ latch
                 if ((value & 0x0040) != 0) Reset();
-                if ((value & 0x0002) == 0) _sequence = -1;   // /JOYn deasserted ends the packet
+                if ((value & 0x0002) == 0) { _sequence = -1; _ackAtCycle = long.MaxValue; }   // /JOYn deasserted ends the packet
                 break;
             case 0xE: _baud = value; break;
         }
@@ -85,7 +85,24 @@ public sealed class PsxJoypadPort
         {
             ack = tx == 0x01 && !port2;
             _rxData = 0xFF;
-            if (ack) { BuildResponse(); _sequence = 0; }
+            if (ack) _sequence = 0;
+        }
+        else if (_sequence == 0)
+        {
+            if (tx == 0x42 || AnalogMode)
+            {
+                BuildResponse();
+                _rxData = _response[0];
+                _sequence = 1;
+                ack = true;
+            }
+            else
+            {
+                _rxData = 0xFF;
+                ack = false;
+                _sequence = -1;
+                _ackAtCycle = long.MaxValue;
+            }
         }
         else
         {
