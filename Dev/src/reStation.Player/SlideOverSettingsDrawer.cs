@@ -32,10 +32,22 @@ internal sealed class SlideOverSettingsDrawer
 {
     private static readonly string[] TabLabels = { "Video", "Controls", "Keybinds", "System", "Disc" };
     private readonly List<(UiRect Rect, Action<RecompSettings> OnClick, DrawerAction Action)> _hitBoxes = new();
+    private GlobalControllerProfile _globalProfile = new();
+    private string _globalProfilePath = string.Empty;
+    private IModuleInputProfileProvider? _moduleProfile;
 
     public bool IsOpen { get; set; }
     public int ActiveTab { get; set; }
     public KeybindsDrawerTab KeybindsTab { get; } = new();
+    public GlobalControllerProfile GlobalProfile => _globalProfile;
+    public IModuleInputProfileProvider? ModuleProfile => _moduleProfile;
+
+    public void AttachInputProfiles(GlobalControllerProfile globalProfile, string globalProfilePath, IModuleInputProfileProvider? moduleProfile)
+    {
+        _globalProfile = globalProfile ?? new GlobalControllerProfile();
+        _globalProfilePath = globalProfilePath ?? string.Empty;
+        _moduleProfile = moduleProfile;
+    }
 
     public void RenderOverlay(
         PixelOverlayCanvas canvas,
@@ -45,7 +57,7 @@ internal sealed class SlideOverSettingsDrawer
         bool loggingActive)
     {
         _hitBoxes.Clear();
-        if (!IsOpen || ActiveTab != 2) KeybindsTab.ListeningAction = null;
+        if (!IsOpen || ActiveTab != 2) KeybindsTab.ClearListening();
 
         int w = canvas.Width, h = canvas.Height;
         var topPill = new UiRect(Math.Max(4, w - 188), 12, Math.Min(174, w - 8), 34);
@@ -53,7 +65,7 @@ internal sealed class SlideOverSettingsDrawer
         _hitBoxes.Add((topPill, _ =>
         {
             IsOpen = !IsOpen;
-            if (!IsOpen) KeybindsTab.ListeningAction = null;
+            if (!IsOpen) KeybindsTab.ClearListening();
         }, DrawerAction.MarkDirty));
         if (!IsOpen) return;
 
@@ -68,7 +80,7 @@ internal sealed class SlideOverSettingsDrawer
         _hitBoxes.Add((closeBtn, _ =>
         {
             IsOpen = false;
-            KeybindsTab.ListeningAction = null;
+            KeybindsTab.ClearListening();
         }, DrawerAction.CloseDrawer));
 
         int tabW = (dw - 36 - ((TabLabels.Length - 1) * 6)) / TabLabels.Length;
@@ -80,7 +92,7 @@ internal sealed class SlideOverSettingsDrawer
             _hitBoxes.Add((tr, _ =>
             {
                 ActiveTab = idx;
-                if (idx != 2) KeybindsTab.ListeningAction = null;
+                if (idx != 2) KeybindsTab.ClearListening();
             }, DrawerAction.MarkDirty));
         }
 
@@ -89,14 +101,17 @@ internal sealed class SlideOverSettingsDrawer
         {
             case 0: RenderVideoTab(canvas, x, y, rw, settings); break;
             case 1: RenderControlsTab(canvas, x, y, rw, settings); break;
-            case 2: KeybindsTab.Render(canvas, x, y, rw, settings, _hitBoxes); break;
+            case 2: KeybindsTab.Render(canvas, x, y, rw, settings, _globalProfile, _globalProfilePath, _moduleProfile, _hitBoxes); break;
             case 3: RenderSystemTab(canvas, x, y, rw, settings, loggingActive); break;
             default: RenderDiscTab(canvas, x, y, rw, manifest, discInfo); break;
         }
     }
 
     public bool TryHandleKeyCapture(int scancode, RecompSettings settings, string configPath) =>
-        IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleKeyCapture(scancode, settings, configPath);
+        IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleKeyCapture(scancode, settings, configPath, _globalProfile, _globalProfilePath, _moduleProfile);
+
+    public bool TryHandleMouseCapture(int bindingCode, RecompSettings settings, string configPath) =>
+        IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleMouseCapture(bindingCode, settings, configPath, _globalProfile, _globalProfilePath, _moduleProfile);
 
     public DrawerAction HandleClick(int px, int py, RecompSettings settings, string configPath)
     {
@@ -171,16 +186,24 @@ internal sealed class SlideOverSettingsDrawer
         _hitBoxes.Add((minus, st => st.MouseSensitivity = Math.Max(0.2, Math.Round(st.MouseSensitivity - 0.2, 1)), DrawerAction.MarkDirty));
         _hitBoxes.Add((plus, st => st.MouseSensitivity = Math.Min(4.0, Math.Round(st.MouseSensitivity + 0.2, 1)), DrawerAction.MarkDirty));
 
-        KeyBindingsConfig kb = s.KeyBindings ?? new KeyBindingsConfig();
-        string move = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadUp))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadLeft))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadDown))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadRight))} Move";
+        string tierLabel = s.InputProfileMode switch
+        {
+            InputProfileMode.GlobalController => "Global 1:1 PS1",
+            InputProfileMode.PerGameController => "Game 1:1 PS1",
+            _ => _moduleProfile is not null ? _moduleProfile.ProfileDisplayName : "Game 1:1 Fallback"
+        };
+        UiPaint.Text(c, x, y + 114, $"Active Tier: {tierLabel}", UiPaint.AccentText);
+
+        KeyBindingsConfig kb = s.InputProfileMode == InputProfileMode.GlobalController ? _globalProfile.KeyBindings : (s.KeyBindings ?? new KeyBindingsConfig());
+        string move = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadUp))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadLeft))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadDown))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadRight))} D-Pad";
         string acts = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Cross))} Cross  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Circle))} Circle  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Square))} Square  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Triangle))} Tri";
         string sys = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Start))} Start  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Select))} Select  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.QuickSave))} Save  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.QuickLoad))} Load";
-        UiPaint.Text(c, x, y + 124, move, UiPaint.Muted);
-        UiPaint.Text(c, x, y + 152, acts, UiPaint.Muted);
-        UiPaint.Text(c, x, y + 180, sys, UiPaint.Muted);
+        UiPaint.Text(c, x, y + 144, move, UiPaint.Muted);
+        UiPaint.Text(c, x, y + 172, acts, UiPaint.Muted);
+        UiPaint.Text(c, x, y + 200, sys, UiPaint.Muted);
 
-        var customBtn = new UiRect(x, y + 224, w, 44);
-        UiPaint.Pill(c, customBtn, "Customize Keybinds...", active: false);
+        var customBtn = new UiRect(x, y + 242, w, 44);
+        UiPaint.Pill(c, customBtn, "Customize Keybinds (3 Tiers)...", active: false);
         _hitBoxes.Add((customBtn, _ => ActiveTab = 2, DrawerAction.MarkDirty));
     }
 

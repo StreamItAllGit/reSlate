@@ -20,7 +20,7 @@ public sealed class CliOptions
         "  --wait                      Wait for engine completion when launched synchronously\n" +
         "  --backend opengl|software   --scale 1|2|4|8      --fps-mode original|enhanced\n" +
         "  --target-fps <n|unlocked>   --vsync [on|off]     --no-vsync   --frames <n>\n" +
-        "  --fixture <spec.json>       --dump-screenshot <png>\n" +
+        "  --fixture <spec.json>       --input-script <spec.json>  --dump-screenshot <png>\n" +
         "  --data-dir <dir>  --config <path>  --log-dir <dir>  --test-mode  --headless  --visible-test\n" +
         "  --verify  --open-settings  --enable-logs  --show-fps  --version  --help";
 
@@ -36,6 +36,7 @@ public sealed class CliOptions
     public bool? Vsync { get; private init; }
     public int? MaxFrames { get; private init; }
     public string? FixturePath { get; private init; }
+    public string? InputScriptPath { get; private init; }
     public string? DumpScreenshotPath { get; private init; }
     public string? DataDir { get; private init; }
     public string? ConfigPath { get; private init; }
@@ -54,7 +55,7 @@ public sealed class CliOptions
     public static CliOptions Parse(IReadOnlyList<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        string? module = null, disc = null, preloadMedia = null, backend = null, fixture = null, dump = null, data = null, config = null, log = null;
+        string? module = null, disc = null, preloadMedia = null, backend = null, fixture = null, inputScript = null, dump = null, data = null, config = null, log = null;
         int? scale = null, targetFps = null, frames = null;
         FrameRateMode? fpsMode = null;
         bool? vsync = null;
@@ -116,6 +117,7 @@ public sealed class CliOptions
                 case "--no-vsync": vsync = false; break;
                 case "--frames": frames = Math.Max(1, ParseInt(Next(args, ref i, arg), arg)); break;
                 case "--fixture": fixture = Next(args, ref i, arg); break;
+                case "--input-script": inputScript = NextValidatedPath(args, ref i, arg); break;
                 case "--dump-screenshot": dump = Next(args, ref i, arg); break;
                 case "--data-dir": data = Next(args, ref i, arg); break;
                 case "--config": config = Next(args, ref i, arg); break;
@@ -139,7 +141,7 @@ public sealed class CliOptions
             RawArgs = args.ToArray(), ModulePath = module, DiscPath = disc, PreloadMediaPath = preloadMedia,
             ShouldWait = shouldWait, BackendId = backend, ResolutionScale = scale,
             FpsMode = fpsMode, TargetFps = targetFps, Vsync = vsync, MaxFrames = frames, FixturePath = fixture,
-            DumpScreenshotPath = dump, DataDir = data, ConfigPath = config, LogDir = log, TestMode = test, Headless = headless,
+            InputScriptPath = inputScript, DumpScreenshotPath = dump, DataDir = data, ConfigPath = config, LogDir = log, TestMode = test, Headless = headless,
             VisibleTest = visible, VerifyOnly = verify, OpenSettings = openSettings, EnableLogs = enableLogs, ShowFps = showFps, ShowVersion = showVersion, ShowHelp = help
         };
     }
@@ -160,6 +162,8 @@ public sealed class CliOptions
             SandboxEnvironment.AssertPathContained(sandbox.DataDirectory, boundary);
             SandboxEnvironment.AssertPathContained(sandbox.ConfigFilePath, boundary);
             SandboxEnvironment.AssertPathContained(sandbox.LogDirectory, boundary);
+            if (!string.IsNullOrWhiteSpace(InputScriptPath))
+                SandboxEnvironment.AssertPathContained(InputScriptPath, boundary);
         }
         return sandbox;
     }

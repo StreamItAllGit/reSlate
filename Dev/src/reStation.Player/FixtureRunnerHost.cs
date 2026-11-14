@@ -189,6 +189,8 @@ public static class FixtureRunnerHost
                     long tCpu = Stopwatch.GetTimestamp();
 
                     cpu.Gpu.PresentFrame();
+                    if (videoSurface is not null && !headless && videoSurface.UsesOpenGl)
+                        videoSurface.SwapGlOnly();
                     byte[] rgba = backend.CaptureRgba(out int w, out int h);
                     int read = cpu.Spu.Output.Read(audioChunk);
                     short[] pcm = read > 0 ? audioChunk.AsSpan(0, read).ToArray() : new short[audioChunk.Length];
@@ -220,7 +222,7 @@ public static class FixtureRunnerHost
             || string.Equals(settings.BackendId, "gl", StringComparison.OrdinalIgnoreCase);
         if (!headless && requestedGl)
         {
-            videoSurface = HostVideoSurface.Create("reStation Fixture Host", settings, headless: false, foreground: false, logger);
+            videoSurface = HostVideoSurface.Create("reStation Fixture Host", settings, headless: false, foreground: true, logger, alwaysOnTop: true);
             ownedSoftware = null;
             return videoSurface.Backend;
         }

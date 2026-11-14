@@ -4,6 +4,7 @@
 // @exports: PsxPadButton, HostInputState, ModernInputController
 // @owner: devv-audio-mdec (T3) — public surface T1-locked (Player HostInputMapper consumes it).
 
+using reStation.Contracts;
 using reStation.Core.Cpu;
 
 namespace reStation.Core.Input;
@@ -44,17 +45,86 @@ public static class ModernInputController
     };
 
     /// <summary>ORs bound keys from an SDL keyboard-state array (indexed by scancode) into <paramref name="state"/>.</summary>
-    public static void ApplyKeyBindings(ReadOnlySpan<byte> keyboardState, RecompSettings settings, ref HostInputState state)
+    public static void ApplyKeyBindings(ReadOnlySpan<byte> keyboardState, RecompSettings settings, ref HostInputState state) =>
+        ApplyKeyMap(keyboardState, 0u, settings?.KeyBindings ?? new KeyBindingsConfig(), ref state);
+
+    /// <summary>
+    /// Applies active 3-tier bindings (Global 1:1, Game 1:1, or Module-declared Modern PC context map) supporting keyboard scancodes and mouse button codes (<c>1001..1005</c>).
+    /// </summary>
+    public static void ApplyProfileBindings(
+        ReadOnlySpan<byte> keyboardState,
+        uint mouseButtonsMask,
+        IReStationCpu? cpu,
+        RecompSettings settings,
+        KeyBindingsConfig? globalBindings,
+        IModuleInputProfileProvider? profileProvider,
+        ref HostInputState state)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        KeyBindingsConfig kb = settings.KeyBindings ?? new KeyBindingsConfig();
+        InputProfileMode mode = settings.InputProfileMode;
+        if (mode == InputProfileMode.GlobalController)
+        {
+            ApplyKeyMap(keyboardState, mouseButtonsMask, globalBindings ?? settings.KeyBindings ?? new KeyBindingsConfig(), ref state);
+            return;
+        }
+        if (mode == InputProfileMode.PerGameModern && profileProvider is not null)
+        {
+            ApplyModernModuleProfile(keyboardState, mouseButtonsMask, cpu, settings, profileProvider, ref state);
+            return;
+        }
+        ApplyKeyMap(keyboardState, mouseButtonsMask, settings.KeyBindings ?? new KeyBindingsConfig(), ref state);
+    }
+
+    private static void ApplyKeyMap(ReadOnlySpan<byte> keyboardState, uint mouseButtonsMask, KeyBindingsConfig kb, ref HostInputState state)
+    {
         foreach ((BindableAction action, PsxPadButton button) in ButtonMap)
         {
-            if (IsDown(keyboardState, kb.GetScancode(action))) state.Buttons |= button;
+            if (IsCodeDown(keyboardState, mouseButtonsMask, kb.GetScancode(action))) state.Buttons |= button;
         }
-        state.QuickSave |= IsDown(keyboardState, kb.GetScancode(BindableAction.QuickSave));
-        state.QuickLoad |= IsDown(keyboardState, kb.GetScancode(BindableAction.QuickLoad));
+        state.QuickSave |= IsCodeDown(keyboardState, mouseButtonsMask, kb.GetScancode(BindableAction.QuickSave));
+        state.QuickLoad |= IsCodeDown(keyboardState, mouseButtonsMask, kb.GetScancode(BindableAction.QuickLoad));
     }
+
+    private static void ApplyModernModuleProfile(
+        ReadOnlySpan<byte> keyboardState,
+        uint mouseButtonsMask,
+        IReStationCpu? cpu,
+        RecompSettings settings,
+        IModuleInputProfileProvider profileProvider,
+        ref HostInputState state)
+    {
+        bool gameplay = cpu is not null && profileProvider.IsGameplayContextActive(cpu);
+        bool upBound = false, downBound = false, leftBound = false, rightBound = false;
+        foreach (GameActionDescriptor action in profileProvider.ModernActions)
+        {
+            int code = settings.GetModernActionBinding(action);
+            if (code == 82) upBound = true;
+            else if (code == 81) downBound = true;
+            else if (code == 80) leftBound = true;
+            else if (code == 79) rightBound = true;
+
+            if (!IsCodeDown(keyboardState, mouseButtonsMask, code)) continue;
+            if (action.IsQuickSave) state.QuickSave = true;
+            if (action.IsQuickLoad) state.QuickLoad = true;
+            ushort mask = gameplay ? action.GameplayPadMask : action.MenuPadMask;
+            state.Buttons |= (PsxPadButton)mask;
+        }
+        if (!upBound && IsDown(keyboardState, 82)) state.Buttons |= PsxPadButton.Up;
+        if (!downBound && IsDown(keyboardState, 81)) state.Buttons |= PsxPadButton.Down;
+        if (!leftBound && IsDown(keyboardState, 80)) state.Buttons |= PsxPadButton.Left;
+        if (!rightBound && IsDown(keyboardState, 79)) state.Buttons |= PsxPadButton.Right;
+    }
+
+    private static bool IsCodeDown(ReadOnlySpan<byte> keys, uint mouseButtonsMask, int code) => code switch
+    {
+        <= 0 => false,
+        KeyBindingsConfig.MouseLeft => (mouseButtonsMask & 1u) != 0,
+        KeyBindingsConfig.MouseMiddle => (mouseButtonsMask & 2u) != 0,
+        KeyBindingsConfig.MouseRight => (mouseButtonsMask & 4u) != 0,
+        KeyBindingsConfig.MouseX1 => (mouseButtonsMask & 8u) != 0,
+        KeyBindingsConfig.MouseX2 => (mouseButtonsMask & 16u) != 0,
+        _ => IsDown(keys, code)
+    };
 
     /// <summary>Pushes pad state into port 0; in ModernWasdMouse mode mouse motion drives the right stick.</summary>
     public static void ApplyToCpu(PsxCpu cpu, in HostInputState input, RecompSettings settings) =>

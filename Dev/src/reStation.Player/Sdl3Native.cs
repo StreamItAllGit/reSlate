@@ -51,6 +51,7 @@ internal static unsafe partial class Sdl3Native
 
     public const int ScA = 4, ScD = 7, ScS = 22, ScW = 26, ScRet = 40, ScEsc = 41, ScTab = 43, ScSpace = 44;
     public const int ScF1 = 58, ScF3 = 60, ScF5 = 62, ScF9 = 66, ScRight = 79, ScLeft = 80, ScDown = 81, ScUp = 82;
+    public const int MouseBtnLeft = 1, MouseBtnMiddle = 2, MouseBtnRight = 3, MouseBtnX1 = 4, MouseBtnX2 = 5;
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetHint(byte* name, byte* value);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_Init(uint flags);
@@ -60,9 +61,14 @@ internal static unsafe partial class Sdl3Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void SDL_DestroyWindow(IntPtr window);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_ShowWindow(IntPtr window);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_RaiseWindow(IntPtr window);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowAlwaysOnTop(IntPtr window, byte onTop);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern uint SDL_GetWindowProperties(IntPtr window);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_GetPointerProperty(uint props, byte* name, IntPtr defaultValue);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowFullscreen(IntPtr window, byte fullscreen);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowRelativeMouseMode(IntPtr window, byte enabled);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_GetWindowSize(IntPtr window, out int w, out int h);
+    [DllImport("user32.dll", ExactSpelling = true)] private static extern int SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll", ExactSpelling = true)] private static extern int SetForegroundWindow(IntPtr hWnd);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_CreateRenderer(IntPtr window, byte* name);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void SDL_DestroyRenderer(IntPtr renderer);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_CreateTexture(IntPtr renderer, uint format, int access, int w, int h);
@@ -76,6 +82,7 @@ internal static unsafe partial class Sdl3Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetRenderVSync(IntPtr renderer, int vsync);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_PollEvent(byte* ev);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte* SDL_GetKeyboardState(out int numkeys);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern uint SDL_GetMouseState(float* x, float* y);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_OpenAudioDeviceStream(uint devid, SdlAudioSpec* spec, IntPtr callback, IntPtr userdata);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_ResumeAudioStreamDevice(IntPtr stream);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_PutAudioStreamData(IntPtr stream, void* buf, int len);
@@ -143,6 +150,35 @@ internal static unsafe partial class Sdl3Native
     {
         byte[] t = Encoding.UTF8.GetBytes(title + "\0");
         fixed (byte* tp = t) return SDL_CreateWindow(tp, w, h, flags);
+    }
+
+    public static uint GetMouseButtonsMask() => SDL_GetMouseState(null, null);
+
+    public static int SdlButtonToBindingCode(byte sdlButton) => sdlButton switch
+    {
+        MouseBtnLeft => 1001,
+        MouseBtnRight => 1002,
+        MouseBtnMiddle => 1003,
+        MouseBtnX1 => 1004,
+        MouseBtnX2 => 1005,
+        _ => 0
+    };
+
+    public static void BringWindowToForeground(IntPtr window, bool alwaysOnTop)
+    {
+        if (window == IntPtr.Zero) return;
+        _ = SDL_ShowWindow(window);
+        if (alwaysOnTop) _ = SDL_SetWindowAlwaysOnTop(window, 1);
+        _ = SDL_RaiseWindow(window);
+        if (!OperatingSystem.IsWindows()) return;
+        uint props = SDL_GetWindowProperties(window);
+        if (props == 0) return;
+        byte[] propName = Encoding.UTF8.GetBytes("SDL.window.win32.hwnd\0");
+        IntPtr hwnd;
+        fixed (byte* pn = propName) hwnd = SDL_GetPointerProperty(props, pn, IntPtr.Zero);
+        if (hwnd == IntPtr.Zero) return;
+        if (alwaysOnTop) _ = SetWindowPos(hwnd, new IntPtr(-1), 0, 0, 0, 0, 0x0043U);
+        _ = SetForegroundWindow(hwnd);
     }
 
     /// <summary>Reads the SDL event type at offset 0.</summary>

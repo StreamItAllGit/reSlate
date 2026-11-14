@@ -1,6 +1,6 @@
-# reStation (`v0.1.3`)
+# reStation (`v0.1.4`)
 
-- **Active Version:** `v0.1.3` (`2026-11-14`)
+- **Active Version:** `v0.1.4` (`2026-11-14`)
 - **Lifecycle State:** `active` ([`active.state`](active.state))
 - **Group / Path:** ``
 - **Logo Assets:** [`Dev\assets\reStation.svg`](Dev/assets/reStation.svg) | [`Dev\assets\reStation.png`](Dev/assets/reStation.png) | [`Dev\assets\reStation.ico`](Dev/assets/reStation.ico)
@@ -31,9 +31,10 @@ reStation.exe --test-mode --visible-test --data-dir .\Sandbox\data --log-dir .\S
 | `--fps-mode <original\|enhanced>` | Select native PS1 cadence or interpolated high-FPS presentation (`--target-fps`, `--vsync`). |
 | `--backend <opengl\|software>` | Select `IRecompRenderBackend` (`v0.1.1`: `OpenGL 3.3 Core` with off-thread FIFO queue or `SoftwareCpu` parity oracle; expanding in `v0.3.0–v1.0.0` to `opengl` + `vulkan` + `parallelCpu` + `software`). |
 | `--preload-media <path>` | Override `data\rom\` discovery with an explicit SHA-256-verified disc image or archive path (`v0.1.1`). |
-| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until session exit (`--wait`), or print `reStation v0.1.3` (`--version`). |
-| `--data-dir` / `--config` / `--log-dir` | Redirect writable runtime data, `settings.json`, and telemetry logs (`--test-mode` fail-closed). |
-| `--headless` / `--visible-test` | Automated CI testing (`--headless`) or short foreground showcase (`--visible-test`). |
+| `--input-script <spec.json>` | Execute deterministic keyboard, mouse, `F1` drawer, screenshot, and RAM-assertion scripts in live/headless sessions (`v0.1.4`). |
+| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until session exit (`--wait`), or print `reStation v0.1.4` (`--version`). |
+| `--data-dir` / `--config` / `--log-dir` | Redirect writable runtime data, `settings.json`, `settings.controls.json`, and telemetry logs (`--test-mode` fail-closed). |
+| `--headless` / `--visible-test` | Automated unit/batch mode (`--headless`) or foreground topmost OpenGL 3.3 live verification (`--visible-test`). |
 
 **CLI Exit-Code Contract & Upcoming Bridge Switches:** Root `reStation.exe` propagates deterministic exit codes: `0` pass, `1` runtime/`--verify`/`--fixture` failure, `2` CLI validation error, `3` fail-closed `STD-03` sandbox violation, `4` disc/archive ingestion failure, reserved `5` (`--jit-bringup` non-VBlank spin watchdog timeout, `v0.2.0`), reserved `6` (`--require-backend` hardware/ICD unavailable, `v0.3.0`), and `130` (`SIGINT`). Shipped `v0.1.1` bridge switches cover `--preload-media`, `--wait`, and `--version`; upcoming switches wire `--jit-bringup` & `--force-zero-rwx` (`v0.2.0`), `--require-backend` (`v0.3.0`), and `--save-dir` (`v0.4.0`).
 
@@ -52,8 +53,8 @@ reStation.exe --test-mode --visible-test --data-dir .\Sandbox\data --log-dir .\S
 - **Feature Inventory & Code Map:** [`FEATURES.md`](FEATURES.md)
 - **Milestones & Strategic Horizon:** [`ROADMAP.md`](ROADMAP.md)
 - **Version History Ledger:** [`CHANGELOG.md`](CHANGELOG.md)
-- **Blueprints (`@pland`):** [`Dev\docs\plans\0.1.3.2026-11-14.md`](Dev/docs/plans/0.1.3.2026-11-14.md) *(Active `v0.1.3` — `--uninstall` base-dir normalization, `MPL-2.0` `LICENSE` bundling, engine `data\rom\` cleanup, UTF-8 release doc sanitization, `reEngine v0.1.3` sync)* | [`0.1.2.2026-11-14.md`](Dev/docs/plans/0.1.2.2026-11-14.md) | [`0.1.1.2026-11-13.md`](Dev/docs/plans/0.1.1.2026-11-13.md) | [`0.1.0.2026-11-13.md`](Dev/docs/plans/0.1.0.2026-11-13.md)
-- **Verification Report (`@inspecter`):** [`Dev\docs\reports\archive\0.1.1.20261114-040030.-.sandbox-verify.md`](Dev/docs/reports/archive/0.1.1.20261114-040030.-.sandbox-verify.md) *(5/5 Wave 2 `Sandbox\` Gates `0.1.1-A..E` `PASS`)*
+- **Blueprints (`@pland`):** [`Dev\docs\plans\0.1.4.2026-11-14.md`](Dev/docs/plans/0.1.4.2026-11-14.md) *(Shipped `v0.1.4` — `PsxBiosHle` pad byte-swap + Port-2 active-LOW fix, 3-tier keyboard/mouse controls, `--input-script`, topmost live `--visible-test`)* | [`0.1.3.2026-11-14.md`](Dev/docs/plans/0.1.3.2026-11-14.md) | [`0.1.2.2026-11-14.md`](Dev/docs/plans/0.1.2.2026-11-14.md) | [`0.1.1.2026-11-13.md`](Dev/docs/plans/0.1.1.2026-11-13.md) | [`archive\0.1.0.2026-11-13.md`](Dev/docs/plans/archive/0.1.0.2026-11-13.md)
+- **Verification Report (`@inspecter`):** [`Dev\docs\reports\0.1.4.2026-11-14.-.visible-test-and-pad-audit.md`](Dev/docs/reports/0.1.4.2026-11-14.-.visible-test-and-pad-audit.md) *(Packaged `Sandbox\` topmost `--visible-test` + `F1 -> Keybinds`/`Controls` UI + 3-tier log sweep `PASS`)*
 
 ---
 

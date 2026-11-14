@@ -4,6 +4,17 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-14
+### Added
+- **3-Tier Rebindable Input & Mouse Action Mapping (`reStation.Contracts`, `reStation.Core`, `reStation.Player`):** Added [`IModuleInputProfileProvider.cs`](Dev/src/reStation.Contracts/IModuleInputProfileProvider.cs) (`GameActionDescriptor`, gameplay vs. menu context predicates), Standard 19 [`GlobalControllerProfile.cs`](Dev/src/reStation.Core/Input/GlobalControllerProfile.cs) (`settings.controls.json` with fail-closed `--test-mode` containment), mouse button binding codes (`MouseLeft=1001..MouseX2=1005`) in [`KeyBindingsConfig.cs`](Dev/src/reStation.Core/Input/KeyBindingsConfig.cs), Standard 18 `inputProfileMode` + `modernActionBindings` settings, and the 3-tier `Global 1:1 | Game 1:1 | Modern PC` UI with live keyboard + mouse capture in [`KeybindsDrawerTab.cs`](Dev/src/reStation.Player/KeybindsDrawerTab.cs).
+- **Deterministic `--input-script` Automation (`InputScriptRunner`, `CliOptions`, `LauncherArgsHelper`):** Added frame-ranged keyboard/mouse holds, F1 drawer commands, screenshot captures, and live RAM `u16` assertions in [`InputScriptRunner.cs`](Dev/src/reStation.Core/Input/InputScriptRunner.cs), passing `134/134` xUnit checks under `/warnaserror` (`PsxBiosPadAndThreeTierInputTests`).
+
+### Changed
+- **Real Foreground Topmost `--visible-test` Execution (`Program.cs`, `Program.FrameLoop.cs`, `HostVideoSurface.cs`, `FixtureRunnerHost.cs`):** Extracted [`Program.MediaGate.cs`](Dev/src/reStation.Player/Program.MediaGate.cs) (`Program.FrameLoop.cs` `247` LOC), enforced `SDL_SetWindowAlwaysOnTop` + Win32 `HWND_TOPMOST` on live-view windows, updated `--visible-test` to boot the real `RunHostLoop` whenever module or disc media is present (falling back to bare showcase only without media), enabled foreground topmost presentation on non-headless fixtures, and bumped `reStation` packages/SDK metadata to `0.1.4`.
+
+### Fixed
+- **PS1 BIOS `PAD_init` / `PAD_dr` Byte-Swap & Port-2 High Bits (`PsxBiosHle.cs`):** Added `SwapPadBytes(ushort)` and explicit `(ushort)` masking in `BuildPadDrWord()` for `B0:0x15` (`PAD_init(0x20000001)`) and `B0:0x16` (`PAD_dr()`) so `Cross` (`0x4000` -> `0x0040`, active-LOW `0xFFFFFFBF`) no longer maps onto `D-Pad Down` (`0x0040` -> `0x4000`, `0xFFFFBFFF`) and raw `B0:0x12` stays intact; removed hardcoded `mouseLeft -> R1` / `mouseRight -> L1` overrides and click-through capture leaks in [`HostInputMapper.cs`](Dev/src/reStation.Player/HostInputMapper.cs) and `PumpEvents`.
+
 ## [0.1.3] - 2026-11-14
 ### Added
 - **Packaging Compliance & End-User Doc Sanitization:** Added [`sanitize_release_docs.ps1`](Dev/scripts/sanitize_release_docs.ps1) with strict UTF-8 reading, mojibake repair, local file-link unwrapping, and fail-fast leak validation across `Installers\RELEASE_NOTES.md` and all 4 markdown files in `Releases\`, bundled root `LICENSE` (`MPL-2.0`) into portable `app\`, published SDK drops, and source archives, and added unit coverage for base-directory `--uninstall` normalization and fail-closed containment.

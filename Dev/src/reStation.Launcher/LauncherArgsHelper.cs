@@ -15,13 +15,13 @@ internal static class LauncherArgsHelper
     /// <summary>Flags whose runs must finish synchronously before the launcher returns.</summary>
     internal static readonly string[] SyncWaitFlags =
     {
-        "--wait", "--visible-test", "--fixture", "--verify", "--test-mode", "--headless", "--version", "--help", "-h", "/?"
+        "--wait", "--visible-test", "--fixture", "--input-script", "--verify", "--test-mode", "--headless", "--version", "--help", "-h", "/?"
     };
 
     /// <summary>CLI options followed by a filesystem path resolved relative to the caller working directory.</summary>
     internal static readonly HashSet<string> PathValueFlags = new(StringComparer.OrdinalIgnoreCase)
     {
-        "--module", "--disc", "--preload-media", "--fixture", "--dump-screenshot", "--data-dir", "--config", "--log-dir"
+        "--module", "--disc", "--preload-media", "--fixture", "--input-script", "--dump-screenshot", "--data-dir", "--config", "--log-dir"
     };
 
     /// <summary>True when any argument requests synchronous CLI execution or explicit wait propagation.</summary>

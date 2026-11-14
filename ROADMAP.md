@@ -1,6 +1,6 @@
 # reStation — Roadmap & Milestones
 
-**Current Active Version:** `0.1.3`  
+**Current Active Version:** `0.1.4`  
 **Lifecycle State:** `active.state`  
 **Last Updated:** 2026-11-14
 
@@ -14,7 +14,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, Shared-IR R
 
 ---
 
-## 2. Active In-Dev Milestone (`0.1.3` Shipped Baseline $\rightarrow$ Next Minor: `v0.2.0`)
+## 2. Active In-Dev Milestone (`0.1.4` Shipped Baseline $\rightarrow$ Next Minor: `v0.2.0`)
 - [x] Tier A 6-folder scaffold, `active.state`, `AGENTS.md`, Root Quartet, Manual Shelf, and original `.svg`/`.png`/`.ico` logo bundle (`v0.1.0`).
 - [x] Consume `Foundation` (`v0.3.1` / `Foundation.Retro` `v0.1.1`) SDK binaries (`MediaContainerExtractor`, `HighResFramePacer`, `AudioRingBuffer`, `WavCaptureWriter`, `RgbaPngWriter`, `IVisibleTestHarness`, `Foundation.Installer`).
 - [x] Extract reusable R3000A CPU, COP0, GTE, MDEC, 2x CD-ROM (`150 sectors/s`), ADSR SPU/XA mixer, `reStation.Compiler` (`<= 320 LOC` chunks), and `.recomp` module ABI (`IRecompGameModule` / `IReStationCpu`) into `reStation`.
@@ -26,6 +26,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, Shared-IR R
 - [x] **`"RST1"` `"RSTX"` Save-State Trailer Seam (`v0.1.1`):** Preserved frozen `QuickSaveManager.SchemaVersion = 1` (`"RST1"`) compatibility while appending EOF-anchored `"RSTX"` extension chunks (`QuickSaveTrailer.cs`: `"BIOS"` + `"OVLY"`, `BLINDSPOT-05`).
 - [x] **Wave 2 & 3 Consumer Stabilization (`v0.1.2` `PATCH+1` Drop for `CrownDepthsRecomp v0.1.4`):** Fixed `T:01` OpenGL/SDL sub-tick owner-thread marshaling (eliminating `0x0000` FBO crashes), `IR1`/`IR2` GTE `lm: false` transform collapse, `Pgxp.ClearFrame()` + `LastDrawnX/Y` scanout tracking, `RenderUiOverlay` (`< 8 ms` hardware alpha + `4 Hz` HUD throttle + centered letterbox), native ZIP `.recomp` loading + parent `data\rom\` via `reEngine v0.1.2`, max-2 unpacked `Releases\`, `129/129` tests (`0` warnings), and `SharedLibs\reStation\v0.1.2\`.
 - [x] **Installer, Legal & End-User Packaging Hardening (`v0.1.3` `PATCH+1` Drop):** Normalized `--uninstall` base directories (`<root>`, `<root>\reEngine`) to the side-by-side leaf under `--test-mode` containment (`ReStationInstallerBootstrap`), bundled root `MPL-2.0` `LICENSE` (`app\`, `SharedLibs\reStation\v0.1.3\`, `Archive\`), added `## License & Legal` attribution in `README.md` / `USER_GUIDE.md`, stopped staging engine `data\rom\.keep`, scrubbed `AGENTS.md`, enforced UTF-8 sanitization + fail-fast leak validation (`sanitize_release_docs.ps1`) synced onto `reEngine v0.1.3`, passed `130/130` tests (`0` warnings), and passed `@inspecter` `Sandbox\` `--uninstall` + `--visible-test` QA ([`0.1.3.2026-11-14_1056.-.sandbox-uninstall-and-visible-test-verify.md`](Dev/docs/reports/archive/0.1.3.2026-11-14_1056.-.sandbox-uninstall-and-visible-test-verify.md)).
+- [x] **PS1 BIOS PAD Fix, 3-Tier Rebindable Controls & Always-On-Top Live-View (`v0.1.4` `PATCH+1` Drop):** Fixed `PsxBiosHle` (`B0:0x15` `PAD_init`, `B0:0x16` `PAD_dr`) halfword byte-swap (`SwapPadBytes`) + Port-2 active-LOW masking (`Cross` `0x4000` -> `0x0040` vs `Down` `0x0040` -> `0x4000`), shipped 3-tier keyboard + mouse controls (`Global 1:1` `settings.controls.json`, `Game 1:1`, and `IModuleInputProfileProvider` `Modern PC`), deterministic `InputScriptRunner` (`--input-script`), topmost OpenGL 3.3 live `--visible-test`, `134/134` tests (`0` warnings), and packaged `Sandbox\` verification ([`0.1.4.2026-11-14.-.visible-test-and-pad-audit.md`](Dev/docs/reports/0.1.4.2026-11-14.-.visible-test-and-pad-audit.md)).
 
 ---
 
@@ -33,8 +34,8 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, Shared-IR R
 
 ```mermaid
 flowchart LR
-    V01["v0.1.0 (Shipped)\nModular PS1 AOT + GL33/SW"] --> V013["v0.1.3 (Active)\n--uninstall Norm, Legal & Clean Releases"]
-    V013 --> V02["v0.2.0\nShared IR + RyuJIT + --jit-bringup"]
+    V01["v0.1.0 (Shipped)\nModular PS1 AOT + GL33/SW"] --> V014["v0.1.4 (Active)\nPAD Byte-Swap Fix + 3-Tier Input + Topmost Live-View"]
+    V014 --> V02["v0.2.0\nShared IR + RyuJIT + --jit-bringup"]
     V02 --> V03["v0.3.0\nVulkan + ParallelCpu + Overrides SDK"]
     V03 --> V04["v0.4.0\nStatic R3 Promoter + PS1 Essentials"]
     V04 --> V10["v1.0.0 (GOLD win-x64)\nTri-Backend + 2-Title R3 Cert"]
@@ -129,6 +130,7 @@ flowchart LR
 ---
 
 ## 4. Completed Milestones
+- `0.1.4` (`2026-11-14`) — Fixed `PsxBiosHle` (`B0:0x15`/`0x16`) halfword byte-swap + Port-2 active-LOW masking (`SwapPadBytes`), shipped 3-tier keyboard/mouse controls (`Global 1:1` `settings.controls.json`, `Game 1:1`, `IModuleInputProfileProvider` `Modern PC`), `InputScriptRunner` (`--input-script`), topmost OpenGL 3.3 live `--visible-test`, `134/134` tests (`0` warnings), `@dean` Gate 2 `PASS`, `audit_installer.ps1` (`0` findings), `SharedLibs\reStation\v0.1.4\`, and packaged `Sandbox\` verification `PASS` ([`0.1.4.2026-11-14.md`](Dev/docs/plans/0.1.4.2026-11-14.md) | [`0.1.4.2026-11-14.-.visible-test-and-pad-audit.md`](Dev/docs/reports/0.1.4.2026-11-14.-.visible-test-and-pad-audit.md)).
 - `0.1.3` (`2026-11-14`) — Normalized `--uninstall` base directories (`<root>`, `<root>\reEngine`) to `engines\reStation\v0.1.3\` (`ReStationInstallerBootstrap`), bundled `MPL-2.0` `LICENSE` (`app\`, `SharedLibs\reStation\v0.1.3\`, `Archive\`), omitted engine `data\rom\.keep`, added `## License & Legal` to `README.md`/`USER_GUIDE.md`, scrubbed `AGENTS.md`, added UTF-8 fail-fast `sanitize_release_docs.ps1` synced onto `reEngine v0.1.3`, passed `130/130` tests (`0` warnings), `@dean-2` Gate 2 `PASS`, `audit_installer.ps1` (`0` findings), and `@inspecter` `Sandbox\` `--uninstall` + `--visible-test` `PASS` ([`0.1.3.2026-11-14.md`](Dev/docs/plans/0.1.3.2026-11-14.md) | [`0.1.3.2026-11-14_1056.-.sandbox-uninstall-and-visible-test-verify.md`](Dev/docs/reports/archive/0.1.3.2026-11-14_1056.-.sandbox-uninstall-and-visible-test-verify.md)).
 - `0.1.2` (`2026-11-14`) — Fixed `T:01` OpenGL/SDL sub-tick marshaling, `IR1`/`IR2` GTE `lm: false` transform collapse, `Pgxp.ClearFrame()` + `LastDrawnX/Y`, `< 8 ms` `RenderUiOverlay` (`4 Hz` HUD throttle + centered letterbox), native ZIP `.recomp` cartridge loading + parent `data\rom\` via `reEngine v0.1.2`, max-2 unpacked `Releases\`, `129/129` tests (`0` warnings), and `SharedLibs\reStation\v0.1.2\` ([`0.1.2.2026-11-14.md`](Dev/docs/plans/0.1.2.2026-11-14.md)).
 - `0.1.1` (`2026-11-14`) — Shipped additive Wave 2 engine seams (`IReStationCpuEx`, `IReStationHostEx`, `ISubTickFrameHook`, `IsSubTickRenderGuard`, `IOverlayRecompModule` `0x8019F07C` SHA-256 disambiguation, unlimited module/EXE loading, Mode2 `0x12` guard, off-thread `OpenGl33RenderBackend.Queue.cs`, EOF `"RSTX"` trailer `"BIOS"`/`"OVLY"` chunks), router CLI bridge (`--preload-media`, `--wait` + `JobObjectGuard`, `--version` parity), Standard 15 log/heartbeat/GL-fallback hygiene, `125/125` passing test executions (`87` test methods / `11` files, `0` warnings), signed `reStation-Setup-v0.1.1-win-x64.exe` (`AllowAutoStart = false`, `reEngine v0.1.1` bootstrapper, `audit_installer.ps1` `0` findings), `SharedLibs\reStation\v0.1.1\` (`"supportedEngineTracks": ["0.1.x"]`), and 5/5 `Sandbox\` Gates `0.1.1-A..E` `PASS` ([`0.1.1.2026-11-13.md`](Dev/docs/plans/0.1.1.2026-11-13.md) | [`0.1.1.20261114-040030.-.sandbox-verify.md`](Dev/docs/reports/archive/0.1.1.20261114-040030.-.sandbox-verify.md)).

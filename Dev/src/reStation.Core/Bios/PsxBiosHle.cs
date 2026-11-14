@@ -160,7 +160,11 @@ public sealed partial class PsxBiosHle
             case 0x0C: SetEventEnabled(_cpu.R[4], true); _cpu.R[2] = 1; break;
             case 0x0D: SetEventEnabled(_cpu.R[4], false); _cpu.R[2] = 1; break;
             case 0x12 or 0x15: _padType = _cpu.R[4]; _padBufAddr = _cpu.R[5]; _padLen = _cpu.R[6]; WritePadState(); _cpu.R[2] = fn == 0x15 ? 2U : 1U; break;
-            case 0x13 or 0x16: WritePadState(); _cpu.R[2] = fn == 0x16 ? ~((uint)_cpu.GetControllerButtons(0)) : 1U; break;
+            case 0x13 or 0x16:
+                uint drWord = BuildPadDrWord();
+                WritePadState(drWord);
+                _cpu.R[2] = fn == 0x16 ? drWord : 1U;
+                break;
             case 0x14: _padBufAddr = 0; _cpu.R[2] = 1; break;
             case 0x17 or 0x38: _cpu.ShouldUnwind = true; break;
             case 0x18: _hookEntryIntBufAddr = 0; break;
@@ -186,13 +190,24 @@ public sealed partial class PsxBiosHle
         if (fn == 0x0AU) _cpu.R[2] = 1;
     }
 
-    private void WritePadState()
+    private static ushort SwapPadBytes(ushort raw) => (ushort)((raw << 8) | (raw >> 8));
+
+    private uint BuildPadDrWord()
+    {
+        uint low = (ushort)~SwapPadBytes(_cpu.GetControllerButtons(0));
+        uint high = (ushort)~SwapPadBytes(_cpu.GetControllerButtons(1));
+        return (high << 16) | low;
+    }
+
+    private void WritePadState() => WritePadState(BuildPadDrWord());
+
+    private void WritePadState(uint packedDrWord)
     {
         if (_padBufAddr == 0) return;
-        uint packed = ~((uint)_cpu.GetControllerButtons(0));
-        if (_padType == 0x20000001U) { _cpu.Bus.Write32(_padBufAddr, packed); return; }
+        if (_padType == 0x20000001U) { _cpu.Bus.Write32(_padBufAddr, packedDrWord); return; }
+        ushort rawActiveLow = (ushort)~_cpu.GetControllerButtons(0);
         _cpu.Bus.Write16(_padBufAddr, 0x4100);
-        _cpu.Bus.Write16(_padBufAddr + 2, (ushort)(packed & 0xFFFF));
+        _cpu.Bus.Write16(_padBufAddr + 2, rawActiveLow);
         if (_padLen >= 8)
         {
             (byte lx, byte ly, byte rx, byte ry) = _cpu.GetControllerAxes(0);

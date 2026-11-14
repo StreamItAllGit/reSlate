@@ -57,6 +57,8 @@ public sealed class RecompSettings
     [JsonPropertyName("targetFps")] public int TargetFps { get; set; } = 60;
     [JsonPropertyName("isVsyncEnabled")] public bool IsVsyncEnabled { get; set; }
     [JsonPropertyName("keyBindings")] public KeyBindingsConfig KeyBindings { get; set; } = new();
+    [JsonPropertyName("inputProfileMode")] public InputProfileMode InputProfileMode { get; set; } = InputProfileMode.PerGameModern;
+    [JsonPropertyName("modernActionBindings")] public Dictionary<string, int>? ModernActionBindings { get; set; }
     /// <summary>Preserves forward/unknown settings keys across load-save cycles (Standard 19 §2.3).</summary>
     [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -72,9 +74,34 @@ public sealed class RecompSettings
         MouseSensitivity = double.IsFinite(MouseSensitivity) ? Math.Clamp(MouseSensitivity, 0.1, 10.0) : 1.0;
         MasterVolume = double.IsFinite(MasterVolume) ? Math.Clamp(MasterVolume, 0.0, 1.0) : 0.85;
         TargetFps = TargetFps <= 0 ? 0 : Math.Clamp(TargetFps, 30, 500);
+        if (!Enum.IsDefined(InputProfileMode)) InputProfileMode = InputProfileMode.PerGameModern;
         KeyBindings ??= new KeyBindingsConfig();
         KeyBindings.Clamp(ControlMode);
+        if (ModernActionBindings is not null)
+        {
+            foreach (string key in ModernActionBindings.Keys.ToArray())
+            {
+                ModernActionBindings[key] = KeyBindingsConfig.NormalizeBindingCode(ModernActionBindings[key], 0);
+            }
+        }
     }
+
+    public int GetModernActionBinding(GameActionDescriptor action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (ModernActionBindings is not null && ModernActionBindings.TryGetValue(action.ActionId, out int bound))
+            return KeyBindingsConfig.NormalizeBindingCode(bound, action.DefaultBindingCode);
+        return action.DefaultBindingCode;
+    }
+
+    public void SetModernActionBinding(string actionId, int bindingCode)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actionId);
+        ModernActionBindings ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        ModernActionBindings[actionId] = KeyBindingsConfig.NormalizeBindingCode(bindingCode, 0);
+    }
+
+    public void ResetModernActionBindings() => ModernActionBindings = null;
 
     /// <summary>Loads settings atomically (self-healing from .bak or defaults) and clamps the result.</summary>
     public static SettingsLoadOutcome<RecompSettings> Load(string configFilePath)

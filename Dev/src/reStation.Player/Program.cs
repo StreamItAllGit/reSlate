@@ -96,11 +96,17 @@ internal static partial class Program
         if (!string.IsNullOrWhiteSpace(options.FixturePath))
         {
             string fixtureOut = Path.Combine(sandbox.LogDirectory, "fixtures");
-            return FixtureRunnerHost.RunWithEngineAsync(options.FixturePath, fixtureOut, manifest, moduleDir, sandbox.DataDirectory, settings, logger, options.Headless)
+            bool fixtureHeadless = options.Headless && !options.VisibleTest;
+            return FixtureRunnerHost.RunWithEngineAsync(options.FixturePath, fixtureOut, manifest, moduleDir, sandbox.DataDirectory, settings, logger, fixtureHeadless)
                 .GetAwaiter().GetResult();
         }
 
-        if (options.VisibleTest)
+        DiscManifest? discManifest = DiscManifest.TryLoad(sandbox.DataDirectory);
+        int mediaExit = TryResolveAndIngestMedia(options, sandbox, settings, manifest, moduleDir, logger, ref discManifest);
+        if (mediaExit != 0) return mediaExit;
+
+        bool hasUiScriptOrSettings = options.OpenSettings || !string.IsNullOrWhiteSpace(options.InputScriptPath);
+        if (options.VisibleTest && manifest is null && discManifest is null && !hasUiScriptOrSettings)
         {
             string shotPath = string.IsNullOrWhiteSpace(options.DumpScreenshotPath)
                 ? Path.Combine(sandbox.LogDirectory, "screenshots", "visible-test.png")
@@ -110,19 +116,19 @@ internal static partial class Program
             return ok ? 0 : 1;
         }
 
-        DiscManifest? discManifest = DiscManifest.TryLoad(sandbox.DataDirectory);
-        int mediaExit = TryResolveAndIngestMedia(options, sandbox, settings, manifest, moduleDir, logger, ref discManifest);
-        if (mediaExit != 0) return mediaExit;
-
-        bool needsGate = !options.Headless && (manifest is null || discManifest is null);
-        using HostVideoSurface video = options.Headless
+        bool runHeadless = options.Headless && !options.VisibleTest;
+        bool needsGate = !runHeadless && !(options.VisibleTest && hasUiScriptOrSettings) && (manifest is null || discManifest is null);
+        string winTitle = options.VisibleTest
+            ? $"reStation v{ReStationEngineInfo.Version} \u2014 Visible Live Test | F1 Settings | F3 HUD"
+            : $"reStation v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD";
+        using HostVideoSurface video = runHeadless
             ? HostVideoSurface.Create($"reStation v{ReStationEngineInfo.Version}", settings, headless: true, foreground: false, logger)
-            : HostVideoSurface.Create($"reStation v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD", settings, headless: false, foreground: true, logger);
+            : HostVideoSurface.Create(winTitle, settings, headless: false, foreground: true, logger, alwaysOnTop: options.VisibleTest);
 
         if (needsGate && !RunFirstRunMediaGate(video, sandbox, settings, logger, ref manifest, ref moduleDir, ref discManifest, options))
             return 0;
 
-        if (options.Headless && manifest is not null && discManifest is null)
+        if (runHeadless && manifest is not null && discManifest is null)
         {
             logger.Warn("BOOT", "Headless session started without a verified disc image or data\\rom preload; exiting cleanly.");
             PsxTelemetrySnapshot idleSnap = PsxTelemetrySnapshot.Empty with { FrameNumber = 1, ResolutionScale = settings.ResolutionScale, BackendId = video.Backend.BackendId };
@@ -137,7 +143,7 @@ internal static partial class Program
         var cpu = new PsxCpu(settings, sandbox.DataDirectory, video.Backend, logger);
         if (discManifest is not null) cpu.AttachDisc(discManifest);
 
-        double initialFps = ComputeTargetFps(settings, options.Headless);
+        double initialFps = ComputeTargetFps(settings, runHeadless);
         using var pacer = new HighResFramePacer(initialFps);
         var hostOptions = new RecompHostOptions
         {
@@ -159,9 +165,9 @@ internal static partial class Program
             gameModule.InitializeAsync(host, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, sandbox, settings, pacer, logger);
+        int loopExit = RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, sandbox, settings, pacer, logger);
         GC.KeepAlive(moduleAlc);
-        return 0;
+        return loopExit;
     }
 
     internal static string? ResolveMediaCandidate(CliOptions options, ReStationModuleManifest? manifest, string? moduleDir, DiscManifest? existingDisc)
@@ -177,7 +183,7 @@ internal static partial class Program
     {
         if (!sandbox.TestMode) return;
         string boundary = CliOptions.ResolveSandboxBoundary(sandbox);
-        foreach (string? raw in new[] { options.DiscPath, options.PreloadMediaPath, options.FixturePath, options.DumpScreenshotPath })
+        foreach (string? raw in new[] { options.DiscPath, options.PreloadMediaPath, options.FixturePath, options.DumpScreenshotPath, options.InputScriptPath })
         {
             if (!string.IsNullOrWhiteSpace(raw))
                 _ = SandboxEnvironment.AssertPathContained(Path.GetFullPath(raw), boundary);

@@ -243,10 +243,10 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
 
         var specs = new[] { new GeneratedExeSpec(0, "SLUS_000.01", "SLUS_000.01", "Slus00001Exe", "Slus00001Module", 0x80010000U, 0x8001000CU, new List<GeneratedFnSpec>()) };
         ModuleManifestEmitter.EmitAll(outDir, opts, "Kf.Recomp", "Kf", specs, out string manifestPath, out _);
-        Assert.Equal("0.1.3", ReStationModuleManifest.LoadFromFile(manifestPath).Version);
+        Assert.Equal("0.1.4", ReStationModuleManifest.LoadFromFile(manifestPath).Version);
         string emittedSource = File.ReadAllText(Path.Combine(outDir, "KfGameModule.g.cs"));
         Assert.Contains("QuickSaveManager.LoadFromFile(", emittedSource, StringComparison.Ordinal);
-        Assert.Contains("Version = \"0.1.3\"", emittedSource, StringComparison.Ordinal);
+        Assert.Contains("Version = \"0.1.4\"", emittedSource, StringComparison.Ordinal);
     }
 
     private static void WriteMinimalPsxExe(string path, uint textAddr = 0x80010000U)

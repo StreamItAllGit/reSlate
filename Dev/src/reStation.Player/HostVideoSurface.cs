@@ -45,7 +45,7 @@ internal sealed unsafe class HostVideoSurface : IDisposable
     /// Initializes SDL3 and selects OpenGL 3.3 Core (when requested and not headless) or falls back to
     /// <c>SDL_CreateRenderer</c> + <see cref="SoftwareCpuRenderBackend"/> with a structured warning.
     /// </summary>
-    public static HostVideoSurface Create(string title, RecompSettings settings, bool headless, bool foreground, ReStationLogger logger)
+    public static HostVideoSurface Create(string title, RecompSettings settings, bool headless, bool foreground, ReStationLogger logger, bool alwaysOnTop = false)
     {
         Sdl3Native.InstallResolver();
         bool requestedGl = string.Equals(settings.BackendId, PsxRenderBackendIds.OpenGl, StringComparison.OrdinalIgnoreCase)
@@ -77,7 +77,7 @@ internal sealed unsafe class HostVideoSurface : IDisposable
         {
             if (TryCreateGlSurface(title, baseFlags, settings, logger, out HostVideoSurface? glSurface, out string glError) && glSurface is not null)
             {
-                glSurface.FinishWindow(foreground, logger);
+                glSurface.FinishWindow(foreground, alwaysOnTop && !headless, logger);
                 return glSurface;
             }
             fallback = glError;
@@ -98,7 +98,7 @@ internal sealed unsafe class HostVideoSurface : IDisposable
         }
         (int initW, int initH) = GetWindowSize(surface.Window);
         surface.InitializeBackend(initW, initH, settings.ResolutionScale);
-        surface.FinishWindow(foreground && !headless, logger);
+        surface.FinishWindow(foreground && !headless, alwaysOnTop && !headless, logger);
         return surface;
     }
 
@@ -133,15 +133,12 @@ internal sealed unsafe class HostVideoSurface : IDisposable
         }
     }
 
-    private void FinishWindow(bool foreground, ReStationLogger logger)
+    private void FinishWindow(bool foreground, bool alwaysOnTop, ReStationLogger logger)
     {
         if (Window == IntPtr.Zero) return;
-        if (foreground)
-        {
-            _ = Sdl3Native.SDL_ShowWindow(Window);
-            _ = Sdl3Native.SDL_RaiseWindow(Window);
-        }
-        logger.Info("VIDEO", $"Window {DefaultWidth}x{DefaultHeight} backend={Backend.BackendId} gl={UsesOpenGl} renderer={Renderer != IntPtr.Zero}");
+        if (foreground || alwaysOnTop)
+            Sdl3Native.BringWindowToForeground(Window, alwaysOnTop);
+        logger.Info("VIDEO", $"Window {DefaultWidth}x{DefaultHeight} backend={Backend.BackendId} gl={UsesOpenGl} renderer={Renderer != IntPtr.Zero} topmost={alwaysOnTop}");
     }
 
     /// <summary>Presents a tightly packed RGBA8 frame (composited game + UI) and swaps/presents the window.</summary>

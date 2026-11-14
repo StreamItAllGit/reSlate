@@ -161,10 +161,10 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     }
 
     [Fact]
-    public void InstallerAndLauncher_Expose013MetadataParameterizedAssemblyAndZeroEmptyCatches()
+    public void InstallerAndLauncher_Expose014MetadataParameterizedAssemblyAndZeroEmptyCatches()
     {
-        Assert.Equal("0.1.3", ReStationInstallerTheme.Version);
-        Assert.Equal("reStation-Setup-v0.1.3-win-x64", typeof(Program).Assembly.GetName().Name);
+        Assert.Equal("0.1.4", ReStationInstallerTheme.Version);
+        Assert.Equal("reStation-Setup-v0.1.4-win-x64", typeof(Program).Assembly.GetName().Name);
 
         string srcRoot = FindSrcRoot();
         string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));

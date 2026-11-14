@@ -18,31 +18,49 @@ internal static unsafe class HostInputMapper
     public static HostInputState BuildLiveInput(
         IReStationCpu cpu,
         bool drawerOpen,
+        bool sdlAvailable,
         RecompSettings settings,
+        KeyBindingsConfig? globalBindings,
+        IModuleInputProfileProvider? profileProvider,
         IntPtr gamepad,
         ref int dx,
         ref int dy,
-        bool mouseLeft,
-        bool mouseRight)
+        ReadOnlySpan<byte> scriptKeys = default,
+        uint scriptMouseMask = 0u)
     {
-        _ = cpu;
         if (drawerOpen) { dx = 0; dy = 0; return default; }
 
-        byte* ks = Sdl3Native.SDL_GetKeyboardState(out int n);
-        ReadOnlySpan<byte> keys = ks != null ? new ReadOnlySpan<byte>(ks, n) : ReadOnlySpan<byte>.Empty;
+        ReadOnlySpan<byte> liveKeys = ReadOnlySpan<byte>.Empty;
+        uint liveMouseMask = 0u;
+        if (sdlAvailable)
+        {
+            byte* ks = Sdl3Native.SDL_GetKeyboardState(out int n);
+            if (ks != null && n > 0) liveKeys = new ReadOnlySpan<byte>(ks, n);
+            liveMouseMask = Sdl3Native.GetMouseButtonsMask();
+        }
+
+        Span<byte> mergedKeys = stackalloc byte[KeyBindingsConfig.MaxScancode + 1];
+        int liveCopy = Math.Min(liveKeys.Length, mergedKeys.Length);
+        liveKeys[..liveCopy].CopyTo(mergedKeys);
+        int scriptCopy = Math.Min(scriptKeys.Length, mergedKeys.Length);
+        for (int i = 0; i < scriptCopy; i++)
+        {
+            if (scriptKeys[i] != 0) mergedKeys[i] = 1;
+        }
+        uint mergedMouseMask = liveMouseMask | scriptMouseMask;
 
         var st = new HostInputState
         {
             MouseDeltaX = dx,
             MouseDeltaY = dy,
-            LeftStickX = ReadAxis(gamepad, 0),
-            LeftStickY = ReadAxis(gamepad, 1),
-            RightStickX = ReadAxis(gamepad, 2),
-            RightStickY = ReadAxis(gamepad, 3)
+            LeftStickX = sdlAvailable ? ReadAxis(gamepad, 0) : 0f,
+            LeftStickY = sdlAvailable ? ReadAxis(gamepad, 1) : 0f,
+            RightStickX = sdlAvailable ? ReadAxis(gamepad, 2) : 0f,
+            RightStickY = sdlAvailable ? ReadAxis(gamepad, 3) : 0f
         };
-        ModernInputController.ApplyKeyBindings(keys, settings, ref st);
+        ModernInputController.ApplyProfileBindings(mergedKeys, mergedMouseMask, cpu, settings, globalBindings, profileProvider, ref st);
 
-        if (gamepad != IntPtr.Zero)
+        if (sdlAvailable && gamepad != IntPtr.Zero)
         {
             if (Sdl3Native.SDL_GetGamepadButton(gamepad, 0) != 0) st.Buttons |= PsxPadButton.Cross;
             if (Sdl3Native.SDL_GetGamepadButton(gamepad, 1) != 0) st.Buttons |= PsxPadButton.Circle;
@@ -54,8 +72,6 @@ internal static unsafe class HostInputMapper
             if (Sdl3Native.SDL_GetGamepadButton(gamepad, 10) != 0) st.Buttons |= PsxPadButton.R1;
         }
 
-        if (mouseLeft) st.Buttons |= PsxPadButton.R1;
-        if (mouseRight) st.Buttons |= PsxPadButton.L1;
         dx = 0;
         dy = 0;
         return st;

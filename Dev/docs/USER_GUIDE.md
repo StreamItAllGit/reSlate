@@ -1,6 +1,6 @@
 # reStation — User Guide
 
-**Synced Version:** `0.1.3` (`2026-11-14`)
+**Synced Version:** `0.1.4` (`2026-11-14`)
 
 ---
 
@@ -15,10 +15,10 @@
 
 ## 2. First-Run Setup via `reEngine` Side-by-Side
 
-Running `reStation-Setup-v0.1.3-win-x64.exe` automatically bootstraps or updates `reEngine` (`v0.1.3`, no background service or Windows Startup entries created) and installs `reStation` side-by-side into:
+Running `reStation-Setup-v0.1.4-win-x64.exe` automatically bootstraps or updates `reEngine` (`v0.1.3`, no background service or Windows Startup entries created) and installs `reStation` side-by-side into:
 
 ```text
-<reEngineInstallDir>\engines\reStation\v0.1.3\
+<reEngineInstallDir>\engines\reStation\v0.1.4\
 ├── reStation.exe               # Clean-root launcher
 ├── AGENTS.md                   # Runtime context anchor
 └── app\
@@ -32,11 +32,11 @@ Running `reStation-Setup-v0.1.3-win-x64.exe` automatically bootstraps or updates
 
 User disc media lives inside each `.recomp` game module's `data\rom\` directory rather than inside the shared engine directory. To uninstall, run `reStation-Uninstall.exe` or pass `--uninstall --install-dir <dir>` targeting either the `reEngine` base root, a parent directory containing `reEngine\`, or the versioned leaf engine folder directly.
 
-By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.3\`. Older `reStation` tracks (`v0.1.0`, `v0.1.1`, `v0.1.2`) remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.3"`).
+By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.4\`. Older `reStation` tracks (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`) remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.4"`).
 
 ### Ways to Launch
-1. **Through `reEngine` (Recommended):** Double-click any `.recomp` cartridge or `module.recomp.json` package or run `reEngine.exe --open "<path>\app\MyGame.recomp"`. `reEngine` resolves the matching `engines\reStation\v0.1.3\` track and forwards `--preload-media` / `--wait` automatically.
-2. **Direct Launcher:** Run `reStation.exe --module "<path>\app\MyGame.recomp"` (or `module.recomp.json`, optionally passing `--disc "<path>\disc.chd"`, `--preload-media "<path>"`, `--wait`, or `--version` to print `reStation v0.1.3`).
+1. **Through `reEngine` (Recommended):** Double-click any `.recomp` cartridge or `module.recomp.json` package or run `reEngine.exe --open "<path>\app\MyGame.recomp"`. `reEngine` resolves the matching `engines\reStation\v0.1.4\` track and forwards `--preload-media` / `--wait` automatically.
+2. **Direct Launcher:** Run `reStation.exe --module "<path>\app\MyGame.recomp"` (or `module.recomp.json`, optionally passing `--disc "<path>\disc.chd"`, `--preload-media "<path>"`, `--wait`, or `--version` to print `reStation v0.1.4`).
 3. **Interactive Gate:** Launch `reStation.exe` with no arguments to open the **First-Run Media Verification** window.
 
 ---
@@ -94,7 +94,7 @@ app\reStation.Compiler.exe (--disc <image> | --gamedata-dir <dir> | --exe-path <
 | `--decomp-dir <dir>` / `--functions-json <file>` | Optional symbol/function boundary hints. When omitted, the compiler discovers `Pc0`, `JAL` call targets, stack prologues, and `.rdata` jump tables automatically. |
 | `--out-dir <dir>` | Destination folder for generated C# chunks (`PartNNN.g.cs`, `DispatchNN.g.cs`), `<PascalId>GameModule.g.cs`, `<moduleId>.Module.csproj`, and `module.recomp.json`. |
 | `--module-id`, `--serial`, `--title` | Required module ID (e.g., `kings_field`), PS1 disc serial (e.g., `SLUS-00158`), and display title. |
-| `--version <semver>` | Module SemVer (defaults to `0.1.3`). |
+| `--version <semver>` | Module SemVer (defaults to `0.1.4`). |
 | `--compile-dll` | Compiles `<moduleId>.Module.csproj` (`net8.0`, Release, deterministic) against engine libraries (`ReStationLibDir` / `RESTATION_LIB_DIR` / `RESTATION_SHARED_DIR` / `<outDir>\lib\`) to emit `<moduleId>.recomp.dll` and `<moduleId>.recomp.deps.json`. |
 
 Exit codes: `0` on success, `1` on lift/build failure, `2` on invalid CLI arguments.
@@ -107,21 +107,22 @@ Exit codes: `0` on success, `1` on lift/build failure, `2` on invalid CLI argume
 - **`F1`:** Open or close the **Slide-Over Settings Drawer** (releases mouse capture when opened).
 - **`F3`:** Toggle the live **Telemetry HUD** overlay (saved to `settings.json`).
 - **`F5` / `F9`:** Quick Save (`F5`) / Quick Load (`F9`) using Quick-Save Slot `0`.
-- **Click Game Viewport:** Captures mouse for camera look when the drawer is closed; **Left Click = `R1`**, **Right Click = `L1`**.
+- **Click Game Viewport:** Captures mouse for camera look when the drawer is closed (focus-grab click captures the cursor without firing spurious combat clicks); once captured, any rebound mouse buttons (`LClick` `1001`, `RClick` `1002`, `MClick` `1003`, `Mouse4` `1004`, `Mouse5` `1005`) route cleanly through your active keybind tier.
 - **`Esc`:** Releases mouse capture (or closes the First-Run Media Gate).
 
-### Control Modes
-Switch between two modes in **Settings (`F1`) → Controls**:
-- **Modern WASD + Mouse** (`modernWasdMouse`, default): `W`/`A`/`S`/`D` map to the D-Pad, and relative mouse motion drives the PS1 right analog stick (scaled by **Mouse Sens**, `0.2`–`4.0`).
-- **Classic Tank** (`classicTank`): Arrow keys (`Up`/`Left`/`Down`/`Right`) map to the D-Pad; mouse look is inactive.
+### Control Modes & 3-Tier Input Profiles (`F1` → `Keybinds`)
+Switch `ControlMode` in **Settings (`F1`) → Controls** (`Modern WASD + Mouse` `modernWasdMouse` with right-stick mouse look `0.2`–`4.0` vs. `Classic Tank` `classicTank`), and select your active binding tier in **Settings (`F1`) → Keybinds**:
+- **Tier 1 — `Global 1:1` (`globalController`):** Engine-wide 1:1 PS1 controller mapping persisted atomically in `settings.controls.json` (shared across games).
+- **Tier 2 — `Game 1:1` (`perGameController`):** Per-game 1:1 PS1 controller overrides stored in `settings.json` (`keyBindings`).
+- **Tier 3 — `Modern PC` (`perGameModern`, default when module declares `IModuleInputProfileProvider`):** Module-defined semantic actions with context-aware Gameplay vs. Menu/Title PS1 button mappings stored in `settings.json` (`modernActionBindings`); falls back automatically to `Game 1:1` for modules without a Modern PC profile.
 
-### Default Keyboard & Gamepad Mapping
+### Default Keyboard & Gamepad Mapping (`1:1` Controller Tiers)
 | Action | Modern Default | Classic Default | SDL Gamepad |
 | :--- | :--- | :--- | :--- |
 | **D-Pad Up / Down / Left / Right** | `W` / `S` / `A` / `D` | `Up` / `Down` / `Left` / `Right` | Left Stick / Pad |
 | **Cross / Circle** | `Space` / `LShift` | `Space` / `LShift` | South / East |
 | **Square / Triangle** | `F` / `R` | `F` / `R` | West / North |
-| **L1 / R1** | `Q` / `E` *(or Right/Left Mouse)* | `Q` / `E` | Left / Right Shoulder |
+| **L1 / R1** | `Q` / `E` | `Q` / `E` | Left / Right Shoulder |
 | **L2 / R2** | `Z` / `C` | `Z` / `C` | — |
 | **Start / Select** | `Enter` / `Tab` | `Enter` / `Tab` | Start / Back |
 | **Quick Save / Quick Load** | `F5` / `F9` | `F5` / `F9` | — |
@@ -138,9 +139,9 @@ Press `F1` (or click the top-right **Settings (F1)** pill) to open the 5-tab rig
    - **Framerate Mode & Target FPS:** `Original (60/30)` or `Enhanced FPS` (`30`, `60`, `120`, `144`, `240`, or `Max` for unlocked).
    - **Toggles:** `VSync`, `16:9 Widescreen`, `PGXP Precision`, `Fullscreen`, and `FPS Overlay (F3)`.
 2. **Controls:**
-   - Toggle `Modern WASD + Mouse`, adjust `Mouse Sens` (`0.2`–`4.0` in `0.2` steps), review active bindings, or jump to **Customize Keybinds...**.
+   - Toggle `Modern WASD + Mouse`, adjust `Mouse Sens` (`0.2`–`4.0` in `0.2` steps), view the active tier summary (`Global 1:1 PS1`, `Game 1:1 PS1`, or module `Modern PC`), or jump to **Customize Keybinds (3 Tiers)...**.
 3. **Keybinds:**
-   - Interactive 2×8 grid for all 16 actions (`D-Pad`, `Cross`, `Circle`, `Square`, `Triangle`, `L1`, `R1`, `L2`, `R2`, `Start`, `Select`, `Quick Save`, `Quick Load`). Click an action and press any key (`Esc` cancels; `F1` remains reserved), or click **Reset Default Keybinds**.
+   - Switch between **`Global 1:1`**, **`Game 1:1`**, and **`Modern PC`** pills, then click any action row and press a **keyboard key** (scancodes `4..511`) or **mouse button** (`LClick`, `RClick`, `MClick`, `Mouse4`, `Mouse5`) to rebind (`Esc` cancels; `F1` stays reserved), or click **Reset Global / Game / Modern PC Defaults**.
 4. **System:**
    - **Use Global Format Rules** (`useGlobalFormatRules`, default `true`): Synchronizes date/number formatting with suite-wide rules.
    - **Fast Disc Load (Form1)** (`shouldFastLoadData`, default `true`): Accelerates Form1 `2048`-byte data sector loads (`32,768` cycles) while strictly keeping Form2/XA audio and raw MDEC video at true PS1 `1x`/`2x` timing (`150 sectors/s`).

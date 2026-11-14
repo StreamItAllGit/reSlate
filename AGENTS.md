@@ -1,6 +1,6 @@
 # Project Context: reStation (``)
 
-- **Role:** PS1 Recomp Engine, R3000A Lifter & Player (`v0.1.3`, Tier A on `reEngine`, `SharedLibs\reStation\v<Ver>\`, `Dev\assets\reStation.{svg,png,ico}`).
+- **Role:** PS1 Recomp Engine, R3000A Lifter & Player (`v0.1.4`, Tier A on `reEngine`, `SharedLibs\reStation\v<Ver>\`, `Dev\assets\reStation.{svg,png,ico}`).
 - **Boundaries:** `Foundation\`, `_DevBible\` & `<RESEARCH_ROOT>\*` (no `Corpus\`) RO; `.recomp` supplies `data\rom\`; child `PATCH+1`; `--test-mode` in `Sandbox\`.
 
 ## 1. Quartet & State

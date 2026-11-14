@@ -29,7 +29,7 @@ internal sealed unsafe class VisibleTestHarness : IVisibleTestHarness
         ArgumentNullException.ThrowIfNull(options);
         int durationMs = Math.Max(100, options.DurationMs);
         using HostVideoSurface video = HostVideoSurface.Create(
-            $"reStation v{ReStationEngineInfo.Version} \u2014 Visible Test", _settings, headless: false, foreground: true, _logger);
+            $"reStation v{ReStationEngineInfo.Version} \u2014 Visible Test", _settings, headless: false, foreground: true, _logger, alwaysOnTop: true);
         using var pacer = new HighResFramePacer(60.0);
         var canvas = new PixelOverlayCanvas(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight);
         var sw = Stopwatch.StartNew();

@@ -16,6 +16,8 @@ internal sealed class UiOverlayPresenter
 {
     public const int OverlayWidth = 1280, OverlayHeight = 720;
 
+    private static readonly Core.Input.BindableAction[] AllBindableActions = Enum.GetValues<Core.Input.BindableAction>();
+
     private readonly PixelOverlayCanvas _uiCanvas = new(OverlayWidth, OverlayHeight);
     private readonly byte[] _compositeBuf = new byte[OverlayWidth * OverlayHeight * 4];
     private bool _dirty = true;
@@ -27,8 +29,11 @@ internal sealed class UiOverlayPresenter
     private FrameRateMode _lastMode;
     private int _lastTargetFps;
     private ControlMode _lastControlMode;
+    private Core.Input.InputProfileMode _lastProfileMode;
+    private int _lastBindingsDigest;
     private double _lastSens, _lastVolume;
     private Core.Input.BindableAction? _lastListening;
+    private string? _lastListeningModern;
 
     public ReadOnlySpan<byte> UiPixels => _uiCanvas.Buffer;
     public ReadOnlySpan<byte> CompositePixels => _compositeBuf;
@@ -49,10 +54,12 @@ internal sealed class UiOverlayPresenter
         PsxTelemetrySnapshot telemetry)
     {
         string hudText = settings.IsFpsOverlayEnabled ? FormatModeBadge(settings) + telemetry.ToHudLine() : string.Empty;
+        int bindingsDigest = ComputeBindingsDigest(drawer, settings);
         bool structuralChanged = _dirty
             || _lastOpen != drawer.IsOpen
             || _lastTab != drawer.ActiveTab
             || _lastListening != drawer.KeybindsTab.ListeningAction
+            || !string.Equals(_lastListeningModern, drawer.KeybindsTab.ListeningModernActionId, StringComparison.Ordinal)
             || !string.Equals(_lastDiscInfo, discInfo, StringComparison.Ordinal)
             || _lastLoggingActive != loggingActive
             || _lastFpsEnabled != settings.IsFpsOverlayEnabled
@@ -67,6 +74,8 @@ internal sealed class UiOverlayPresenter
             || _lastGlobalRules != settings.UseGlobalFormatRules
             || _lastFastLoad != settings.ShouldFastLoadData
             || _lastControlMode != settings.ControlMode
+            || _lastProfileMode != settings.InputProfileMode
+            || _lastBindingsDigest != bindingsDigest
             || Math.Abs(_lastSens - settings.MouseSensitivity) > 0.001
             || Math.Abs(_lastVolume - settings.MasterVolume) > 0.001;
         bool hudTextChanged = !string.Equals(_lastHud, hudText, StringComparison.Ordinal);
@@ -96,6 +105,7 @@ internal sealed class UiOverlayPresenter
         _lastOpen = drawer.IsOpen;
         _lastTab = drawer.ActiveTab;
         _lastListening = drawer.KeybindsTab.ListeningAction;
+        _lastListeningModern = drawer.KeybindsTab.ListeningModernActionId;
         _lastDiscInfo = discInfo;
         _lastLoggingActive = loggingActive;
         _lastFpsEnabled = settings.IsFpsOverlayEnabled;
@@ -111,10 +121,31 @@ internal sealed class UiOverlayPresenter
         _lastGlobalRules = settings.UseGlobalFormatRules;
         _lastFastLoad = settings.ShouldFastLoadData;
         _lastControlMode = settings.ControlMode;
+        _lastProfileMode = settings.InputProfileMode;
+        _lastBindingsDigest = bindingsDigest;
         _lastSens = settings.MouseSensitivity;
         _lastVolume = settings.MasterVolume;
         _lastHudUpdateTicks = Stopwatch.GetTimestamp();
         return true;
+    }
+
+    private static int ComputeBindingsDigest(SlideOverSettingsDrawer drawer, RecompSettings s)
+    {
+        var hc = new HashCode();
+        hc.Add(s.InputProfileMode);
+        if (s.KeyBindings is not null)
+        {
+            foreach (Core.Input.BindableAction a in AllBindableActions)
+                hc.Add(s.KeyBindings.GetScancode(a));
+        }
+        foreach (Core.Input.BindableAction a in AllBindableActions)
+            hc.Add(drawer.GlobalProfile.KeyBindings.GetScancode(a));
+        if (drawer.ModuleProfile is not null)
+        {
+            foreach (GameActionDescriptor d in drawer.ModuleProfile.ModernActions)
+                hc.Add(s.GetModernActionBinding(d));
+        }
+        return hc.ToHashCode();
     }
 
     /// <summary>Composites the game RGBA image (4:3 or 16:9) with the transparent UI canvas into <see cref="CompositePixels"/>.</summary>
