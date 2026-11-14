@@ -261,4 +261,54 @@ public sealed class CliAndSettingsTests : IDisposable
         Assert.Equal(3, badProc.ExitCode);
         Assert.Contains("Fail-Closed Sandbox Violation", badErr, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void CliOptions_HelpTextAndEngineInfo_Reflect011Track()
+    {
+        Assert.Equal("0.1.1", ReStationEngineInfo.Version);
+        Assert.Equal("0.1.x", ReStationEngineInfo.CompatibleEngineTrack);
+        Assert.Contains("reStation v0.1.1", CliOptions.HelpText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PsxTelemetrySnapshot_ToHeartbeatMetrics_OmitsPrefixAndMatchesLineKeys()
+    {
+        var snap = new PsxTelemetrySnapshot(
+            FrameNumber: 12, CpuMs: 2.5, GpuMs: 3.5, WaitMs: 1.5, CurrentFps: 60.0, P99FrameMs: 16.67,
+            ResolutionScale: 4, BackendId: PsxRenderBackendIds.OpenGl, CdSectorsPerSec: 150.0,
+            MdecMacroblocksPerSec: 24.0, ActiveSpuVoices: 6, XaDrops: 0, AudioFillRatio: 0.75, AudioUnderruns: 0);
+
+        string metrics = snap.ToHeartbeatMetrics();
+        Assert.DoesNotContain("[HEARTBEAT]", metrics, StringComparison.Ordinal);
+        Assert.Contains("frame=12 ", metrics, StringComparison.Ordinal);
+        Assert.Contains("resolutionScale=4 ", metrics, StringComparison.Ordinal);
+        Assert.Contains("backend=opengl ", metrics, StringComparison.Ordinal);
+        Assert.Equal("[HEARTBEAT] " + metrics, snap.ToHeartbeatLine());
+    }
+
+    [Fact]
+    public void CliOptions_ApplyOverrides_PropagatesScaleAndBackendToSettings()
+    {
+        CliOptions parsed = CliOptions.Parse(new[] { "--verify", "--scale", "4", "--backend", "software" });
+        var settings = new RecompSettings();
+
+        parsed.ApplyOverrides(settings);
+
+        Assert.Equal(4, settings.ResolutionScale);
+        Assert.Equal(PsxRenderBackendIds.Software, settings.BackendId);
+    }
+
+    [Fact]
+    public void ReStationLogger_TryHeartbeatProgress_EnforcesPositiveTotalAndEmits()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        using var logger = new ReStationLogger(_tempRoot, enabled: true);
+
+        bool emitted = logger.TryHeartbeat(completed: 1, total: 0, item: "verify", force: true);
+
+        Assert.True(emitted);
+        Assert.Equal(1, logger.HeartbeatCount);
+        string logText = File.ReadAllText(logger.LogFilePath);
+        Assert.Contains("[HEARTBEAT]", logText, StringComparison.Ordinal);
+    }
 }

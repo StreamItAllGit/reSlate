@@ -5,7 +5,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <AssemblyName>reStation-Setup-v0.1.0-win-x64</AssemblyName>
+    <AssemblyName>reStation-Setup-v$(Version)-win-x64</AssemblyName>
     <RootNamespace>reStation.Installer</RootNamespace>
     <ApplicationTitle>reStation Setup</ApplicationTitle>
     <ApplicationIcon>..\..\assets\reStation.ico</ApplicationIcon>

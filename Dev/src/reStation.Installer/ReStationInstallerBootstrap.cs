@@ -1,9 +1,10 @@
 // @module: reStation.Installer.ReStationInstallerBootstrap
 // @purpose: reEngine auto-bootstrap for the reStation installer: sandbox-contained in --test-mode, side-by-side engines\reStation\v<Ver> target via ReEngineBootstrapHelper, zero literal host paths.
-// @depends-on: System.Reflection, System.Runtime.InteropServices, reEngine.Core.Bootstrap
+// @depends-on: System.Diagnostics, System.Reflection, System.Runtime.CompilerServices, System.Runtime.InteropServices, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerBootstrap
-// @owner: devv-pkg-test (T7)
+// @owner: devv-pkg (Wave 2 Slice 3)
 
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -91,7 +92,7 @@ internal static class ReStationInstallerBootstrap
         return exePath;
     }
 
-    /// <summary>Side-by-side <c>&lt;reEngineDir&gt;\engines\reStation\v0.1.0</c> target computed strictly via the reEngine SDK.</summary>
+    /// <summary>Side-by-side <c>&lt;reEngineDir&gt;\engines\reStation\v&lt;Version&gt;</c> (<c>v0.1.x</c> track) target computed strictly via the reEngine SDK.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     internal static string ComputeSideBySideDir(string reEngineInstallDir) =>
         ReEngineBootstrapHelper.BuildEngineVersionInstallDir(reEngineInstallDir, ReStationInstallerTheme.EngineId, ReStationInstallerTheme.Version);
@@ -125,7 +126,14 @@ internal static class ReStationInstallerBootstrap
             (bool success, string reEngineDir, string message) = EnsureReEngineAsync(bundledExe, testMode, sandboxRoot).GetAwaiter().GetResult();
             if (!success)
             {
-                try { AttachConsole(AttachParentProcess); } catch (DllNotFoundException) { }
+                try
+                {
+                    AttachConsole(AttachParentProcess);
+                }
+                catch (DllNotFoundException ex)
+                {
+                    Trace.WriteLine($"[WARN] [INSTALLER] AttachConsole unavailable: {ex.Message}");
+                }
                 Console.Error.WriteLine($"Setup error: reEngine bootstrap failed: {message}");
                 return 1;
             }
@@ -144,9 +152,18 @@ internal static class ReStationInstallerBootstrap
         }
         finally
         {
-            try { if (Directory.Exists(bootstrapDir)) Directory.Delete(bootstrapDir, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
+            try
+            {
+                if (Directory.Exists(bootstrapDir)) Directory.Delete(bootstrapDir, recursive: true);
+            }
+            catch (IOException ex)
+            {
+                Trace.WriteLine($"[WARN] [INSTALLER] Bootstrap temp cleanup skipped (IO): {ex.Message}");
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Trace.WriteLine($"[WARN] [INSTALLER] Bootstrap temp cleanup skipped (Access): {ex.Message}");
+            }
         }
     }
 }

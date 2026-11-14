@@ -39,6 +39,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\reStation.Launcher\LauncherArgsHelper.cs" Link="Launcher\LauncherArgsHelper.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

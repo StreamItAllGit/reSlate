@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 # @module: Dev/scripts/build_release.ps1
 # @purpose: Build, test, sign, stage Builds\, package Installers\, emit 6-file Releases\, SharedLibs SDK, and source Archive.
-# @depends-on: Dev/version.txt, Dev/src/reStation.slnx, Dev/assets/bootstrap/reEngine-Setup-v0.1.0-win-x64.exe, audit_installer.ps1
+# @depends-on: Dev/version.txt, Dev/src/reStation.slnx, Dev/assets/bootstrap/reEngine-Setup-v0.1.1-win-x64.exe, audit_installer.ps1
 # @exports: Canonical release pipeline (v0.1.0+)
 
 [CmdletBinding()]
@@ -23,9 +23,14 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
-    $BootstrapExe = Join-Path $devDir ("assets\bootstrap\reEngine-Setup-v{0}-win-x64.exe" -f $Version)
-    if (-not (Test-Path -LiteralPath $BootstrapExe)) {
-        $fallback = Get-ChildItem (Join-Path $devDir "assets\bootstrap") -Filter "reEngine-Setup-*.exe" -File -ErrorAction SilentlyContinue |
+    $bootstrapDir = Join-Path $devDir "assets\bootstrap"
+    $candidates = @(
+        (Join-Path $bootstrapDir ("reEngine-Setup-v{0}-win-x64.exe" -f $Version)),
+        (Join-Path $bootstrapDir "reEngine-Setup-v0.1.1-win-x64.exe")
+    )
+    $BootstrapExe = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
+        $fallback = Get-ChildItem $bootstrapDir -Filter "reEngine-Setup-*.exe" -File -ErrorAction SilentlyContinue |
             Sort-Object Name -Descending | Select-Object -First 1
         if ($fallback) { $BootstrapExe = $fallback.FullName }
     }
@@ -158,6 +163,16 @@ Invoke-Sign (Join-Path $stageApp "reStation.Player.exe")
 Invoke-Sign (Join-Path $stageApp "reStation.Compiler.exe")
 Invoke-Sign (Join-Path $stageDir "reStation.exe")
 
+foreach ($cliExe in @((Join-Path $stageApp "reStation.Player.exe"), (Join-Path $stageDir "reStation.exe"))) {
+    $helpOut = (& $cliExe --help | Out-String)
+    if ($LASTEXITCODE -ne 0) { throw "CLI --help check failed ($LASTEXITCODE) for $cliExe" }
+    foreach ($requiredFlag in @("--preload-media", "--wait")) {
+        if ($helpOut -notmatch [regex]::Escape($requiredFlag)) {
+            throw "CLI --help parity check failed for ${cliExe}: missing '$requiredFlag'."
+        }
+    }
+}
+
 $forbiddenExts = @(".pdb", ".db", ".sqlite", ".sqlite3", ".log")
 $badFiles = @(Get-ChildItem $stageDir -Recurse -File | Where-Object {
     ($_.Extension -in $forbiddenExts) -or ($_.Name -ieq ".env") -or ($_.Name -ilike "*secret*.json")
@@ -177,6 +192,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $instOut = Join-Path $workTemp "installer_out"
 & dotnet publish (Join-Path $devDir "src\reStation.Installer\reStation.Installer.csproj") `
     -c Release -r win-x64 --self-contained true `
+    -p:Version="$Version" `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
     -p:DebugType=none -p:DebugSymbols=false `
     -p:InstallerPayloadZip="$payloadZip" -p:ReEngineBootstrapExe="$BootstrapExe" `
@@ -283,6 +299,25 @@ foreach ($sdkDir in @((Join-Path $sharedRoot "v$Version"), (Join-Path $sharedRoo
     }
     Copy-Item -LiteralPath $installerPath -Destination (Join-Path $sdkDir $installerName) -Force
     $copiedNames.Add($installerName)
+    $rootReadme = Join-Path $root "README.md"
+    if (-not (Test-Path -LiteralPath $rootReadme)) { throw "Root README.md not found at $rootReadme" }
+    Copy-Item -LiteralPath $rootReadme -Destination (Join-Path $sdkDir "README.md") -Force
+    $copiedNames.Add("README.md")
+
+    $engineManifestJson = [ordered]@{
+        schemaVersion         = 1
+        engineId              = "reStation"
+        appId                 = "restation"
+        displayName           = "reStation"
+        version               = $Version
+        compatibleEngineTrack = "0.1.x"
+        supportedEngineTracks = @("0.1.x")
+        platformId            = "ps1"
+        updatedAtUtc          = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+    } | ConvertTo-Json -Depth 4
+    [System.IO.File]::WriteAllText((Join-Path $sdkDir "engine.manifest.json"), $engineManifestJson + "`r`n", [System.Text.UTF8Encoding]::new($false))
+    $copiedNames.Add("engine.manifest.json")
+
     $artifacts = $copiedNames | ForEach-Object {
         $p = Join-Path $sdkDir $_
         [ordered]@{
