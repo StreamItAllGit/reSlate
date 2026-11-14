@@ -210,6 +210,8 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
         return true;
     }
 
+    public void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, bool uploadPixels) { }
+
     public void Dispose() => PrimitivesSubmitted = 0;
 
     private void EnsureHiVram()

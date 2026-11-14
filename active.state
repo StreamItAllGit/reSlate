@@ -7,8 +7,8 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.1.1",
-  "activeMilestone": "0.1.1",
+  "version": "0.1.2",
+  "activeMilestone": "0.1.2",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-14",
   "lastVersionDate": "2026-11-14",
@@ -16,7 +16,7 @@
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 2,
+  "completedTaskCount": 4,
   "openReportCount": 0,
   "gates": {
     "isGate0ScopePassed": true,
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "v0.1.1 shipped (2026-11-14): T1-T8 complete (125/125 passing across 87 test methods / 11 files, 0 warnings), @dean Gate 2 PASS, signed reEngine v0.1.1 side-by-side installer + 6-file Releases + SharedLibs\\reStation\\v0.1.1\\ + Latest\\, @inspecter-restation Sandbox\\ Gates 0.1.1-A..E PASS, @tessa Quartet + Manual Shelf synced.",
-  "updatedAtUtc": "2026-11-14T04:09:37.689Z"
+  "notes": "v0.1.2 built, Gate 2 PASS, SharedLibs\\reStation\\v0.1.2\\ published, Sandbox verified (--version 0.1.2, --verify Exit 0, 129/129 tests, live OpenGL + overlay PNGs), and @tessa synced.",
+  "updatedAtUtc": "2026-11-14T09:38:00.000Z"
 }

@@ -6,7 +6,7 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v8.0": {
-      "reEngine.Core/0.1.1": {
+      "reEngine.Core/0.1.2": {
         "dependencies": {
           "Foundation.Core": "0.3.1.0"
         },
@@ -25,7 +25,7 @@
     }
   },
   "libraries": {
-    "reEngine.Core/0.1.1": {
+    "reEngine.Core/0.1.2": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

@@ -74,14 +74,60 @@ public sealed unsafe partial class OpenGl33RenderBackend
         else Gl.BlendFunc(GlConst.One, GlConst.One);
     }
 
-    private void BlitDisplayToScreen()
+    public void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, bool uploadPixels)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (width <= 0 || height <= 0 || rgbaPixels.Length < width * height * 4) return;
+        InitGlIfNeeded();
+        if (_overlayTex == 0 || _overlayW != width || _overlayH != height)
+        {
+            DeleteTex(ref _overlayTex);
+            _overlayTex = CreateTexture2D(GlConst.Rgba8, width, height, GlConst.Rgba, GlConst.UnsignedByte, GlConst.Linear, GlConst.ClampToEdge);
+            _overlayW = width;
+            _overlayH = height;
+            uploadPixels = true;
+        }
+        if (uploadPixels)
+        {
+            Gl.BindTexture(GlConst.Texture2D, _overlayTex);
+            Gl.PixelStorei(GlConst.UnpackAlignment, 1);
+            Gl.PixelStorei(GlConst.UnpackRowLength, 0);
+            fixed (byte* p = rgbaPixels)
+                Gl.TexSubImage2D(GlConst.Texture2D, 0, 0, 0, width, height, GlConst.Rgba, GlConst.UnsignedByte, p);
+        }
+        DrawBlitQuad(0, SurfaceWidth, SurfaceHeight, 3, _overlayTex, -1f, -1f, 2f, 2f, 0f, 1f, 1f, -1f, 0, 0, width, height, alphaBlend: true);
+    }
+
+    private void BlitDisplayToScreen(bool fullWindow, bool widescreen16By9)
     {
         Gl.Disable(GlConst.ScissorTest);
         Gl.Disable(GlConst.Blend);
+        int winW = Math.Max(1, SurfaceWidth), winH = Math.Max(1, SurfaceHeight);
+        int dstX = 0, dstY = 0, dstW = winW, dstH = winH;
+        if (!fullWindow)
+        {
+            float targetAspect = widescreen16By9 ? (16f / 9f) : (4f / 3f);
+            float winAspect = winW / (float)winH;
+            if (winAspect > targetAspect + 0.001f)
+            {
+                dstW = Math.Clamp((int)MathF.Round(winH * targetAspect), 1, winW);
+                dstX = (winW - dstW) / 2;
+            }
+            else if (winAspect < targetAspect - 0.001f)
+            {
+                dstH = Math.Clamp((int)MathF.Round(winW / targetAspect), 1, winH);
+                dstY = (winH - dstH) / 2;
+            }
+            Gl.BindFramebuffer(GlConst.Framebuffer, 0);
+            Gl.Viewport(0, 0, winW, winH);
+            Gl.ClearColor(0f, 0f, 0f, 1f);
+            Gl.Clear(GlConst.ColorBufferBit);
+        }
+
         Gl.BindFramebuffer(GlConst.ReadFramebuffer, _displayFbo);
         Gl.BindFramebuffer(GlConst.DrawFramebuffer, 0);
-        Gl.BlitFramebuffer(0, 0, _outW, _outH, 0, SurfaceHeight, SurfaceWidth, 0, GlConst.ColorBufferBit,
-            (uint)(_outW == SurfaceWidth && _outH == SurfaceHeight ? GlConst.Nearest : GlConst.Linear));
+        Gl.BlitFramebuffer(0, 0, _outW, _outH, dstX, winH - dstY, dstX + dstW, winH - dstY - dstH, GlConst.ColorBufferBit,
+            (uint)(_outW == dstW && _outH == dstH ? GlConst.Nearest : GlConst.Linear));
         Gl.BindFramebuffer(GlConst.Framebuffer, 0);
     }
 
@@ -109,9 +155,19 @@ public sealed unsafe partial class OpenGl33RenderBackend
     }
 
     private void DrawBlitQuad(uint targetFbo, int fboW, int fboH, int mode, uint colorTex, float dx, float dy, float dw, float dh,
-        float sx, float sy, float sw, float sh, int dispX, int dispY, int dispW, int dispH)
+        float sx, float sy, float sw, float sh, int dispX, int dispY, int dispW, int dispH, bool alphaBlend = false)
     {
-        Gl.Disable(GlConst.ScissorTest); Gl.Disable(GlConst.Blend);
+        Gl.Disable(GlConst.ScissorTest);
+        if (alphaBlend)
+        {
+            Gl.Enable(GlConst.Blend);
+            Gl.BlendEquation(GlConst.FuncAdd);
+            Gl.BlendFunc(GlConst.SrcAlpha, GlConst.OneMinusSrcAlpha);
+        }
+        else
+        {
+            Gl.Disable(GlConst.Blend);
+        }
         Gl.BindFramebuffer(GlConst.Framebuffer, targetFbo);
         Gl.Viewport(0, 0, fboW, fboH);
         Gl.UseProgram(_blitProg);
@@ -124,6 +180,7 @@ public sealed unsafe partial class OpenGl33RenderBackend
         Gl.BindVertexArray(_blitVao);
         Gl.DrawArrays(GlConst.Triangles, 0, 6);
         Gl.BindVertexArray(0);
+        if (alphaBlend) Gl.Disable(GlConst.Blend);
         Gl.BindFramebuffer(GlConst.Framebuffer, 0);
     }
 

@@ -1,6 +1,6 @@
 # reStation — Roadmap & Milestones
 
-**Current Active Version:** `0.1.1`  
+**Current Active Version:** `0.1.2`  
 **Lifecycle State:** `active.state`  
 **Last Updated:** 2026-11-14
 
@@ -14,7 +14,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, Shared-IR R
 
 ---
 
-## 2. Active In-Dev Milestone (`0.1.1` Shipped Baseline — Wave 3 Consumer Burn-In -> Next Minor: `v0.2.0`)
+## 2. Active In-Dev Milestone (`0.1.2` Shipped Baseline $\rightarrow$ Next Minor: `v0.2.0`)
 - [x] Tier A 6-folder scaffold, `active.state`, `AGENTS.md`, Root Quartet, Manual Shelf, and original `.svg`/`.png`/`.ico` logo bundle (`v0.1.0`).
 - [x] Consume `Foundation` (`v0.3.1` / `Foundation.Retro` `v0.1.1`) SDK binaries (`MediaContainerExtractor`, `HighResFramePacer`, `AudioRingBuffer`, `WavCaptureWriter`, `RgbaPngWriter`, `IVisibleTestHarness`, `Foundation.Installer`).
 - [x] Extract reusable R3000A CPU, COP0, GTE, MDEC, 2x CD-ROM (`150 sectors/s`), ADSR SPU/XA mixer, `reStation.Compiler` (`<= 320 LOC` chunks), and `.recomp` module ABI (`IRecompGameModule` / `IReStationCpu`) into `reStation`.
@@ -24,7 +24,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, Shared-IR R
 - [x] **Router CLI Bridge (`v0.1.1`):** Accepted `--preload-media <path>`, `--wait` + `JobObjectGuard` process-tree cleanup, and `--version` parity (`reStation v0.1.1`) across `CliOptions`, `reStation.Player`, and `reStation.Launcher`, verified chained under `reEngine v0.1.1 --open ... --wait`.
 - [x] **Telemetry & Fixture Log Hygiene (`v0.1.1`):** Fixed Standard 15 `[v0.1.1] [PID/T]` prefixing, eliminated triple `[HEARTBEAT]` / `1/0 (0.0%)` formatting noise, wired `Stopwatch` `--visible-test` telemetry & `FixtureRunnerHost` heartbeats, emitted `[WARN] [GL_FALLBACK] reason=headless`, and replaced empty `catch` blocks (`BLINDSPOT-01`).
 - [x] **`"RST1"` `"RSTX"` Save-State Trailer Seam (`v0.1.1`):** Preserved frozen `QuickSaveManager.SchemaVersion = 1` (`"RST1"`) compatibility while appending EOF-anchored `"RSTX"` extension chunks (`QuickSaveTrailer.cs`: `"BIOS"` + `"OVLY"`, `BLINDSPOT-05`).
-- [ ] **Wave 3 Downstream Consumer Burn-In (`CrownDepthsRecomp v0.1.3` & Gate `0.1.1-F`):** Wire `CrownDepthsRecomp` (`v0.1.3`) onto `reEngine v0.1.1` + `SharedLibs\reStation\v0.1.1\` (`ModuleManifestEmitter` `0.1.1`) and verify live `SLUS-00158` `data\rom\` multi-scene PNG/WAV parity & end-to-end launch (and track non-blocking `P3` parent-dir `--uninstall` root normalization polish for `v0.1.2`/`v0.2.0`).
+- [x] **Wave 2 & 3 Consumer Stabilization (`v0.1.2` `PATCH+1` Drop for `CrownDepthsRecomp v0.1.4`):** Fixed `T:01` OpenGL/SDL sub-tick owner-thread marshaling (eliminating `0x0000` FBO crashes), `IR1`/`IR2` GTE `lm: false` transform collapse, `Pgxp.ClearFrame()` + `LastDrawnX/Y` scanout tracking, `RenderUiOverlay` (`< 8 ms` hardware alpha + `4 Hz` HUD throttle + centered letterbox), native ZIP `.recomp` loading + parent `data\rom\` via `reEngine v0.1.2`, max-2 unpacked `Releases\`, `129/129` tests (`0` warnings), and `SharedLibs\reStation\v0.1.2\`.
 
 ---
 
@@ -32,8 +32,8 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, Shared-IR R
 
 ```mermaid
 flowchart LR
-    V01["v0.1.0 (Shipped)\nModular PS1 AOT + GL33/SW"] --> V011["v0.1.1 (Shipped)\nRouter CLI, RSTX & Ex Seams"]
-    V011 --> V02["v0.2.0\nShared IR + RyuJIT + --jit-bringup"]
+    V01["v0.1.0 (Shipped)\nModular PS1 AOT + GL33/SW"] --> V012["v0.1.2 (Shipped)\nT:01 GL, GTE Fix & ZIP .recomp"]
+    V012 --> V02["v0.2.0\nShared IR + RyuJIT + --jit-bringup"]
     V02 --> V03["v0.3.0\nVulkan + ParallelCpu + Overrides SDK"]
     V03 --> V04["v0.4.0\nStatic R3 Promoter + PS1 Essentials"]
     V04 --> V10["v1.0.0 (GOLD win-x64)\nTri-Backend + 2-Title R3 Cert"]

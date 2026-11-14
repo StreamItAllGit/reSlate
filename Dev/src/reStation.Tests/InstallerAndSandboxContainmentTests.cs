@@ -76,7 +76,7 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
         string sandboxRoot = Path.Combine(_tempRoot, "sandbox");
         string reEngineApp = Path.Combine(sandboxRoot, "reEngine", "app");
         Directory.CreateDirectory(reEngineApp);
-        string reEngineSdkVersion = typeof(reEngine.Core.Bootstrap.ReEngineBootstrapHelper).Assembly.GetName().Version?.ToString(3) ?? "0.1.1";
+        string reEngineSdkVersion = typeof(reEngine.Core.Bootstrap.ReEngineBootstrapHelper).Assembly.GetName().Version?.ToString(3) ?? "0.1.2";
         File.WriteAllText(Path.Combine(reEngineApp, "version.txt"), reEngineSdkVersion);
 
         int rc = ReStationInstallerBootstrap.Prepare(
@@ -161,10 +161,10 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     }
 
     [Fact]
-    public void InstallerAndLauncher_Expose011MetadataParameterizedAssemblyAndZeroEmptyCatches()
+    public void InstallerAndLauncher_Expose012MetadataParameterizedAssemblyAndZeroEmptyCatches()
     {
-        Assert.Equal("0.1.1", ReStationInstallerTheme.Version);
-        Assert.Equal("reStation-Setup-v0.1.1-win-x64", typeof(Program).Assembly.GetName().Name);
+        Assert.Equal("0.1.2", ReStationInstallerTheme.Version);
+        Assert.Equal("reStation-Setup-v0.1.2-win-x64", typeof(Program).Assembly.GetName().Name);
 
         string srcRoot = FindSrcRoot();
         string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));

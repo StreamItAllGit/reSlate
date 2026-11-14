@@ -3,6 +3,7 @@
 // @depends-on: System.Text.Json, Foundation.Retro
 // @exports: ReStationEngineInfo, IReStationModuleManifest, ReStationModuleManifest
 
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -18,7 +19,7 @@ public static class ReStationEngineInfo
     /// <summary>reEngine side-by-side engine identifier.</summary>
     public const string EngineId = "reStation";
     /// <summary>Current engine SemVer.</summary>
-    public const string Version = "0.1.1";
+    public const string Version = "0.1.2";
     /// <summary>Compatible engine track advertised to reEngine.</summary>
     public const string CompatibleEngineTrack = "0.1.x";
     /// <summary>Foundation.Retro platform identifier.</summary>
@@ -100,19 +101,48 @@ public sealed class ReStationModuleManifest : IReStationModuleManifest
     [JsonPropertyName("saveStateFixtures")] public IReadOnlyList<SaveStateFixtureSpec> SaveStateFixtures { get; set; } = Array.Empty<SaveStateFixtureSpec>();
     /// <summary>Forward-compatible unknown keys preserved across round-trips.</summary>
     [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
+    /// <summary>Full path to the ZIP <c>.recomp</c> cartridge when loaded from an archive; <see langword="null"/> for loose JSON files.</summary>
+    [JsonIgnore] public string? ResolvedPackagePath { get; set; }
 
-    /// <summary>Loads, normalizes (title/displayName fallback), and validates a module.recomp.json file.</summary>
+    /// <summary>Loads, normalizes (title/displayName fallback), and validates a loose <c>module.recomp.json</c> or packaged ZIP <c>.recomp</c> file.</summary>
     public static ReStationModuleManifest LoadFromFile(string manifestPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(manifestPath);
         string full = Path.GetFullPath(manifestPath);
-        ReStationModuleManifest manifest = JsonSerializer.Deserialize<ReStationModuleManifest>(File.ReadAllText(full, Encoding.UTF8), JsonOptions)
+        string jsonText;
+        string? packagePath = null;
+        if (IsZipArchiveFile(full))
+        {
+            using ZipArchive zip = ZipFile.OpenRead(full);
+            ZipArchiveEntry entry = zip.Entries.FirstOrDefault(e => string.Equals(e.FullName, "module.recomp.json", StringComparison.OrdinalIgnoreCase))
+                ?? zip.Entries.FirstOrDefault(e => string.Equals(e.Name, "module.recomp.json", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidDataException($"Package archive '{full}' does not contain 'module.recomp.json'.");
+            using StreamReader reader = new(entry.Open(), Encoding.UTF8);
+            jsonText = reader.ReadToEnd();
+            packagePath = full;
+        }
+        else
+        {
+            jsonText = File.ReadAllText(full, Encoding.UTF8);
+        }
+
+        ReStationModuleManifest manifest = JsonSerializer.Deserialize<ReStationModuleManifest>(jsonText, JsonOptions)
             ?? throw new InvalidDataException($"Module manifest '{full}' deserialized to null.");
+        manifest.ResolvedPackagePath = packagePath;
         if (string.IsNullOrWhiteSpace(manifest.DisplayName)) manifest.DisplayName = manifest.Title;
         if (string.IsNullOrWhiteSpace(manifest.Title)) manifest.Title = manifest.DisplayName;
         if (string.IsNullOrWhiteSpace(manifest.PreloadRomDir)) manifest.PreloadRomDir = ReStationEngineInfo.DefaultPreloadRomDir;
         manifest.Validate(full);
         return manifest;
+    }
+
+    private static bool IsZipArchiveFile(string fullPath)
+    {
+        if (!File.Exists(fullPath)) return false;
+        using FileStream fs = File.OpenRead(fullPath);
+        if (fs.Length < 4) return false;
+        Span<byte> hdr = stackalloc byte[4];
+        return fs.Read(hdr) == 4 && hdr[0] == (byte)'P' && hdr[1] == (byte)'K' && hdr[2] == 3 && hdr[3] == 4;
     }
 
     /// <summary>Atomically writes the manifest as UTF-8 (no BOM) camelCase JSON via .tmp + move.</summary>

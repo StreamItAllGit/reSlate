@@ -247,7 +247,7 @@ public sealed class Wave2CoreSeamTests
         using var logger = new ReStationLogger(Path.GetTempPath(), enabled: false);
         Assert.True(logger.TryHeartbeat(PsxTelemetrySnapshot.Empty with { FrameNumber = 0, BackendId = "software" }, force: true));
         string line = Assert.Single(logger.GetRecentLines());
-        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[v0\.1\.1\] \[PID:\d+/T:\d{2,}\] \[INFO\] \[HEARTBEAT\] ", line);
+        Assert.Matches($@"^\d{{4}}-\d{{2}}-\d{{2}}T\d{{2}}:\d{{2}}:\d{{2}}\.\d{{3}}Z \[v{Regex.Escape(ReStationEngineInfo.Version)}\] \[PID:\d+/T:\d{{2,}}\] \[INFO\] \[HEARTBEAT\] ", line);
         Assert.Single(Regex.Matches(line, @"\[HEARTBEAT\]"));
         Assert.DoesNotContain("1/0", line);
         Assert.Contains("resolutionScale=", line); Assert.Contains("sectorsPerSec=", line);

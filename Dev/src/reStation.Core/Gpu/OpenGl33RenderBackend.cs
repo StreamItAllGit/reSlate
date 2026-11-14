@@ -18,11 +18,11 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     private readonly GlVertex[] _batch = new GlVertex[MaxBatchVertices];
     private int _scale = 1, _outW = 320, _outH = 240, _vramFboScale, _dispFboW, _dispFboH, _scratchW, _scratchH;
     private int _batchCount, _clipL, _clipT, _clipR = PsxGpu.VramWidth - 1, _clipB = PsxGpu.VramHeight - 1;
-    private int _presentW, _presentH;
+    private int _presentW, _presentH, _overlayW, _overlayH;
     private long _primitivesSubmitted;
     private uint _batchBlendKey, _texWindowPacked;
     private uint _drawProg, _blitProg, _drawVao, _drawVbo, _blitVao, _blitVbo;
-    private uint _vramTex, _vramFbo, _vramColorTex, _displayFbo, _displayTex, _scratchFbo, _scratchTex, _presentTex;
+    private uint _vramTex, _vramFbo, _vramColorTex, _displayFbo, _displayTex, _scratchFbo, _scratchTex, _presentTex, _overlayTex;
     private int _uDrawVramTex, _uDrawStpPass, _uBlitVramTex, _uBlitColorTex, _uBlitMode, _uBlitDstRect, _uBlitSrcRect, _uBlitDispInfo;
     private PgxpTracker? _pgxp;
     private bool _glReady, _hasPresented, _disposed;
@@ -98,7 +98,7 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         EnsureDisplayFboSize(width, height);
         _outW = width; _outH = height;
         DrawBlitQuad(_displayFbo, width, height, 3, _presentTex, -1f, -1f, 2f, 2f, 0f, 0f, 1f, 1f, 0, 0, width, height);
-        BlitDisplayToScreen();
+        BlitDisplayToScreen(fullWindow: true, widescreen16By9: true);
         _hasPresented = true;
     }
 
@@ -244,7 +244,6 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
 
     public void EndFrameAndPresent(int dispX, int dispY, int dispW, int dispH, bool is24Bit, bool widescreen16By9)
     {
-        _ = widescreen16By9;
         ObjectDisposedException.ThrowIf(_disposed, this);
         InitGlIfNeeded();
         EnsureVramFboSize();
@@ -259,7 +258,7 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         DrawBlitQuad(_displayFbo, _outW, _outH, mode, _vramColorTex, -1f, -1f, 2f, 2f,
             (dispX & 1023) / (float)PsxGpu.VramWidth, (dispY & 511) / (float)PsxGpu.VramHeight,
             dw / (float)PsxGpu.VramWidth, dh / (float)PsxGpu.VramHeight, dispX & 1023, dispY & 511, dw, dh);
-        BlitDisplayToScreen();
+        BlitDisplayToScreen(fullWindow: false, widescreen16By9: widescreen16By9);
         _hasPresented = true;
     }
 
@@ -288,7 +287,7 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         DeleteProg(ref _drawProg); DeleteProg(ref _blitProg);
         DeleteVao(ref _drawVao); DeleteVao(ref _blitVao);
         DeleteBuf(ref _drawVbo); DeleteBuf(ref _blitVbo);
-        DeleteTex(ref _vramTex); DeleteTex(ref _vramColorTex); DeleteTex(ref _displayTex); DeleteTex(ref _scratchTex); DeleteTex(ref _presentTex);
+        DeleteTex(ref _vramTex); DeleteTex(ref _vramColorTex); DeleteTex(ref _displayTex); DeleteTex(ref _scratchTex); DeleteTex(ref _presentTex); DeleteTex(ref _overlayTex);
         DeleteFbo(ref _vramFbo); DeleteFbo(ref _displayFbo); DeleteFbo(ref _scratchFbo);
         _glReady = false;
     }

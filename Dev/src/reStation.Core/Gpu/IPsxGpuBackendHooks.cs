@@ -22,4 +22,5 @@ public interface IPsxGpuBackendHooks
 
     /// <summary>Copies native 15-bit VRAM (including rendered pixels) into <paramref name="destination"/>; false when unsupported.</summary>
     bool TryReadVramRect(int x, int y, int w, int h, Span<ushort> destination);
+    void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, bool uploadPixels);
 }

@@ -7,6 +7,7 @@
 using System.Runtime.InteropServices;
 using Foundation.Core;
 using Foundation.Retro;
+using reEngine.Core.Manifests;
 using reStation.Contracts;
 using reStation.Core;
 using reStation.Core.Cpu;
@@ -85,7 +86,7 @@ internal static partial class Program
         {
             string fullModule = Path.GetFullPath(options.ModulePath);
             manifest = ReStationModuleManifest.LoadFromFile(fullModule);
-            moduleDir = Path.GetDirectoryName(fullModule)!;
+            moduleDir = RecompPackageReader.ResolveModuleRootDirectory(fullModule);
             logger.Info("MODULE", $"Loaded manifest '{manifest.ModuleId}' ({manifest.DisplayName}) serial={manifest.SerialNumber}.");
         }
 

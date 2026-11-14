@@ -29,7 +29,7 @@ internal sealed record HostRuntimeContext(
 /// Runs lifted game code on a dedicated emulation thread that parks at every VBlank, so <see cref="RunFrame"/>
 /// advances exactly one emulated frame and returns control to the SDL host thread.
 /// </summary>
-internal sealed class ReStationHost : IReStationHostEx, IDisposable
+internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
 {
     public const int SamplesPerFrame = 735;
     private const int PsxExeHeaderSize = 0x800;
@@ -37,8 +37,8 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
     private readonly PsxCpu _cpu;
     private readonly HighResFramePacer _pacer;
     private readonly ReStationLogger _logger;
-    private readonly SemaphoreSlim _resumeEmu = new(0, 1);
-    private readonly SemaphoreSlim _frameReached = new(0, 1);
+    private readonly AutoResetEvent _resumeEmu = new(false);
+    private readonly AutoResetEvent _frameReached = new(false);
     private readonly string _dataDirectory;
     private Thread? _emuThread;
     private uint _entryPc;
@@ -99,8 +99,6 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
         }
     }
 
-    public (float MouseDx, float MouseDy, float StickX, float StickY) PollSubTickLook() => _ctx.PollSubTickLook?.Invoke() ?? default;
-    public void PresentSubTickFrame() => _ctx.PresentSubTickFrame?.Invoke();
     public RecompFrameStats GetFrameStats() => GetTelemetry().ToFrameStats();
     /// <summary>Records the module's presentation target (the VBlank loop itself stays hardware-paced at 60 Hz).</summary>
     public void SetTargetFps(double targetFps, bool unlock = false)
@@ -175,6 +173,7 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
     public void RunFrame()
     {
         if (_disposing) return;
+        BeginRunFrameHostPump();
         if (_bootPending && _emuThread is null)
         {
             _bootPending = false;
@@ -185,8 +184,8 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
         bool parked = true;
         if (_emuThread is not null && !_emuFinished)
         {
-            if (_resumeEmu.CurrentCount == 0) _resumeEmu.Release();
-            parked = _frameReached.Wait(TimeSpan.FromSeconds(2));
+            _resumeEmu.Set();
+            parked = WaitForFrameOrPumpHostActions();
             if (!parked) _logger.Warn("EMU", $"No VBlank within 2s (pc=0x{_cpu.Pc:X8} cycles={_cpu.TotalCycles}); keeping host responsive.");
         }
         else
@@ -271,7 +270,7 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
     {
         try
         {
-            _resumeEmu.Wait();
+            _resumeEmu.WaitOne();
             if (_disposing) return;
             _cpu.DispatchFunction(_entryPc);
             while (!_disposing && !_cpu.ExitRequested && _cpu.PendingQuickLoadSlot >= 0)
@@ -286,14 +285,14 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
             _logger.Info("EMU", $"Emulation thread finished frames={_cpu.FrameCount} exitRequested={_cpu.ExitRequested}.");
         }
         catch (Exception ex) { _emuFault = ex; }
-        finally { _emuFinished = true; if (_frameReached.CurrentCount == 0) _frameReached.Release(); }
+        finally { _emuFinished = true; _hostActionDone.Set(); _frameReached.Set(); }
     }
 
     private void OnVBlank(PsxCpu cpu)
     {
         if (!ReferenceEquals(Thread.CurrentThread, _emuThread)) return; // idle hardware tick on the host thread
-        _frameReached.Release();
-        _resumeEmu.Wait();
+        _frameReached.Set();
+        _resumeEmu.WaitOne();
         if (_disposing) cpu.RequestExit();
     }
 
@@ -328,9 +327,9 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
         _disposing = true;
         _cpu.RequestExit();
         _cpu.OnVBlankFrame = null;
+        SignalHostWaitersOnShutdown();
         if (_emuThread is { IsAlive: true } thread)
         {
-            if (_resumeEmu.CurrentCount == 0) _resumeEmu.Release();
             if (!thread.Join(TimeSpan.FromSeconds(2)))
             {
                 _logger.Warn("EMU", "Emulation thread did not exit within 2s; abandoning background thread (semaphores left alive).");
@@ -339,5 +338,6 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
         }
         _resumeEmu.Dispose();
         _frameReached.Dispose();
+        DisposeSubTickHandles();
     }
 }

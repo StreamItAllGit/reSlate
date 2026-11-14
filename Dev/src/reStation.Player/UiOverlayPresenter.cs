@@ -4,6 +4,7 @@
 // @exports: UiOverlayPresenter
 // @owner: devv-player-ui (T6)
 
+using System.Diagnostics;
 using Foundation.Core;
 using reStation.Contracts;
 using reStation.Core;
@@ -18,6 +19,7 @@ internal sealed class UiOverlayPresenter
     private readonly PixelOverlayCanvas _uiCanvas = new(OverlayWidth, OverlayHeight);
     private readonly byte[] _compositeBuf = new byte[OverlayWidth * OverlayHeight * 4];
     private bool _dirty = true;
+    private long _lastHudUpdateTicks;
 
     private bool _lastOpen, _lastLoggingActive, _lastFpsEnabled, _lastVsync, _lastWidescreen, _lastPgxp, _lastFullscreen, _lastGlobalRules, _lastFastLoad;
     private int _lastTab = -1, _lastScale;
@@ -47,14 +49,13 @@ internal sealed class UiOverlayPresenter
         PsxTelemetrySnapshot telemetry)
     {
         string hudText = settings.IsFpsOverlayEnabled ? FormatModeBadge(settings) + telemetry.ToHudLine() : string.Empty;
-        bool changed = _dirty
+        bool structuralChanged = _dirty
             || _lastOpen != drawer.IsOpen
             || _lastTab != drawer.ActiveTab
             || _lastListening != drawer.KeybindsTab.ListeningAction
             || !string.Equals(_lastDiscInfo, discInfo, StringComparison.Ordinal)
             || _lastLoggingActive != loggingActive
             || _lastFpsEnabled != settings.IsFpsOverlayEnabled
-            || !string.Equals(_lastHud, hudText, StringComparison.Ordinal)
             || !string.Equals(_lastBackend, settings.BackendId, StringComparison.Ordinal)
             || _lastMode != settings.FrameRateMode
             || _lastTargetFps != settings.TargetFps
@@ -68,7 +69,16 @@ internal sealed class UiOverlayPresenter
             || _lastControlMode != settings.ControlMode
             || Math.Abs(_lastSens - settings.MouseSensitivity) > 0.001
             || Math.Abs(_lastVolume - settings.MasterVolume) > 0.001;
-        if (!changed) return false;
+        bool hudTextChanged = !string.Equals(_lastHud, hudText, StringComparison.Ordinal);
+        if (!structuralChanged)
+        {
+            if (!hudTextChanged) return false;
+            if (!drawer.IsOpen && _lastHudUpdateTicks != 0 &&
+                (Stopwatch.GetTimestamp() - _lastHudUpdateTicks) < (Stopwatch.Frequency / 4L))
+            {
+                return false;
+            }
+        }
 
         _uiCanvas.Clear(UiPaint.Transparent);
         drawer.RenderOverlay(_uiCanvas, settings, manifest, discInfo, loggingActive);
@@ -103,6 +113,7 @@ internal sealed class UiOverlayPresenter
         _lastControlMode = settings.ControlMode;
         _lastSens = settings.MouseSensitivity;
         _lastVolume = settings.MasterVolume;
+        _lastHudUpdateTicks = Stopwatch.GetTimestamp();
         return true;
     }
 

@@ -13,7 +13,7 @@ internal static class ReStationInstallerTheme
 {
     public const string ProductName = "reStation";
     public const string EngineId = "reStation";
-    public const string Version = "0.1.1";
+    public const string Version = "0.1.2";
     public const string Publisher = "StreamItAll";
     public const string Subtitle = "PS1 Static Recompilation Engine for reEngine";
     public const string BrandAccentHex = "#38BDF8";

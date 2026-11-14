@@ -264,11 +264,11 @@ public sealed class CliAndSettingsTests : IDisposable
     }
 
     [Fact]
-    public void CliOptions_HelpTextAndEngineInfo_Reflect011Track()
+    public void CliOptions_HelpTextAndEngineInfo_Reflect012Track()
     {
-        Assert.Equal("0.1.1", ReStationEngineInfo.Version);
+        Assert.Equal("0.1.2", ReStationEngineInfo.Version);
         Assert.Equal("0.1.x", ReStationEngineInfo.CompatibleEngineTrack);
-        Assert.Contains("reStation v0.1.1", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Contains("reStation v0.1.2", CliOptions.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]

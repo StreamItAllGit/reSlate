@@ -7,11 +7,13 @@
 using System.Diagnostics;
 using Foundation.Core;
 using Foundation.Retro;
+using reEngine.Core.Manifests;
 using reStation.Contracts;
 using reStation.Core;
 using reStation.Core.Audio;
 using reStation.Core.Cpu;
 using reStation.Core.DiscIngestion;
+using reStation.Core.Gpu;
 using reStation.Core.Input;
 using reStation.Core.Saves;
 
@@ -24,6 +26,7 @@ internal static unsafe partial class Program
         public IntPtr Gamepad = HostInputMapper.OpenFirstGamepad();
         public int MouseDx, MouseDy;
         public bool MouseLeft, MouseRight, MouseCaptured, QuitRequested, PrevSave, PrevLoad, UiDirty = true;
+        public bool SuppressNextIdleSubTickVBlank;
         public long HostFrame;
         public string DiscInfo = string.Empty;
     }
@@ -101,7 +104,7 @@ internal static unsafe partial class Program
         {
             string full = Path.GetFullPath(path);
             manifest = ReStationModuleManifest.LoadFromFile(full);
-            moduleDir = Path.GetDirectoryName(full)!;
+            moduleDir = RecompPackageReader.ResolveModuleRootDirectory(full);
             settings.LastModulePath = Path.GetFileName(full);
             settings.Save(configPath);
             view.StatusMessage = $"Loaded module '{manifest.DisplayName}'. Select disc image or preload in data\\rom\\.";
@@ -171,9 +174,10 @@ internal static unsafe partial class Program
 
                 if (gameModule is not null) host.StepModuleFrameAsync(gameModule, CancellationToken.None).GetAwaiter().GetResult();
                 else host.RunFrame();
-                video.SyncViewport(settings.ResolutionScale);
-                cpu.Gpu.PresentFrame();
-                long tCpu = Stopwatch.GetTimestamp();
+
+                bool ranSubTickPresents = host.SubTickPresentsInStep > 0;
+                bool skipIdleSecondVBlank = !ranSubTickPresents && st.SuppressNextIdleSubTickVBlank && cpu.Gpu.FrameDrawOps == 0 && !st.UiDirty;
+                bool wantShot = !string.IsNullOrWhiteSpace(options.DumpScreenshotPath) && (maxFrames > 0 ? st.HostFrame + 1 >= maxFrames : st.HostFrame + 1 == 2);
 
                 int samplesRead = cpu.Spu.Output.Read(audioBuf);
                 if (audioStream != IntPtr.Zero && samplesRead > 0)
@@ -181,15 +185,39 @@ internal static unsafe partial class Program
                     fixed (short* ap = audioBuf) _ = Sdl3Native.SDL_PutAudioStreamData(audioStream, ap, samplesRead * sizeof(short));
                 }
 
+                long tCpu = Stopwatch.GetTimestamp();
                 st.HostFrame++;
-                bool wantShot = !string.IsNullOrWhiteSpace(options.DumpScreenshotPath) && (maxFrames > 0 ? st.HostFrame >= maxFrames : st.HostFrame == 2);
-                PresentLoopFrame(video, host, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, options.Headless, wantShot ? options.DumpScreenshotPath : null);
-                st.UiDirty = false;
-                long tGpu = Stopwatch.GetTimestamp();
-
-                pacer.TargetFps = ComputeTargetFps(settings, options.Headless);
-                _ = pacer.WaitForNextFrame();
-                long tEnd = Stopwatch.GetTimestamp();
+                long tGpu;
+                long tEnd;
+                if (ranSubTickPresents)
+                {
+                    st.SuppressNextIdleSubTickVBlank = true;
+                    if (wantShot)
+                    {
+                        video.SyncViewport(settings.ResolutionScale);
+                        cpu.Gpu.PresentFrame(preferLastDrawnOrigin: true);
+                        PresentLoopFrame(video, host, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, options.Headless, options.DumpScreenshotPath);
+                    }
+                    st.UiDirty = false;
+                    tGpu = tEnd = Stopwatch.GetTimestamp();
+                }
+                else if (skipIdleSecondVBlank && !wantShot)
+                {
+                    st.SuppressNextIdleSubTickVBlank = false;
+                    tGpu = tEnd = Stopwatch.GetTimestamp();
+                }
+                else
+                {
+                    st.SuppressNextIdleSubTickVBlank = false;
+                    video.SyncViewport(settings.ResolutionScale);
+                    cpu.Gpu.PresentFrame();
+                    PresentLoopFrame(video, host, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, options.Headless, wantShot ? options.DumpScreenshotPath : null);
+                    st.UiDirty = false;
+                    tGpu = Stopwatch.GetTimestamp();
+                    pacer.TargetFps = ComputeTargetFps(settings, options.Headless);
+                    _ = pacer.WaitForNextFrame();
+                    tEnd = Stopwatch.GetTimestamp();
+                }
 
                 host.RecordTimings(ElapsedMs(t0, tCpu), ElapsedMs(tCpu, tGpu), ElapsedMs(tGpu, tEnd));
                 PsxTelemetrySnapshot telemetry = host.GetTelemetry();
@@ -223,7 +251,7 @@ internal static unsafe partial class Program
     {
         if (headless) return;
         video.SyncViewport(settings.ResolutionScale);
-        cpu.Gpu.PresentFrame();
+        cpu.Gpu.PresentFrame(preferLastDrawnOrigin: true);
         PresentLoopFrame(video, host, drawer, overlay, manifest, settings, discInfo, loggingActive, headless: false, shotPath: null);
     }
 
@@ -329,10 +357,20 @@ internal static unsafe partial class Program
     {
         if (headless && string.IsNullOrWhiteSpace(shotPath)) return;
         bool overlayActive = drawer.IsOpen || settings.IsFpsOverlayEnabled;
-        if (!headless && video.UsesOpenGl && !overlayActive && string.IsNullOrWhiteSpace(shotPath))
+        if (!headless && video.UsesOpenGl && string.IsNullOrWhiteSpace(shotPath))
         {
-            video.SwapGlOnly();
-            return;
+            if (!overlayActive)
+            {
+                video.SwapGlOnly();
+                return;
+            }
+            if (video.Backend is IPsxGpuBackendHooks hooks)
+            {
+                bool changed = overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry());
+                hooks.RenderUiOverlay(overlay.UiPixels, UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, changed);
+                video.SwapGlOnly();
+                return;
+            }
         }
 
         byte[] gameRgba = video.Backend.CaptureRgba(out int gw, out int gh);

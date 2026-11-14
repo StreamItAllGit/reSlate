@@ -67,7 +67,7 @@ public sealed partial class PsxGte
             long sum = ((long)(int)_c[4 + i] << 12) + MatrixElement(0, i - 1, 0) * (long)vx
                      + MatrixElement(0, i - 1, 1) * (long)vy + MatrixElement(0, i - 1, 2) * (long)vz;
             long mac = SetMac(i, sum, sf);
-            if (i < 3) { SetIr(i, mac, lm); continue; }
+            if (i < 3) { SetIr(i, mac, false); continue; }
             mac3Raw = sum;
             long check = sum >> 12; // IR3 FLAG uses the sf=1 view regardless of sf (hardware quirk)
             if (check is < -0x8000 or > 0x7FFF) _flag |= 1U << 22;

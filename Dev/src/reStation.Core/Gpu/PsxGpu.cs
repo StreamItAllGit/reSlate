@@ -9,7 +9,7 @@ using reStation.Core.Gte;
 
 namespace reStation.Core.Gpu;
 
-public sealed class PsxGpu
+public sealed partial class PsxGpu
 {
     public const int VramWidth = 1024;
     public const int VramHeight = 512;
@@ -153,24 +153,10 @@ public sealed class PsxGpu
         _gpuStat ^= 0x80000000U;
     }
 
-    /// <summary>Resets transient GPU draw command state at the start of an interpolated sub-tick pass.</summary>
-    public void BeginSubTickFrame()
-    {
-        ResetCommandFifo();
-        _vramWordsLeft = _uploadCount = 0;
-        _polyHasFirst = _polyExpectingColor = false;
-    }
-
-    /// <summary>Resolves the current display area through the backend (called by the host at VBlank).</summary>
-    public void PresentFrame()
-    {
-        Backend.EndFrameAndPresent(DisplayX, DisplayY, DisplayWidth, DisplayHeight, Is24BitDisplay, Settings.IsWidescreen16By9);
-        FramesPresented++;
-    }
-
     public void Reset()
     {
         ResetCommandFifo();
+        ResetScanoutTracking();
         DrawAreaLeft = 0; DrawAreaTop = 0; DrawAreaRight = VramWidth - 1; DrawAreaBottom = VramHeight - 1;
         DrawOffsetX = 0; DrawOffsetY = 0; TexPage = 0;
         TextureWindowMaskX = TextureWindowMaskY = TextureWindowOffsetX = TextureWindowOffsetY = 0;
@@ -210,13 +196,15 @@ public sealed class PsxGpu
     private void ExecuteGp0Command()
     {
         uint op = _cmdBuf[0] >> 24;
-        if (op == 0x02) { ExecuteFillRect(); return; }
+        if (op == 0x02) { if (!SkipPolygonRasterization) ExecuteFillRect(); return; }
         if (op == 0x1F) { IrqPending = true; return; }
         if (op is >= 0x20 and <= 0x7F)
         {
             if (!SkipPolygonRasterization)
             {
                 PrimitiveCount++;
+                FrameDrawOps++;
+                RecordPrimitiveBounds(op, _cmdBuf.AsSpan(0, _cmdLen));
                 Backend.SubmitPrimitive(op, _cmdBuf.AsSpan(0, _cmdLen), TexPage, DrawOffsetX, DrawOffsetY, DrawAreaLeft, DrawAreaTop, DrawAreaRight, DrawAreaBottom);
             }
             return;
@@ -253,6 +241,7 @@ public sealed class PsxGpu
             for (int col = 0; col < w; col++) Vram[vy + ((x + col) & 1023)] = c15;
         }
         Backend.FillDisplayRect(x, y, w, h, _cmdBuf[0] & 0xFFFFFFU);
+        RecordFillBounds(x, y, w, h);
     }
 
     private void ExecuteCopyVram()
@@ -274,6 +263,7 @@ public sealed class PsxGpu
             for (int col = 0; col < w; col++, i++) Vram[dvy + ((dx + col) & 1023)] = _copyScratch[i];
         }
         Backend.CopyVramRect(sx, sy, dx, dy, w, h);
+        FrameDrawOps++;
     }
 
     private void BeginVramTransfer(Gp0Mode mode, uint xy, uint wh)
@@ -304,6 +294,7 @@ public sealed class PsxGpu
         {
             _gp0Mode = Gp0Mode.Idle;
             Backend.UploadVramRect(_vramX, _vramY, _vramW, _vramH, _uploadScratch.AsSpan(0, _uploadCount));
+            FrameDrawOps++;
         }
     }
 
@@ -346,6 +337,7 @@ public sealed class PsxGpu
         if (!SkipPolygonRasterization)
         {
             PrimitiveCount++;
+            FrameDrawOps++;
             Backend.SubmitPrimitive(_polyOp, seg[..(shaded ? 4 : 3)], TexPage, DrawOffsetX, DrawOffsetY, DrawAreaLeft, DrawAreaTop, DrawAreaRight, DrawAreaBottom);
         }
     }

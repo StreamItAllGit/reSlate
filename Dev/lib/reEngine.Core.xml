@@ -212,6 +212,13 @@
             Loads a <c>.recomp</c> JSON file or ZIP archive and discovers preloaded media in <c>data\rom\</c>.
             </summary>
         </member>
+        <member name="M:reEngine.Core.Manifests.RecompPackageReader.ResolveModuleRootDirectory(System.String)">
+            <summary>
+            Resolves the logical module root directory for a package path. When a <c>.recomp</c> cartridge or manifest
+            sits inside an <c>app\</c> subfolder of an installed app root, returns its parent install root so
+            <c>data\rom\</c> discovery and per-app containment align with Standard 12 clean-root installs.
+            </summary>
+        </member>
         <member name="M:reEngine.Core.Manifests.RecompPackageReader.DiscoverPreloadMedia(System.String,reEngine.Core.Manifests.RecompPackageManifest)">
             <summary>
             Discovers optical discs and ROM images under the module's configured <c>preloadRomDir</c>.

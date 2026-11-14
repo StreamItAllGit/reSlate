@@ -34,7 +34,7 @@ public static class PreloadRomDetector
             // Minimal test/dev manifests missing reEngine header fields still fall back to data\rom\ scan below.
         }
 
-        string moduleRoot = Path.GetDirectoryName(full) ?? full;
+        string moduleRoot = RecompPackageReader.ResolveModuleRootDirectory(full);
         return DiscoverInDirectory(moduleRoot);
     }
 

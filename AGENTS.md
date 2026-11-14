@@ -1,7 +1,7 @@
 # Project Context: reStation (``)
 
-- **Role:** PS1 Static Recompilation Engine, MIPS R3000A Lifter & BYO-Media Player (`v0.1.1`, Tier A, routed via [`reEngine`](<PROJECTS_ROOT>/Personal/reEngine/README.md), SDK history `<SHARED_LIBS_ROOT>\reStation\v<Ver>\`, consumed by `CrownDepthsRecomp` & PS1 titles).
-- **Boundaries:** `Foundation\` & `_DevBible\` read-only; `.recomp` modules supply manifests/patches & `data\rom\`; child fixes strictly additive `PATCH+1`; fail-closed `--test-mode` in `Sandbox\`.
+- **Role:** PS1 Recomp Engine, MIPS R3000A Lifter & BYO Player (`v0.1.2`, Tier A via [`reEngine`](<PROJECTS_ROOT>/Personal/reEngine/README.md), SDK `SharedLibs\reStation\v<Ver>\`, PS1 titles).
+- **Boundaries:** `Foundation\`, `_DevBible\` & `<RESEARCH_ROOT>\*` (`Tier R`, no `Corpus\` copy) RO ([Oracle](<USER_HOME>/.gemini/config/skills/graduate/references/tier_r_oracle_and_hardware_reference.md)); `.recomp` supplies `data\rom\`; child `PATCH+1` only; `--test-mode` in `Sandbox\`.
 - **Branding:** [`reStation.svg`](Dev/assets/reStation.svg) | [`reStation.ico`](Dev/assets/reStation.ico)
 
 ## 1. Quartet & State

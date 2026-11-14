@@ -4,6 +4,18 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-14
+### Added
+- **Hardware Alpha Overlay & `T:01` Sub-Tick Pumping (`reStation.Core`, `reStation.Player`):** Extended [`IPsxGpuBackendHooks`](Dev/src/reStation.Core/Gpu/IPsxGpuBackendHooks.cs) with `RenderUiOverlay(...)`, added `_overlayTex` (`GL_RGBA8`, top-down `uSrcRect=(0,1,1,-1)` flip, cleaned up in `Dispose()`) and centered `4:3`/`16:9` aspect-ratio letterboxing over an opaque black FBO `0` clear in [`OpenGl33RenderBackend.Pipeline.cs`](Dev/src/reStation.Core/Gpu/OpenGl33RenderBackend.Pipeline.cs), and extracted [`ReStationHost.SubTick.cs`](Dev/src/reStation.Player/ReStationHost.SubTick.cs) + [`PsxGpu.Scanout.cs`](Dev/src/reStation.Core/Gpu/PsxGpu.Scanout.cs) (`<= 400 LOC` per file).
+- **Native Single-File ZIP `.recomp` Cartridge Support (`reStation.Contracts`, `reStation.Player`):** Synced `reEngine.Core` `v0.1.2` + `reEngine-Setup-v0.1.2-win-x64.exe`, added `ReStationModuleManifest.ResolvedPackagePath` + ZIP `.recomp` manifest detection, added in-memory `ZipArchive`/`MemoryStream` loading in [`ModuleAssemblyLoader`](Dev/src/reStation.Player/ModuleAssemblyLoader.cs), resolved parent `<InstallRoot>\data\rom\` via `RecompPackageReader.ResolveModuleRootDirectory`, and added `Wave3PlaytestAndCartridgeTests` (`129/129` passing tests under `/warnaserror`).
+
+### Changed
+- **Overlay Performance & Release Retention (`UiOverlayPresenter`, `build_release.ps1`):** Throttled HUD telemetry re-rasterization in [`UiOverlayPresenter`](Dev/src/reStation.Player/UiOverlayPresenter.cs) to `4 Hz` when the interactive drawer is closed (bypassing per-frame `CaptureRgba` CPU compositing on the live OpenGL path), bumped all `reStation` versions to `0.1.2`, and updated [`build_release.ps1`](Dev/scripts/build_release.ps1) to prune unpacked `Releases\v*` directories past the 2 newest (`v0.1.1`, `v0.1.2` + `Latest` + `.7z`) while retaining historical installers.
+
+### Fixed
+- **Crash Past Start Menu (`OpenGL framebuffer incomplete: 0x0000`):** Marshaled `PollSubTickLook()` and `PresentSubTickFrame()` onto SDL/GL owner thread `T:01` via `WaitHandle.WaitAny` pumping (`MarshalToHostThread`, `WaitForFrameOrPumpHostActions`), guarded `GP0(02h)` `ExecuteFillRect` against `SkipPolygonRasterization`, and eliminated sub-tick double-wait / double-present pacing inside [`Program.FrameLoop.cs`](Dev/src/reStation.Player/Program.FrameLoop.cs).
+- **Collapsed 3D Geometry Past Start Menu (`GAME.EXE`):** Updated [`PsxGte.Commands.cs`](Dev/src/reStation.Core/Gte/PsxGte.Commands.cs#L70) to pass `lm: false` on `IR1`/`IR2` during `RTPS`/`RTPT` (`lm` applied strictly to `IR3`), invoked `Pgxp.ClearFrame()` inside `PsxGpu.PresentFrame(bool preferLastDrawnOrigin)`, and tracked `LastDrawnX`/`LastDrawnY` backbuffer scanout origins for sub-tick page flips.
+
 ## [0.1.1] - 2026-11-14
 ### Added
 - **Additive Engine Seams (`reStation.Contracts`):** Added `IReStationCpuEx` (`SubTickDeadlineCycle`, `Ram`, `NextEventCycle`, `UnwindTargetPc`, `SkipPolygonRasterization`, `BeginSubTickFrame`, `HasCompiledEntry`, `RunSlice`, `TryAdvanceToNextVBlank`), `ISubTickFrameHook` (`SubTickEntryPc`, `MaxSubTickCycles`, `ShouldRunSubTick`, `OnSubTickBegin`, `OnSubTickEnd`, `TryInterceptSubTickCall`, `OnAfterCall`), `IOverlayRecompModule` (`LoadRamAddress`, `ContentSizeBytes`, `ContentSha256Hex`), `IReStationHostEx` (`IsHeadless`, `HasPendingCapture`, `TargetFps`, `IsEnhancedFrameRateEnabled`, `IsModernMouseLookActive`, `MouseSensitivity`, `WaitUntilTimestamp`, `PollSubTickLook`, `PresentSubTickFrame`), and `PsxTelemetrySnapshot.ToHeartbeatMetrics()` while keeping `v0.1.0` ABI interfaces unbroken.

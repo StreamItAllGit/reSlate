@@ -1,6 +1,6 @@
-# reStation (`v0.1.1`)
+# reStation (`v0.1.2`)
 
-- **Active Version:** `v0.1.1` (`2026-11-14`)
+- **Active Version:** `v0.1.2` (`2026-11-14`)
 - **Lifecycle State:** `active` ([`active.state`](active.state))
 - **Group / Path:** ``
 - **Logo Assets:** [`Dev\assets\reStation.svg`](Dev/assets/reStation.svg) | [`Dev\assets\reStation.png`](Dev/assets/reStation.png) | [`Dev\assets\reStation.ico`](Dev/assets/reStation.ico)
@@ -31,7 +31,7 @@ reStation.exe --test-mode --visible-test --data-dir .\Sandbox\data --log-dir .\S
 | `--fps-mode <original\|enhanced>` | Select native PS1 cadence or interpolated high-FPS presentation (`--target-fps`, `--vsync`). |
 | `--backend <opengl\|software>` | Select `IRecompRenderBackend` (`v0.1.1`: `OpenGL 3.3 Core` with off-thread FIFO queue or `SoftwareCpu` parity oracle; expanding in `v0.3.0–v1.0.0` to `opengl` + `vulkan` + `parallelCpu` + `software`). |
 | `--preload-media <path>` | Override `data\rom\` discovery with an explicit SHA-256-verified disc image or archive path (`v0.1.1`). |
-| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until session exit (`--wait`), or print `reStation v0.1.1` (`--version`). |
+| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until session exit (`--wait`), or print `reStation v0.1.2` (`--version`). |
 | `--data-dir` / `--config` / `--log-dir` | Redirect writable runtime data, `settings.json`, and telemetry logs (`--test-mode` fail-closed). |
 | `--headless` / `--visible-test` | Automated CI testing (`--headless`) or short foreground showcase (`--visible-test`). |
 
@@ -52,7 +52,7 @@ reStation.exe --test-mode --visible-test --data-dir .\Sandbox\data --log-dir .\S
 - **Feature Inventory & Code Map:** [`FEATURES.md`](FEATURES.md)
 - **Milestones & Strategic Horizon:** [`ROADMAP.md`](ROADMAP.md)
 - **Version History Ledger:** [`CHANGELOG.md`](CHANGELOG.md)
-- **Blueprints (`@pland`):** [`Dev\docs\plans\0.1.1.2026-11-13.md`](Dev/docs/plans/0.1.1.2026-11-13.md) *(Completed `v0.1.1` — `125/125` passing executions / `87` test methods, signed `reEngine v0.1.1` bootstrapper)* | [`Dev\docs\plans\0.1.0.2026-11-13.md`](Dev/docs/plans/0.1.0.2026-11-13.md)
+- **Blueprints (`@pland`):** [`Dev\docs\plans\0.1.2.2026-11-14.md`](Dev/docs/plans/0.1.2.2026-11-14.md) *(Completed `v0.1.2` — `129/129` tests `0` warnings, `T:01` GL marshaling, `IR1/IR2` GTE fix, ZIP `.recomp` cartridges, `SharedLibs\reStation\v0.1.2\`)* | [`0.1.1.2026-11-13.md`](Dev/docs/plans/0.1.1.2026-11-13.md) | [`0.1.0.2026-11-13.md`](Dev/docs/plans/0.1.0.2026-11-13.md)
 - **Verification Report (`@inspecter`):** [`Dev\docs\reports\archive\0.1.1.20261114-040030.-.sandbox-verify.md`](Dev/docs/reports/archive/0.1.1.20261114-040030.-.sandbox-verify.md) *(5/5 Wave 2 `Sandbox\` Gates `0.1.1-A..E` `PASS`)*
 
 ---

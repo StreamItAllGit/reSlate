@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 # @module: Dev/scripts/build_release.ps1
 # @purpose: Build, test, sign, stage Builds\, package Installers\, emit 6-file Releases\, SharedLibs SDK, and source Archive.
-# @depends-on: Dev/version.txt, Dev/src/reStation.slnx, Dev/assets/bootstrap/reEngine-Setup-v0.1.1-win-x64.exe, audit_installer.ps1
+# @depends-on: Dev/version.txt, Dev/src/reStation.slnx, Dev/assets/bootstrap/reEngine-Setup-v0.1.2-win-x64.exe, audit_installer.ps1
 # @exports: Canonical release pipeline (v0.1.0+)
 
 [CmdletBinding()]
@@ -26,7 +26,7 @@ if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
     $bootstrapDir = Join-Path $devDir "assets\bootstrap"
     $candidates = @(
         (Join-Path $bootstrapDir ("reEngine-Setup-v{0}-win-x64.exe" -f $Version)),
-        (Join-Path $bootstrapDir "reEngine-Setup-v0.1.1-win-x64.exe")
+        (Join-Path $bootstrapDir "reEngine-Setup-v0.1.2-win-x64.exe")
     )
     $BootstrapExe = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
@@ -273,6 +273,20 @@ foreach ($archPath in @((Join-Path $releasesDir "v$Version.7z"), (Join-Path $rel
 }
 Invoke-7z @("a", "-t7z", "-mx=9", "-mmt=on", (Join-Path $releasesDir "v$Version.7z"), (Join-Path $relVerDir "*"))
 Invoke-7z @("a", "-t7z", "-mx=9", "-mmt=on", (Join-Path $releasesDir "Latest.7z"), (Join-Path $relLatestDir "*"))
+
+$unpackedReleases = Get-ChildItem $releasesDir -Directory -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^v\d+\.\d+\.\d+' } |
+    Sort-Object {
+        $verText = ($_.Name -replace '^v', '') -replace '-.*$', ''
+        $parsed = [version]'0.0.0'
+        if ([version]::TryParse($verText, [ref]$parsed)) { $parsed } else { [version]'0.0.0' }
+    } -Descending
+if ($unpackedReleases.Count -gt 2) {
+    foreach ($staleDir in ($unpackedReleases | Select-Object -Skip 2)) {
+        Write-Host "  Pruning older unpacked release folder '$($staleDir.Name)' (.7z archive preserved)..."
+        Remove-Item -LiteralPath $staleDir.FullName -Recurse -Force
+    }
+}
 
 Write-Host "[6/7] Publishing SharedLibs\reStation\v$Version and Latest..."
 $sharedRoot = Join-Path (Split-Path -Parent (Split-Path -Parent $root)) "SharedLibs\reStation"

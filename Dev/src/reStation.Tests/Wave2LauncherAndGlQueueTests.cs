@@ -132,12 +132,12 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
     }
 
     [Fact]
-    public void BuildReleaseScript_AndMetadataFiles_Match011DualManifestContract()
+    public void BuildReleaseScript_AndMetadataFiles_Match012DualManifestContract()
     {
         string devDir = FindDevRoot();
         string script = File.ReadAllText(Path.Combine(devDir, "scripts", "build_release.ps1"));
         Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "build_release.ps1")).Length <= 400);
-        Assert.Contains("reEngine-Setup-v0.1.1-win-x64.exe", script, StringComparison.Ordinal);
+        Assert.Contains("reEngine-Setup-v0.1.2-win-x64.exe", script, StringComparison.Ordinal);
         Assert.Contains("--preload-media", script, StringComparison.Ordinal);
         Assert.Contains("--wait", script, StringComparison.Ordinal);
         Assert.Contains("--version", script, StringComparison.Ordinal);
@@ -147,9 +147,9 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("supportedEngineTracks", script, StringComparison.Ordinal);
         Assert.Contains("README.md", script, StringComparison.Ordinal);
 
-        Assert.Equal("0.1.1", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.Equal("0.1.2", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.1.1", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.1.2", appManifest.RootElement.GetProperty("version").GetString());
     }
 
     private static string FindDevRoot()
