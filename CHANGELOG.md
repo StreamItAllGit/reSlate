@@ -4,6 +4,17 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-14
+### Added
+- **Packaging Compliance & End-User Doc Sanitization:** Added [`sanitize_release_docs.ps1`](Dev/scripts/sanitize_release_docs.ps1) with strict UTF-8 reading, mojibake repair, local file-link unwrapping, and fail-fast leak validation across `Installers\RELEASE_NOTES.md` and all 4 markdown files in `Releases\`, bundled root `LICENSE` (`MPL-2.0`) into portable `app\`, published SDK drops, and source archives, and added unit coverage for base-directory `--uninstall` normalization and fail-closed containment.
+- **Legal & License Documentation:** Added explicit `License & Legal` sections covering `MPL-2.0`, third-party `LICENSE-7ZIP.txt`, clean-room zero-BIOS/zero-ROM boundaries, and non-affiliation notices in [`README.md`](README.md) and [`USER_GUIDE.md`](Dev/docs/USER_GUIDE.md).
+
+### Changed
+- **`reEngine v0.1.3` SDK Sync & Engine Directory Cleanup:** Bumped `reStation` version contracts, project properties, and manifests to `0.1.3`, synced `reEngine.Core` `v0.1.3` and `reEngine-Setup-v0.1.3-win-x64.exe`, stopped staging empty `data\rom\.keep` inside `reStation` engine builds (since `data\rom\` belongs to child `.recomp` game modules), pruned stale `v0.1.0`/`v0.1.1` builds, and scrubbed user-specific workspace path references from [`AGENTS.md`](AGENTS.md).
+
+### Fixed
+- **Installer `--uninstall` Base-Directory Normalization:** Updated [`ReStationInstallerBootstrap`](Dev/src/reStation.Installer/ReStationInstallerBootstrap.cs) so `--uninstall` invocations targeting `<reEngineRoot>` or `<sandboxRoot>` resolve cleanly to `<reEngineRoot>\engines\reStation\v0.1.3\` (or `<sandboxRoot>\reEngine\engines\reStation\v0.1.3\`) while preserving direct leaf paths and failing closed on out-of-sandbox paths.
+
 ## [0.1.2] - 2026-11-14
 ### Added
 - **Hardware Alpha Overlay & `T:01` Sub-Tick Pumping (`reStation.Core`, `reStation.Player`):** Extended [`IPsxGpuBackendHooks`](Dev/src/reStation.Core/Gpu/IPsxGpuBackendHooks.cs) with `RenderUiOverlay(...)`, added `_overlayTex` (`GL_RGBA8`, top-down `uSrcRect=(0,1,1,-1)` flip, cleaned up in `Dispose()`) and centered `4:3`/`16:9` aspect-ratio letterboxing over an opaque black FBO `0` clear in [`OpenGl33RenderBackend.Pipeline.cs`](Dev/src/reStation.Core/Gpu/OpenGl33RenderBackend.Pipeline.cs), and extracted [`ReStationHost.SubTick.cs`](Dev/src/reStation.Player/ReStationHost.SubTick.cs) + [`PsxGpu.Scanout.cs`](Dev/src/reStation.Core/Gpu/PsxGpu.Scanout.cs) (`<= 400 LOC` per file).

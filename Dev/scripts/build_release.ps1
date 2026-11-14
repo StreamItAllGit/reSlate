@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 # @module: Dev/scripts/build_release.ps1
 # @purpose: Build, test, sign, stage Builds\, package Installers\, emit 6-file Releases\, SharedLibs SDK, and source Archive.
-# @depends-on: Dev/version.txt, Dev/src/reStation.slnx, Dev/assets/bootstrap/reEngine-Setup-v0.1.2-win-x64.exe, audit_installer.ps1
+# @depends-on: Dev/version.txt, Dev/scripts/sanitize_release_docs.ps1, Dev/src/reStation.slnx, Dev/assets/bootstrap/reEngine-Setup-v0.1.3-win-x64.exe, audit_installer.ps1
 # @exports: Canonical release pipeline (v0.1.0+)
 
 [CmdletBinding()]
@@ -16,17 +16,19 @@ param(
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
+. (Join-Path $PSScriptRoot "sanitize_release_docs.ps1")
+
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $devDir = Join-Path $root "Dev"
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = (Get-Content (Join-Path $devDir "version.txt") -Raw).Trim()
+    $Version = (Read-Utf8Text (Join-Path $devDir "version.txt")).Trim()
 }
 
 if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
     $bootstrapDir = Join-Path $devDir "assets\bootstrap"
     $candidates = @(
         (Join-Path $bootstrapDir ("reEngine-Setup-v{0}-win-x64.exe" -f $Version)),
-        (Join-Path $bootstrapDir "reEngine-Setup-v0.1.2-win-x64.exe")
+        (Join-Path $bootstrapDir "reEngine-Setup-v0.1.3-win-x64.exe")
     )
     $BootstrapExe = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
@@ -60,17 +62,6 @@ function Invoke-7z([string[]]$SevenZipArgs) {
     if ($LASTEXITCODE -ne 0) { throw "7z.exe exited with $LASTEXITCODE ($($SevenZipArgs -join ' '))" }
 }
 
-function Sanitize-MarkdownForEndUser([string]$Text) {
-    $lines = $Text -split "\r?\n"
-    $filtered = foreach ($line in $lines) {
-        if ($line -match 'Dev\\(?:src|tests|docs\\plans|docs\\reports)|Sandbox\\|--test-mode|--visible-test|@pland|@inspecter|@dean|@devv|@tessa') {
-            continue
-        }
-        $line
-    }
-    return (($filtered -join "`r`n").Trim() + "`r`n")
-}
-
 Write-Host "[1/7] Enforcing <= 400 LOC gate across Dev\src\ and Dev\scripts\..."
 $locViolations = @()
 $codeFiles = @(
@@ -100,12 +91,11 @@ if (-not $SkipTests) {
 }
 
 Write-Host "[3/7] Staging portable build in Builds\v$Version..."
-$stageDir = Join-Path $root "Builds\v$Version"
+$buildsRoot = Join-Path $root "Builds"
+$stageDir = Join-Path $buildsRoot "v$Version"
 $stageApp = Join-Path $stageDir "app"
-$stageRom = Join-Path $stageDir "data\rom"
 if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force }
-New-Item -ItemType Directory -Force $stageApp, $stageRom | Out-Null
-[System.IO.File]::WriteAllText((Join-Path $stageRom ".keep"), "", [System.Text.UTF8Encoding]::new($false))
+New-Item -ItemType Directory -Force $stageApp | Out-Null
 
 & dotnet publish (Join-Path $devDir "src\reStation.Player\reStation.Player.csproj") `
     -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false `
@@ -144,20 +134,24 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish reStation.Launcher failed ($LAS
 Copy-Item (Join-Path $launcherStage "reStation.exe") (Join-Path $stageDir "reStation.exe") -Force
 Remove-Item -LiteralPath $launcherStage -Recurse -Force -ErrorAction SilentlyContinue
 
-[System.IO.File]::WriteAllText((Join-Path $stageApp "version.txt"), "$Version", [System.Text.UTF8Encoding]::new($false))
+Write-Utf8Text (Join-Path $stageApp "version.txt") "$Version"
+$rootLicense = Join-Path $root "LICENSE"
+if (-not (Test-Path -LiteralPath $rootLicense)) { throw "Root LICENSE file not found at $rootLicense" }
+Copy-Item -LiteralPath $rootLicense -Destination (Join-Path $stageApp "LICENSE") -Force
 Get-ChildItem $stageDir -Include *.pdb, *.xml -Recurse -File | Remove-Item -Force
+Prune-VersionDirectories -ParentDir $buildsRoot -KeepCount 2 -KeepVersionName "v$Version"
 
 $runtimeAgents = (@'
 # Runtime Context: reStation (v__VER__)
 
 - **Launcher:** `reStation.exe` (routes to `app\reStation.Player.exe`)
 - **Compiler:** `app\reStation.Compiler.exe` (PS1 ELF -> static C#/.NET 8 `.recomp` compiler)
-- **Preload Media:** `data\rom\` (gitignored user-provided PS1 `.cue`/`.bin`/`.chd`/`.iso`/`.7z`)
+- **Preload Media:** Provided by child `.recomp` game modules (`data\rom\`), not inside the engine dir.
 - **Data & Logs:** `data\settings.json` and `logs\` unless overridden by `--data-dir`, `--config`, `--log-dir`
 - **Daemon Policy:** Zero background daemons; `AllowAutoStart = false`.
 '@).Replace('__VER__', $Version)
-[System.IO.File]::WriteAllText((Join-Path $stageDir "AGENTS.md"), $runtimeAgents + "`r`n", [System.Text.UTF8Encoding]::new($false))
-[System.IO.File]::WriteAllText((Join-Path $stageApp "AGENTS.md"), $runtimeAgents + "`r`n", [System.Text.UTF8Encoding]::new($false))
+Write-Utf8Text (Join-Path $stageDir "AGENTS.md") ($runtimeAgents + "`r`n")
+Write-Utf8Text (Join-Path $stageApp "AGENTS.md") ($runtimeAgents + "`r`n")
 
 Invoke-Sign (Join-Path $stageApp "reStation.Player.exe")
 Invoke-Sign (Join-Path $stageApp "reStation.Compiler.exe")
@@ -224,11 +218,15 @@ $releaseNotes = (@'
 Reusable clean-room PS1 static recompilation engine, MIPS R3000A + GTE lifter, OpenGL 3.3 / CPU render backends, and modular BYO-media player (`AllowAutoStart = false`).
 
 ## Highlights
-- Side-by-side `reEngine` track deployment with automatic embedded `reEngine` bootstrap and fail-closed `--test-mode` sandbox containment.
+- Side-by-side `reEngine` track deployment with automatic embedded `reEngine` bootstrap, base-directory `--uninstall` resolution, and fail-closed sandbox containment.
+- Clean portable packaging (`app\LICENSE` MPL-2.0 bundled, zero engine `data\rom\` placeholder, sanitized UTF-8 release notes and docs).
 - Cycle-accurate MIPS R3000A CPU, GTE with PGXP precision tracking, MDEC 15/24-bit decode, SPU 24-voice ADSR + XA-ADPCM, and CD-ROM timing.
 - Non-single-file win-x64 Player with SDL3 + OpenGL 3.3 / Software parity, save states, key bindings, and `.recomp` compiler CLI.
 '@).Replace('__VER__', $Version)
-[System.IO.File]::WriteAllText((Join-Path $installersDir "RELEASE_NOTES.md"), $releaseNotes + "`r`n", [System.Text.UTF8Encoding]::new($false))
+$sanitizedReleaseNotes = Sanitize-MarkdownForEndUser $releaseNotes
+$instReleaseNotesPath = Join-Path $installersDir "RELEASE_NOTES.md"
+Write-Utf8Text $instReleaseNotesPath $sanitizedReleaseNotes
+Assert-EndUserMarkdownClean $instReleaseNotesPath
 
 $auditScript = Join-Path $env:USERPROFILE ".gemini\config\skills\release-packaging\scripts\audit_installer.ps1"
 if (-not (Test-Path -LiteralPath $auditScript)) { throw "audit_installer.ps1 not found at $auditScript" }
@@ -244,23 +242,30 @@ foreach ($d in @($relVerDir, $relLatestDir)) {
     New-Item -ItemType Directory -Force $d | Out-Null
 }
 
-$guideSections = @((Get-Content (Join-Path $devDir "docs\USER_GUIDE.md") -Raw))
+$guideSections = @((Read-Utf8Text (Join-Path $devDir "docs\USER_GUIDE.md")))
 $guideSpokeDir = Join-Path $devDir "docs\user_guide"
 if (Test-Path -LiteralPath $guideSpokeDir) {
     Get-ChildItem $guideSpokeDir -Filter *.md -File | Sort-Object Name | ForEach-Object {
-        $guideSections += (Get-Content $_.FullName -Raw)
+        $guideSections += (Read-Utf8Text $_.FullName)
     }
 }
 $endUserReadme = Sanitize-MarkdownForEndUser ($guideSections -join "`r`n`r`n")
-$endUserFeatures = Sanitize-MarkdownForEndUser (Get-Content (Join-Path $root "FEATURES.md") -Raw)
-$changelogText = Get-Content (Join-Path $root "CHANGELOG.md") -Raw
+$endUserFeatures = Sanitize-MarkdownForEndUser (Read-Utf8Text (Join-Path $root "FEATURES.md"))
+$endUserChangelog = Sanitize-MarkdownForEndUser (Read-Utf8Text (Join-Path $root "CHANGELOG.md"))
 
 foreach ($dir in @($relVerDir, $relLatestDir)) {
     Copy-Item -LiteralPath $installerPath -Destination (Join-Path $dir $installerName) -Force
-    [System.IO.File]::WriteAllText((Join-Path $dir "README.md"), $endUserReadme, [System.Text.UTF8Encoding]::new($false))
-    [System.IO.File]::WriteAllText((Join-Path $dir "FEATURES.md"), $endUserFeatures, [System.Text.UTF8Encoding]::new($false))
-    [System.IO.File]::WriteAllText((Join-Path $dir "RELEASE_NOTES.md"), $releaseNotes + "`r`n", [System.Text.UTF8Encoding]::new($false))
-    [System.IO.File]::WriteAllText((Join-Path $dir "CHANGELOG.md"), $changelogText, [System.Text.UTF8Encoding]::new($false))
+    $relFiles = [ordered]@{
+        "README.md"        = $endUserReadme
+        "FEATURES.md"      = $endUserFeatures
+        "RELEASE_NOTES.md" = $sanitizedReleaseNotes
+        "CHANGELOG.md"     = $endUserChangelog
+    }
+    foreach ($docName in $relFiles.Keys) {
+        $outDoc = Join-Path $dir $docName
+        Write-Utf8Text $outDoc $relFiles[$docName]
+        Assert-EndUserMarkdownClean $outDoc
+    }
     $sumLines = foreach ($fn in @($installerName, "README.md", "FEATURES.md", "RELEASE_NOTES.md", "CHANGELOG.md")) {
         $h = (Get-FileHash (Join-Path $dir $fn) -Algorithm SHA256).Hash.ToLowerInvariant()
         "$h  $fn"
@@ -274,19 +279,7 @@ foreach ($archPath in @((Join-Path $releasesDir "v$Version.7z"), (Join-Path $rel
 Invoke-7z @("a", "-t7z", "-mx=9", "-mmt=on", (Join-Path $releasesDir "v$Version.7z"), (Join-Path $relVerDir "*"))
 Invoke-7z @("a", "-t7z", "-mx=9", "-mmt=on", (Join-Path $releasesDir "Latest.7z"), (Join-Path $relLatestDir "*"))
 
-$unpackedReleases = Get-ChildItem $releasesDir -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -match '^v\d+\.\d+\.\d+' } |
-    Sort-Object {
-        $verText = ($_.Name -replace '^v', '') -replace '-.*$', ''
-        $parsed = [version]'0.0.0'
-        if ([version]::TryParse($verText, [ref]$parsed)) { $parsed } else { [version]'0.0.0' }
-    } -Descending
-if ($unpackedReleases.Count -gt 2) {
-    foreach ($staleDir in ($unpackedReleases | Select-Object -Skip 2)) {
-        Write-Host "  Pruning older unpacked release folder '$($staleDir.Name)' (.7z archive preserved)..."
-        Remove-Item -LiteralPath $staleDir.FullName -Recurse -Force
-    }
-}
+Prune-VersionDirectories -ParentDir $releasesDir -KeepCount 2 -KeepVersionName "v$Version"
 
 Write-Host "[6/7] Publishing SharedLibs\reStation\v$Version and Latest..."
 $sharedRoot = Join-Path (Split-Path -Parent (Split-Path -Parent $root)) "SharedLibs\reStation"
@@ -324,6 +317,8 @@ foreach ($sdkDir in @((Join-Path $sharedRoot "v$Version"), (Join-Path $sharedRoo
     if (-not (Test-Path -LiteralPath $rootReadme)) { throw "Root README.md not found at $rootReadme" }
     Copy-Item -LiteralPath $rootReadme -Destination (Join-Path $sdkDir "README.md") -Force
     $copiedNames.Add("README.md")
+    Copy-Item -LiteralPath $rootLicense -Destination (Join-Path $sdkDir "LICENSE") -Force
+    $copiedNames.Add("LICENSE")
 
     $engineManifestJson = [ordered]@{
         schemaVersion         = 1
@@ -371,7 +366,7 @@ if (-not $SkipSourceArchive) {
             "a", "-t7z", "-mx=9",
             "-xr!bin", "-xr!obj", "-xr!*.user", "-x!Dev\assets\bootstrap\*.exe",
             $srcArchive,
-            "Dev", "README.md", "FEATURES.md", "ROADMAP.md", "CHANGELOG.md", "AGENTS.md", "active.state"
+            "Dev", "README.md", "FEATURES.md", "ROADMAP.md", "CHANGELOG.md", "AGENTS.md", "LICENSE", "active.state"
         )
     } finally {
         Pop-Location

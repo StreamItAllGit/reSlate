@@ -16,10 +16,30 @@ internal static class ReStationInstallerBootstrap
 {
     private const int AttachParentProcess = -1;
 
+    /// <summary>Flags that only print help/version or verify/dry-run without modifying installations.</summary>
+    private static readonly string[] InformationalFlags =
+    {
+        "--help", "-h", "/?", "help", "--version", "-v", "--verify", "--dry-run"
+    };
+
     /// <summary>Flags that never install anything and therefore never bootstrap reEngine.</summary>
     private static readonly string[] SkipFlags =
     {
         "--help", "-h", "/?", "help", "--version", "-v", "--verify", "--dry-run", "--uninstall", "--visible-test"
+    };
+
+    private static readonly string[] DirectInstallMarkers =
+    {
+        "reStation.exe",
+        @"app\reStation.exe",
+        "reStation.Player.exe",
+        @"app\reStation.Player.exe",
+        "install-manifest.json",
+        @"app\install-manifest.json",
+        ".install_manifest.json",
+        @"app\.install_manifest.json",
+        "uninstall.exe",
+        "reStation-Uninstall.exe"
     };
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -110,9 +130,140 @@ internal static class ReStationInstallerBootstrap
     /// Ensures reEngine is installed and computes the side-by-side target. Returns 0 to continue; <paramref name="effectiveArgs"/> carries
     /// the rewritten contained arguments in --test-mode, while live mode seeds the default install directory via the process-local variable.
     /// </summary>
+    /// <summary>True when <paramref name="dir"/> is already a direct leaf installation directory.</summary>
+    internal static bool HasDirectInstallation(string dir) =>
+        !string.IsNullOrWhiteSpace(dir) &&
+        Directory.Exists(dir) &&
+        DirectInstallMarkers.Any(marker => File.Exists(Path.Combine(dir, marker)));
+
+    /// <summary>True when the current invocation is an uninstall run (<c>--uninstall</c> or uninstaller binary).</summary>
+    internal static bool IsUninstallInvocation(IReadOnlyList<string> args, string? processPath = null, string? uninstallerExeName = null) =>
+        HasFlag(args, "--uninstall") ||
+        (!string.IsNullOrWhiteSpace(processPath) && !string.IsNullOrWhiteSpace(uninstallerExeName) &&
+         string.Equals(Path.GetFileName(processPath), uninstallerExeName, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Probes <c>&lt;base&gt;\engines\reStation\v&lt;Version&gt;</c> then <c>&lt;base&gt;\reEngine\engines\reStation\v&lt;Version&gt;</c>.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static string? TryResolveSideBySideLeaf(string baseDir)
+    {
+        if (string.IsNullOrWhiteSpace(baseDir)) return null;
+        string fullBase = Path.GetFullPath(baseDir);
+        string[] candidates =
+        {
+            ComputeSideBySideDir(fullBase),
+            ComputeSideBySideDir(Path.Combine(fullBase, "reEngine"))
+        };
+        return candidates.FirstOrDefault(HasDirectInstallation)
+            ?? candidates.FirstOrDefault(Directory.Exists);
+    }
+
+    /// <summary>Replaces any <c>--install-dir</c> or <c>--target-dir</c> option with <paramref name="resolvedLeaf"/>.</summary>
+    internal static string[] RewriteInstallDirArg(IReadOnlyList<string> args, string resolvedLeaf)
+    {
+        var result = new List<string>(args.Count + 2);
+        for (int i = 0; i < args.Count; i++)
+        {
+            string raw = args[i];
+            string trimmed = raw.Trim();
+            if (trimmed.Equals("--install-dir", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("--target-dir", StringComparison.OrdinalIgnoreCase))
+            {
+                if (i + 1 < args.Count && !args[i + 1].TrimStart().StartsWith("--", StringComparison.Ordinal)) i++;
+                continue;
+            }
+            if (trimmed.StartsWith("--install-dir=", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("--target-dir=", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            result.Add(raw);
+        }
+        result.Add("--install-dir");
+        result.Add(resolvedLeaf);
+        return result.ToArray();
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static string ResolveDefaultSideBySideDir(string? sandboxRoot, bool testMode) =>
+        ComputeSideBySideDir(ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(null, sandboxRoot, testMode));
+
+    /// <summary>Normalizes base-directory <c>--install-dir</c> arguments during <c>--uninstall</c> to the side-by-side leaf directory.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static string[] NormalizeUninstallArgs(IReadOnlyList<string> args) =>
+        NormalizeUninstallArgs(args, out _);
+
+    /// <summary>Normalizes base-directory <c>--install-dir</c> arguments during <c>--uninstall</c> and computes any fallback default leaf for environment wiring.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    internal static string[] NormalizeUninstallArgs(IReadOnlyList<string> args, out string? resolvedDefaultLeafForEnv)
+    {
+        resolvedDefaultLeafForEnv = null;
+        string[] original = args as string[] ?? args.ToArray();
+        bool testMode = HasFlag(args, "--test-mode");
+        string? sandboxRoot = testMode
+            ? ResolveSandboxRoot(args, Path.Combine(Path.GetTempPath(), "restation-setup-sandbox"))
+            : null;
+        string? rawInstall = ReadInstallDir(args);
+
+        if (!string.IsNullOrWhiteSpace(rawInstall))
+        {
+            string fullRaw = Path.GetFullPath(rawInstall);
+            if (sandboxRoot is not null) global::Foundation.Core.SandboxEnvironment.AssertPathContained(fullRaw, sandboxRoot);
+            if (HasDirectInstallation(fullRaw)) return original;
+
+            string? leaf = TryResolveSideBySideLeaf(fullRaw);
+            if (leaf is null) return original;
+            if (sandboxRoot is not null) global::Foundation.Core.SandboxEnvironment.AssertPathContained(leaf, sandboxRoot);
+            return RewriteInstallDirArg(original, leaf);
+        }
+
+        if (sandboxRoot is not null)
+        {
+            string candidate = ResolveDefaultSideBySideDir(sandboxRoot, testMode: true);
+            if (Directory.Exists(candidate))
+            {
+                global::Foundation.Core.SandboxEnvironment.AssertPathContained(candidate, sandboxRoot);
+                return RewriteInstallDirArg(original, candidate);
+            }
+            return original;
+        }
+
+        string defaultLeaf = ResolveDefaultSideBySideDir(sandboxRoot: null, testMode: false);
+        if (Directory.Exists(defaultLeaf)) resolvedDefaultLeafForEnv = defaultLeaf;
+        return original;
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int TryPrepareUninstall(string[] args, out string[] effectiveArgs)
+    {
+        effectiveArgs = args;
+        try
+        {
+            effectiveArgs = NormalizeUninstallArgs(args, out string? defaultLeaf);
+            string? processDir = Path.GetDirectoryName(Environment.ProcessPath);
+            bool runningInsideInstall = !string.IsNullOrWhiteSpace(processDir) && HasDirectInstallation(processDir);
+            if (!runningInsideInstall &&
+                !string.IsNullOrWhiteSpace(defaultLeaf) &&
+                string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable)))
+            {
+                Environment.SetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable, defaultLeaf);
+            }
+            return 0;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"[reStation Installer] FAIL: {ex.Message}");
+            return 3;
+        }
+    }
+
     internal static int Prepare(string[] args, Assembly payloadAssembly, string uninstallerExeName, out string[] effectiveArgs)
     {
         effectiveArgs = args;
+        if (args.Any(a => InformationalFlags.Contains(a.Trim(), StringComparer.OrdinalIgnoreCase))) return 0;
+        if (IsUninstallInvocation(args, Environment.ProcessPath, uninstallerExeName))
+        {
+            return TryPrepareUninstall(args, out effectiveArgs);
+        }
         if (ShouldSkip(args, Environment.ProcessPath, uninstallerExeName)) return 0;
 
         bool testMode = HasFlag(args, "--test-mode");

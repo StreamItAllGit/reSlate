@@ -1,6 +1,6 @@
 # reStation — User Guide
 
-**Synced Version:** `0.1.2` (`2026-11-14`)
+**Synced Version:** `0.1.3` (`2026-11-14`)
 
 ---
 
@@ -15,27 +15,28 @@
 
 ## 2. First-Run Setup via `reEngine` Side-by-Side
 
-Running `reStation-Setup-v0.1.2-win-x64.exe` automatically bootstraps or updates `reEngine` (`v0.1.2`, no background service or Windows Startup entries created) and installs `reStation` side-by-side into:
+Running `reStation-Setup-v0.1.3-win-x64.exe` automatically bootstraps or updates `reEngine` (`v0.1.3`, no background service or Windows Startup entries created) and installs `reStation` side-by-side into:
 
 ```text
-<reEngineInstallDir>\engines\reStation\v0.1.2\
+<reEngineInstallDir>\engines\reStation\v0.1.3\
 ├── reStation.exe               # Clean-root launcher
 ├── AGENTS.md                   # Runtime context anchor
-├── app\
-│   ├── reStation.Player.exe    # SDL3 + OpenGL 3.3 / Software host
-│   ├── reStation.Compiler.exe  # PS1 ELF -> .recomp C# module compiler
-│   ├── SDL3.dll
-│   ├── 7z.exe / 7z.dll         # Container extraction (with LICENSE-7ZIP.txt)
-│   └── version.txt
-└── data\
-    └── rom\                    # Optional local media drop folder
+└── app\
+    ├── reStation.Player.exe    # SDL3 + OpenGL 3.3 / Software host
+    ├── reStation.Compiler.exe  # PS1 ELF -> .recomp C# module compiler
+    ├── LICENSE                 # Mozilla Public License 2.0 (MPL-2.0)
+    ├── SDL3.dll
+    ├── 7z.exe / 7z.dll         # Container extraction (with LICENSE-7ZIP.txt)
+    └── version.txt
 ```
 
-By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.2\`. Older `reStation` tracks (`v0.1.0`, `v0.1.1`) remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.2"`).
+User disc media lives inside each `.recomp` game module's `data\rom\` directory rather than inside the shared engine directory. To uninstall, run `reStation-Uninstall.exe` or pass `--uninstall --install-dir <dir>` targeting either the `reEngine` base root, a parent directory containing `reEngine\`, or the versioned leaf engine folder directly.
+
+By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.3\`. Older `reStation` tracks (`v0.1.0`, `v0.1.1`, `v0.1.2`) remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.3"`).
 
 ### Ways to Launch
-1. **Through `reEngine` (Recommended):** Double-click any `.recomp` cartridge or `module.recomp.json` package or run `reEngine.exe --open "<path>\app\MyGame.recomp"`. `reEngine` resolves the matching `engines\reStation\v0.1.2\` track and forwards `--preload-media` / `--wait` automatically.
-2. **Direct Launcher:** Run `reStation.exe --module "<path>\app\MyGame.recomp"` (or `module.recomp.json`, optionally passing `--disc "<path>\disc.chd"`, `--preload-media "<path>"`, `--wait`, or `--version` to print `reStation v0.1.2`).
+1. **Through `reEngine` (Recommended):** Double-click any `.recomp` cartridge or `module.recomp.json` package or run `reEngine.exe --open "<path>\app\MyGame.recomp"`. `reEngine` resolves the matching `engines\reStation\v0.1.3\` track and forwards `--preload-media` / `--wait` automatically.
+2. **Direct Launcher:** Run `reStation.exe --module "<path>\app\MyGame.recomp"` (or `module.recomp.json`, optionally passing `--disc "<path>\disc.chd"`, `--preload-media "<path>"`, `--wait`, or `--version` to print `reStation v0.1.3`).
 3. **Interactive Gate:** Launch `reStation.exe` with no arguments to open the **First-Run Media Verification** window.
 
 ---
@@ -93,7 +94,7 @@ app\reStation.Compiler.exe (--disc <image> | --gamedata-dir <dir> | --exe-path <
 | `--decomp-dir <dir>` / `--functions-json <file>` | Optional symbol/function boundary hints. When omitted, the compiler discovers `Pc0`, `JAL` call targets, stack prologues, and `.rdata` jump tables automatically. |
 | `--out-dir <dir>` | Destination folder for generated C# chunks (`PartNNN.g.cs`, `DispatchNN.g.cs`), `<PascalId>GameModule.g.cs`, `<moduleId>.Module.csproj`, and `module.recomp.json`. |
 | `--module-id`, `--serial`, `--title` | Required module ID (e.g., `kings_field`), PS1 disc serial (e.g., `SLUS-00158`), and display title. |
-| `--version <semver>` | Module SemVer (defaults to `0.1.2`). |
+| `--version <semver>` | Module SemVer (defaults to `0.1.3`). |
 | `--compile-dll` | Compiles `<moduleId>.Module.csproj` (`net8.0`, Release, deterministic) against engine libraries (`ReStationLibDir` / `RESTATION_LIB_DIR` / `RESTATION_SHARED_DIR` / `<outDir>\lib\`) to emit `<moduleId>.recomp.dll` and `<moduleId>.recomp.deps.json`. |
 
 Exit codes: `0` on success, `1` on lift/build failure, `2` on invalid CLI arguments.
@@ -164,3 +165,10 @@ All saves live inside `<dataDir>\saves\` (next to `settings.json`):
 
 - **Quick-Save Snapshots (`<safeModuleId>_slot<0..9>.rst`):** Up to 10 slots (`0`–`9`; `F5`/`F9` and the System tab target Slot `0`). Files keep frozen `"RST1"` schema v1 compatibility plus optional EOF-anchored `"RSTX"` trailer chunks (`"BIOS"` event/timer/card state + `"OVLY"` module overlay bytes), verify `moduleId` parity to prevent cross-game corruption, GZip-compress complete `PsxCpu` machine state (RAM, CPU/GTE, GPU, SPU, MDEC, CD-ROM, Timers/DMA, BIOS HLE), and write atomically via `.tmp` replacement. Quick-loading cleanly unwinds lifted execution at the next VBlank boundary.
 - **PS1 Memory Cards (`memcard_<serialOrModuleId>_slot1.mcr`):** `reStation` emulates standard `128 KB` (`131,072`-byte, 16-block × 8,192-byte, `"MC"` header with XOR frame checksums) `.mcr` cards via BIOS `bu00:` file syscalls. Each title receives an isolated memory card scoped by its `SerialNumber` (or `ModuleId` fallback), flushed atomically on every game save, erase, or format and compatible with standard PS1 `.mcr` tools.
+
+---
+
+## 8. License & Legal
+- **Project License:** Mozilla Public License 2.0 (`MPL-2.0`) — bundled as `app\LICENSE` in every installation.
+- **Third-Party Tools:** Bundled `7z.exe` and `7z.dll` container extractors are governed by `LGPL-2.1+` (`LICENSE-7ZIP.txt` alongside `app\`).
+- **Clean-Room Zero-Asset Policy & Non-Affiliation:** `reStation` contains zero copyrighted game assets, PS1 BIOS dumps, or proprietary Sony code. PlayStation® and PS1® are registered trademarks of Sony Interactive Entertainment Inc.; `reStation` is an independent clean-room project and is not affiliated with or endorsed by Sony Interactive Entertainment. Users must supply their own legally obtained PS1 disc media.

@@ -7,8 +7,8 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.1.2",
-  "activeMilestone": "0.1.2",
+  "version": "0.1.3",
+  "activeMilestone": "0.1.3",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-14",
   "lastVersionDate": "2026-11-14",
@@ -16,7 +16,7 @@
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 4,
+  "completedTaskCount": 5,
   "openReportCount": 0,
   "gates": {
     "isGate0ScopePassed": true,
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "v0.1.2 built, Gate 2 PASS, SharedLibs\\reStation\\v0.1.2\\ published, Sandbox verified (--version 0.1.2, --verify Exit 0, 129/129 tests, live OpenGL + overlay PNGs), and @tessa synced.",
-  "updatedAtUtc": "2026-11-14T09:38:00.000Z"
+  "notes": "Wave 2 v0.1.3 shipped: 130/130 Release tests (0 warnings), P3 --uninstall base-dir fix, engine data/rom removal, MPL-2.0 LICENSE bundling, 0-leak Releases\\Latest, SharedLibs\\reStation\\v0.1.3, @inspecter Sandbox + --visible-test PASS, and @tessa-2 closeout.",
+  "updatedAtUtc": "2026-11-14T11:02:00.000Z"
 }
