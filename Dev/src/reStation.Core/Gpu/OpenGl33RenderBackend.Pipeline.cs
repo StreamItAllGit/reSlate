@@ -137,6 +137,29 @@ public sealed unsafe partial class OpenGl33RenderBackend
         if (w2 > 0 && h2 > 0) action(0, 0, w2, h2);
     }
 
+    private void EmitDecodedPolygon(in PsxDrawState st, in PsxVertex v0, in PsxVertex v1, in PsxVertex v2, in PsxVertex v3,
+        int vertCount, int cl, int ct, int cr, int cb)
+    {
+        uint texInfo = PackTexInfo(st);
+        PrepareBatchState(st, cl, ct, cr, cb, vertCount == 4 ? 6 : 3);
+        AppendTri(v0, v1, v2, texInfo);
+        if (vertCount == 4 && PsxPrimitiveDecoder.IsDrawable(v1, v2, v3)) AppendTri(v1, v2, v3, texInfo);
+        FlushIfTwoPass(st);
+    }
+
+    private void EmitDecodedLine(in PsxDrawState ls, in PsxVertex a, in PsxVertex b, int cl, int ct, int cr, int cb)
+    {
+        PrepareBatchState(ls, cl, ct, cr, cb, 6);
+        AppendLineQuad(a, b, PackTexInfo(ls));
+    }
+
+    private void EmitDecodedRect(in PsxDrawState rs, in PsxRect rc, int cl, int ct, int cr, int cb)
+    {
+        PrepareBatchState(rs, cl, ct, cr, cb, 6);
+        AppendRectQuad(rc, PackTexInfo(rs));
+        FlushIfTwoPass(rs);
+    }
+
     private void AppendTri(in PsxVertex a, in PsxVertex b, in PsxVertex c, uint texInfo)
     {
         _batch[_batchCount++] = ToGl(a, texInfo); _batch[_batchCount++] = ToGl(b, texInfo); _batch[_batchCount++] = ToGl(c, texInfo);

@@ -94,6 +94,7 @@ public sealed partial class PsxBiosHle
         int copyLen = Math.Min(tSize, Math.Min(exe.Length - 0x800, PsxMemoryBus.RamSize - (int)tAddr));
         if (copyLen <= 0) return false;
         Array.Copy(exe, 0x800, _cpu.Bus.Ram, (int)tAddr, copyLen);
+        _cpu.Bus.NotifyRamWriteRange(tAddr, (uint)copyLen);
         _lastLoadedExeName = NormalizeDiscPath(discName);
         return true;
     }
@@ -228,7 +229,9 @@ public sealed partial class PsxBiosHle
         _cpu.Cop0Sr = 0x00000401U;
         _cpu.TimersAndDma.InterruptMask = 0; _cpu.TimersAndDma.InterruptStatus = 0; _cpu.TimersAndDma.PendingTimerEvents = 0;
 
-        _cpu.ActiveExeId = _cpu.ResolveOverlayExeId(_lastLoadedExeName, pc0);
+        int nextExe = _cpu.ResolveOverlayExeId(_lastLoadedExeName, pc0);
+        if (nextExe != prevExe) _cpu.FramePatch?.Reset();
+        _cpu.ActiveExeId = nextExe;
         _cpu.R[4] = argc; _cpu.R[5] = argv; _cpu.R[28] = gp0;
         _cpu.R[29] = spBase != 0 ? spBase : 0x801F8000U;
         _cpu.R[30] = _cpu.R[29];
@@ -237,11 +240,13 @@ public sealed partial class PsxBiosHle
 
         if (!_cpu.ExitRequested && _cpu.PendingQuickLoadSlot < 0)
         {
+            bool switchingBack = _cpu.ActiveExeId != prevExe;
             _cpu.ActiveExeId = prevExe; _cpu.Cop0Sr = prevSr;
             _hookEntryIntBufAddr = prevHook; _padBufAddr = prevPad;
             _events.Clear(); _events.AddRange(prevEvents);
             _cpu.TimersAndDma.InterruptMask = 0; _cpu.TimersAndDma.InterruptStatus = 0;
             savedR.CopyTo(_cpu.R);
+            if (switchingBack) _cpu.FramePatch?.Reset();
         }
     }
 

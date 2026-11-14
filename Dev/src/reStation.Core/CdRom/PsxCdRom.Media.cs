@@ -86,7 +86,7 @@ public sealed partial class PsxCdRom
         {
             _primaryImageStream.Seek(pos + 16, SeekOrigin.Begin);
             n = _primaryImageStream.Read(_driveSectorBuf, 4, 2336);
-            isForm2 = (_driveSectorBuf[6] & 0x20) != 0;
+            isForm2 = PsxCdRomTiming.HasStreamingSubmode(_driveSectorBuf[6]);
             return n == 2336;
         }
         n = _primaryImageStream.Read(_driveSectorBuf, 12, 2048);

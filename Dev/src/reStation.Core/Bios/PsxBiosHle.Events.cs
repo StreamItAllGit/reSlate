@@ -4,6 +4,8 @@
 // @exports: PsxBiosHle (partial)
 // @owner: devv-cpu-cd (T2)
 
+using System.Text;
+
 namespace reStation.Core.Bios;
 
 public sealed partial class PsxBiosHle
@@ -104,14 +106,14 @@ public sealed partial class PsxBiosHle
     private void ZeroRam(uint d, uint n)
     {
         if (n == 0) return;
-        if (_cpu.Bus.TryGetRamSpan(d, n, out var span)) span.Clear();
+        if (_cpu.Bus.TryGetRamSpan(d, n, out var span)) { span.Clear(); _cpu.Bus.NotifyRamWriteRange(d, n); }
         else for (uint i = 0; i < n; i++) _cpu.Bus.Write8(d + i, 0);
     }
 
     private void FillRam(uint d, byte v, uint n)
     {
         if (n == 0) return;
-        if (_cpu.Bus.TryGetRamSpan(d, n, out var span)) span.Fill(v);
+        if (_cpu.Bus.TryGetRamSpan(d, n, out var span)) { span.Fill(v); _cpu.Bus.NotifyRamWriteRange(d, n); }
         else for (uint i = 0; i < n; i++) _cpu.Bus.Write8(d + i, v);
     }
 
@@ -122,10 +124,55 @@ public sealed partial class PsxBiosHle
         if (_cpu.Bus.TryGetRamSpan(src, n, out var srcSpan) && _cpu.Bus.TryGetRamSpan(dst, n, out var dstSpan))
         {
             srcSpan.CopyTo(dstSpan);
+            _cpu.Bus.NotifyRamWriteRange(dst, n);
             return;
         }
         byte[] t = new byte[n];
         for (uint i = 0; i < n; i++) t[i] = _cpu.Bus.Read8(src + i);
         for (uint i = 0; i < n; i++) _cpu.Bus.Write8(dst + i, t[i]);
+    }
+
+    /// <summary>Serializes BIOS HLE kernel events, heap cursors, RNG seed, and hook registers for the "BIOS" RSTX chunk.</summary>
+    public byte[] CaptureSnapshot()
+    {
+        using var ms = new MemoryStream(128);
+        using var w = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+        w.Write(0x534F4942U); // "BIOS"
+        w.Write((ushort)1);
+        w.Write(_hookEntryIntBufAddr); w.Write(_padBufAddr); w.Write(_padType); w.Write(_padLen);
+        w.Write(_randSeed); w.Write(_heapPtr); w.Write(_heapEnd);
+        w.Write(_lastFailedEventHandle); w.Write(_failedEventPolls);
+        w.Write(_lastLoadedExeName ?? string.Empty);
+        w.Write(_events.Count);
+        foreach (KernelEvent ev in _events)
+        {
+            w.Write(ev.ClassId); w.Write(ev.Spec); w.Write(ev.Mode); w.Write(ev.Callback);
+            w.Write(ev.Enabled); w.Write(ev.Delivered);
+        }
+        w.Flush();
+        return ms.ToArray();
+    }
+
+    /// <summary>Restores BIOS HLE kernel state from an "RSTX" "BIOS" chunk.</summary>
+    public void RestoreSnapshot(ReadOnlySpan<byte> payload)
+    {
+        using var ms = new MemoryStream(payload.ToArray(), writable: false);
+        using var r = new BinaryReader(ms, Encoding.UTF8);
+        if (r.ReadUInt32() != 0x534F4942U || r.ReadUInt16() != 1)
+            throw new InvalidDataException("Invalid BIOS RSTX chunk header.");
+        _hookEntryIntBufAddr = r.ReadUInt32(); _padBufAddr = r.ReadUInt32();
+        _padType = r.ReadUInt32(); _padLen = r.ReadUInt32();
+        _randSeed = r.ReadUInt32(); _heapPtr = r.ReadUInt32(); _heapEnd = r.ReadUInt32();
+        _lastFailedEventHandle = r.ReadUInt32(); _failedEventPolls = r.ReadInt32();
+        _lastLoadedExeName = r.ReadString();
+        int count = r.ReadInt32();
+        if (count is < 0 or > 4096) throw new InvalidDataException($"Invalid BIOS event count: {count}.");
+        _events.Clear();
+        for (int i = 0; i < count; i++)
+            _events.Add(new KernelEvent
+            {
+                ClassId = r.ReadUInt32(), Spec = r.ReadUInt32(), Mode = r.ReadUInt32(), Callback = r.ReadUInt32(),
+                Enabled = r.ReadBoolean(), Delivered = r.ReadBoolean()
+            });
     }
 }

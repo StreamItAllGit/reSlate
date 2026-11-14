@@ -32,6 +32,8 @@ public sealed class PsxMemoryBus
     public uint CacheControl { get; set; } = 0x00000800U;
     public uint RamSizeRegister { get; set; } = 0x00000B88U;
     public long UnmappedAccesses { get; private set; }
+    /// <summary>When returning true, restricts MMIO writes to the GPU sub-tick allowlist (RAM, Scratchpad, GP0/GP1, DMA2, DPCR ch2).</summary>
+    public Func<bool>? IsSubTickRenderGuard { get; set; }
     /// <summary>Optional callback invoked when guest RAM in [physOffset, physOffset + byteLength) is written.</summary>
     public event Action<uint, uint>? OnRamWriteRange;
 
@@ -41,8 +43,18 @@ public sealed class PsxMemoryBus
         if (byteLength == 0) return;
         uint phys = address & 0x1FFFFFFFU;
         if (phys >= 0x00800000U) return;
-        OnRamWriteRange?.Invoke(phys & RamMask, Math.Min(byteLength, RamSize));
+        uint start = phys & RamMask;
+        uint len = Math.Min(byteLength, RamSize - start);
+        OnRamWriteRange?.Invoke(start, len);
+        if (byteLength > len)
+        {
+            uint rem = Math.Min(byteLength - len, start);
+            if (rem > 0) OnRamWriteRange?.Invoke(0, rem);
+        }
     }
+
+    private static bool IsSubTickAllowedIo32(uint alignedP) =>
+        alignedP is 0x1F801810U or 0x1F801814U or (>= 0x1F8010A0U and < 0x1F8010B0U) or 0x1F8010F0U;
 
     private bool CacheIsolated => (_cpu.Cop0Sr & 0x00010000U) != 0;
 
@@ -86,8 +98,18 @@ public sealed class PsxMemoryBus
     {
         if (CacheIsolated) return;
         uint p = address & 0x1FFFFFFFU;
-        if (p < 0x00800000U) { Ram[p & RamMask] = value; return; }
+        if (p < 0x00800000U) { uint off = p & RamMask; Ram[off] = value; NotifyRamWriteRange(off, 1); return; }
         if (p is >= 0x1F800000U and < 0x1F800400U) { Scratchpad[p & 0x3FFU] = value; return; }
+        if (IsSubTickRenderGuard?.Invoke() == true)
+        {
+            uint aligned = p & ~3U;
+            if (p is >= 0x1F801000U and < 0x1F802000U && IsSubTickAllowedIo32(aligned))
+            {
+                int shift = (int)((p & 3U) * 8);
+                WriteIo32(aligned, (ReadIo32Raw(aligned) & ~(0xFFU << shift)) | ((uint)value << shift));
+            }
+            return;
+        }
         if (p is >= 0x1F801800U and < 0x1F801804U) { _cpu.CdRom.WriteRegister((int)(p & 3U), value); return; }
         if (p is >= 0x1F801040U and < 0x1F801050U)
         {
@@ -111,8 +133,18 @@ public sealed class PsxMemoryBus
     {
         if (CacheIsolated) return;
         uint p = address & 0x1FFFFFFFU;
-        if (p < 0x00800000U) { Unsafe.WriteUnaligned(ref At(Ram, p & (RamMask & ~1U)), value); return; }
+        if (p < 0x00800000U) { uint off = p & (RamMask & ~1U); Unsafe.WriteUnaligned(ref At(Ram, off), value); NotifyRamWriteRange(off, 2); return; }
         if (p is >= 0x1F800000U and < 0x1F800400U) { Unsafe.WriteUnaligned(ref At(Scratchpad, p & 0x3FEU), value); return; }
+        if (IsSubTickRenderGuard?.Invoke() == true)
+        {
+            uint aligned = p & ~3U;
+            if (p is >= 0x1F801000U and < 0x1F802000U && IsSubTickAllowedIo32(aligned))
+            {
+                int shift = (int)((p & 2U) * 8);
+                WriteIo32(aligned, (ReadIo32Raw(aligned) & ~(0xFFFFU << shift)) | ((uint)value << shift));
+            }
+            return;
+        }
         if (p is >= 0x1F801C00U and < 0x1F802000U) { _cpu.Spu.Write16(p, value); return; }
         if (p is >= 0x1F801040U and < 0x1F801050U) { _cpu.Joypad.Write16(p, value); return; }
         if (p is >= 0x1F801000U and < 0x1F802000U)
@@ -130,8 +162,13 @@ public sealed class PsxMemoryBus
     {
         if (CacheIsolated) return;
         uint p = address & 0x1FFFFFFFU;
-        if (p < 0x00800000U) { Unsafe.WriteUnaligned(ref At(Ram, p & (RamMask & ~3U)), value); return; }
+        if (p < 0x00800000U) { uint off = p & (RamMask & ~3U); Unsafe.WriteUnaligned(ref At(Ram, off), value); NotifyRamWriteRange(off, 4); return; }
         if (p is >= 0x1F800000U and < 0x1F800400U) { Unsafe.WriteUnaligned(ref At(Scratchpad, p & 0x3FCU), value); return; }
+        if (IsSubTickRenderGuard?.Invoke() == true)
+        {
+            if (p is >= 0x1F801000U and < 0x1F802000U) WriteIo32(p & ~3U, value);
+            return;
+        }
         if (p is >= 0x1F801000U and < 0x1F802000U) { WriteIo32(p & ~3U, value); return; }
         if (p == 0x1FFE0130U) { CacheControl = value; return; }
         UnmappedAccesses++;
@@ -183,6 +220,15 @@ public sealed class PsxMemoryBus
 
     private void WriteIo32(uint p, uint value)
     {
+        if (IsSubTickRenderGuard?.Invoke() == true)
+        {
+            if (!IsSubTickAllowedIo32(p)) return;
+            if (p == 0x1F8010F0U)
+            {
+                const uint dpcrCh2Mask = 0x00000F00U;
+                value = (_cpu.TimersAndDma.ReadDmaReg(p) & ~dpcrCh2Mask) | (value & dpcrCh2Mask);
+            }
+        }
         if (p < 0x1F801024U) { _memControl[(p - 0x1F801000U) >> 2] = value; return; }
         if (p == 0x1F801060U) { RamSizeRegister = value; return; }
         if (p is >= 0x1F801040U and < 0x1F801050U) { _cpu.Joypad.Write16(p, (ushort)value); return; }
@@ -233,5 +279,6 @@ public sealed class PsxMemoryBus
         for (int i = 0; i < _memControl.Length; i++) _memControl[i] = r.ReadUInt32();
         CacheControl = r.ReadUInt32();
         RamSizeRegister = r.ReadUInt32();
+        NotifyRamWriteRange(0, RamSize);
     }
 }

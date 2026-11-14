@@ -210,6 +210,7 @@ public sealed class PsxTimersAndDma
                 uint addr = madr;
                 for (uint i = 1; i < words; i++) { _cpu.Bus.Write32(addr, (addr - 4) & 0x1FFFFCU); addr = (addr - 4) & 0x1FFFFCU; }
                 _cpu.Bus.Write32(addr, 0x00FFFFFFU);
+                NotifyDmaRamWrite(madr, -4, words);
                 break;
             case 2 when sync == 2:
                 uint node = madr;
@@ -228,6 +229,7 @@ public sealed class PsxTimersAndDma
                     if (toDevice) WriteDevice(ch, _cpu.Bus.Read32(a));
                     else _cpu.Bus.Write32(a, ReadDevice(ch));
                 }
+                if (!toDevice) NotifyDmaRamWrite(madr, step, words);
                 if (sync == 1) _madr[ch] = a;
                 break;
         }
@@ -238,6 +240,15 @@ public sealed class PsxTimersAndDma
             Dicr |= 1U << (24 + ch);
             UpdateDmaMasterFlag();
         }
+    }
+
+    private void NotifyDmaRamWrite(uint madr, int step, uint words)
+    {
+        if (words == 0) return;
+        long first = madr, last = madr + ((long)words - 1L) * step;
+        long low = Math.Min(first, last), high = Math.Max(first, last);
+        if (low >= 0 && high < Cpu.PsxMemoryBus.RamSize) _cpu.Bus.NotifyRamWriteRange((uint)low, (uint)(high - low + 4L));
+        else _cpu.Bus.NotifyRamWriteRange(0, Cpu.PsxMemoryBus.RamSize);
     }
 
     private void WriteDevice(int ch, uint word)

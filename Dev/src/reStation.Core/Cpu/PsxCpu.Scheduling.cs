@@ -14,9 +14,12 @@ public sealed partial class PsxCpu
 
     public void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false)
     {
-        if (inSubTickRender && InSubTickRender) return;
-        bool prevSubTick = InSubTickRender;
-        _unwindStack.Push((ShouldUnwind, UnwindTargetPc));
+        if (inSubTickRender && InSubTickRender)
+        {
+            Logger?.Warn("CPU", $"Rejected nested RunSlice(inSubTickRender=true) at pc=0x{entryPc:X8}.");
+            return;
+        }
+        _unwindStack.Push((ShouldUnwind, UnwindTargetPc, InSubTickRender));
         ShouldUnwind = false;
         UnwindTargetPc = returnSentinelPc;
         if (inSubTickRender) InSubTickRender = true;
@@ -29,7 +32,8 @@ public sealed partial class PsxCpu
             bool unwindingOut = ExitRequested || PendingQuickLoadSlot >= 0;
             var prev = _unwindStack.Pop();
             UnwindTargetPc = prev.UnwindTarget;
-            InSubTickRender = prevSubTick;
+            InSubTickRender = prev.InSubTickRender;
+            if (inSubTickRender) SubTickDeadlineCycle = 0;
             if (!unwindingOut) ShouldUnwind = prev.ShouldUnwind;
         }
     }
@@ -37,7 +41,9 @@ public sealed partial class PsxCpu
     internal void PollSubTickWatchdog()
     {
         if (SubTickDeadlineCycle > 0 && TotalCycles >= SubTickDeadlineCycle) ShouldUnwind = true;
-        else NextEventCycle = TotalCycles + 4096;
+        else NextEventCycle = SubTickDeadlineCycle > TotalCycles
+            ? Math.Min(TotalCycles + 4096, SubTickDeadlineCycle)
+            : TotalCycles + 4096;
     }
 
     public long ComputeNextWakeCycle() =>
@@ -64,25 +70,130 @@ public sealed partial class PsxCpu
 
     internal IRecompModule? ResolveModule(uint canonPc)
     {
-        IRecompModule? active = _modules[Math.Clamp(ActiveExeId, 0, ModuleSlotCount - 1)];
-        if (active is not null && canonPc >= active.TextStart && canonPc < active.TextEnd) return active;
-        IRecompModule? resident = _modules[0];
+        OverlayEntry[] overlays = Volatile.Read(ref _overlays);
+        foreach (OverlayEntry entry in overlays)
+            if (canonPc >= entry.Mod.TextStart && canonPc < entry.Mod.TextEnd && IsOverlayRamMatch(entry))
+                return entry.Mod;
+
+        IRecompModule? activeNonOverlay = null;
+        IRecompModule? resident = null;
+        IRecompModule? anyMatch = null;
+        foreach (IRecompModule mod in _modules)
+        {
+            if (mod is IOverlayRecompModule) continue;
+            if (mod.ExeId == ActiveExeId) activeNonOverlay ??= mod;
+            if (mod.ExeId == 0) resident ??= mod;
+            if (canonPc >= mod.TextStart && canonPc < mod.TextEnd)
+            {
+                if (mod.ExeId == ActiveExeId) return mod;
+                anyMatch ??= mod;
+            }
+        }
         if (resident is not null && canonPc >= resident.TextStart && canonPc < resident.TextEnd) return resident;
-        foreach (IRecompModule? mod in _modules)
-            if (mod is not null && canonPc >= mod.TextStart && canonPc < mod.TextEnd) return mod;
-        return active;
+        return anyMatch ?? activeNonOverlay;
     }
 
     internal int ResolveOverlayExeId(string exeName, uint pc0)
     {
         string wanted = Path.GetFileName(exeName);
-        foreach (IRecompModule? mod in _modules)
-            if (mod is not null && !string.IsNullOrEmpty(wanted) && string.Equals(Path.GetFileName(mod.ExeName), wanted, StringComparison.OrdinalIgnoreCase))
-                return mod.ExeId;
-        foreach (IRecompModule? mod in _modules)
-            if (mod is not null && pc0 >= mod.TextStart && pc0 < mod.TextEnd)
+        if (!string.IsNullOrEmpty(wanted))
+        {
+            foreach (IRecompModule mod in _modules)
+                if (string.Equals(Path.GetFileName(mod.ExeName), wanted, StringComparison.OrdinalIgnoreCase))
+                    return mod.ExeId;
+        }
+        OverlayEntry[] overlays = Volatile.Read(ref _overlays);
+        foreach (OverlayEntry entry in overlays)
+            if (pc0 >= entry.Mod.TextStart && pc0 < entry.Mod.TextEnd && IsOverlayRamMatch(entry))
+                return entry.Mod.ExeId;
+        foreach (IRecompModule mod in _modules)
+            if (mod is not IOverlayRecompModule && pc0 >= mod.TextStart && pc0 < mod.TextEnd)
                 return mod.ExeId;
         return ActiveExeId;
+    }
+
+    private void RegisterOverlayModule(IOverlayRecompModule overlay)
+    {
+        if (!_ramWriteHooked) { Bus.OnRamWriteRange += OnBusRamWriteRange; _ramWriteHooked = true; }
+        string normHex = (overlay.ContentSha256Hex ?? string.Empty).Trim().ToLowerInvariant();
+        byte[]? expectedBytes = normHex.Length == 64 && TryParseHex32(normHex, out byte[] decoded) ? decoded : null;
+        uint physStart = overlay.LoadRamAddress & 0x1FFFFFFFU & (PsxMemoryBus.RamSize - 1U);
+        ulong physEnd = (ulong)physStart + (uint)Math.Max(0, overlay.ContentSizeBytes);
+        OverlayEntry[] existing = Volatile.Read(ref _overlays);
+        int dupOverlayIdx = Array.FindIndex(existing, e =>
+            e.Mod.ExeId == overlay.ExeId && e.PhysStart == physStart && string.Equals(e.NormHex, normHex, StringComparison.Ordinal));
+        var entry = new OverlayEntry(overlay, physStart, physEnd, normHex, expectedBytes);
+        if (dupOverlayIdx >= 0)
+        {
+            var next = (OverlayEntry[])existing.Clone();
+            next[dupOverlayIdx] = entry;
+            Volatile.Write(ref _overlays, next);
+            int modIdx = _modules.FindIndex(m => ReferenceEquals(m, existing[dupOverlayIdx].Mod));
+            if (modIdx >= 0) _modules[modIdx] = overlay; else _modules.Add(overlay);
+        }
+        else
+        {
+            var next = new OverlayEntry[existing.Length + 1];
+            Array.Copy(existing, next, existing.Length);
+            next[^1] = entry;
+            Volatile.Write(ref _overlays, next);
+            _modules.Add(overlay);
+        }
+    }
+
+    private void OnBusRamWriteRange(uint writeStart, uint writeLen)
+    {
+        ulong writeEnd = (ulong)writeStart + writeLen;
+        foreach (OverlayEntry entry in Volatile.Read(ref _overlays))
+            if (entry.PhysEnd > writeStart && writeEnd > entry.PhysStart)
+                Interlocked.Increment(ref entry.CurrentGeneration);
+    }
+
+    private bool IsOverlayRamMatch(OverlayEntry entry)
+    {
+        int size = entry.Mod.ContentSizeBytes;
+        if (size <= 0 || !Bus.TryGetRamSpan(entry.Mod.LoadRamAddress, (uint)size, out Span<byte> ramSpan)) return false;
+        long gen = Interlocked.Read(ref entry.CurrentGeneration);
+        if (entry.CachedGeneration == gen) return entry.CachedMatched;
+        Span<byte> digest = stackalloc byte[32];
+        System.Security.Cryptography.SHA256.HashData(ramSpan, digest);
+        OverlayHashComputations++;
+        bool matched = entry.ExpectedHashBytes is not null
+            ? digest.SequenceEqual(entry.ExpectedHashBytes)
+            : string.Equals(Convert.ToHexString(digest), entry.NormHex, StringComparison.OrdinalIgnoreCase);
+        entry.CachedGeneration = gen;
+        entry.CachedMatched = matched;
+        return matched;
+    }
+
+    private static int HexVal(char c) =>
+        c is >= '0' and <= '9' ? c - '0' : c is >= 'a' and <= 'f' ? c - 'a' + 10 : c is >= 'A' and <= 'F' ? c - 'A' + 10 : -1;
+
+    private static bool TryParseHex32(string hex, out byte[] bytes)
+    {
+        bytes = [];
+        if (hex.Length != 64) return false;
+        var buf = new byte[32];
+        for (int i = 0; i < 32; i++)
+        {
+            int hi = HexVal(hex[i * 2]), lo = HexVal(hex[i * 2 + 1]);
+            if (hi < 0 || lo < 0) return false;
+            buf[i] = (byte)((hi << 4) | lo);
+        }
+        bytes = buf;
+        return true;
+    }
+
+    private sealed class OverlayEntry(IOverlayRecompModule mod, uint physStart, ulong physEnd, string normHex, byte[]? expectedHashBytes)
+    {
+        public IOverlayRecompModule Mod { get; } = mod;
+        public uint PhysStart { get; } = physStart;
+        public ulong PhysEnd { get; } = physEnd;
+        public string NormHex { get; } = normHex;
+        public byte[]? ExpectedHashBytes { get; } = expectedHashBytes;
+        public long CurrentGeneration = 1;
+        public long CachedGeneration;
+        public bool CachedMatched;
     }
 
     internal (byte LeftX, byte LeftY, byte RightX, byte RightY) GetControllerAxes(int port)

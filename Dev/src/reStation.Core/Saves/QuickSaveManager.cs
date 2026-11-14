@@ -4,6 +4,7 @@
 // @exports: QuickSaveSlotInfo, QuickSaveManager
 // @owner: devv-audio-mdec (T3) — public surface T1-locked (Player F5/F9 + fixtures consume it).
 
+using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
 using Foundation.Core;
@@ -40,27 +41,7 @@ public static class QuickSaveManager
     {
         ArgumentNullException.ThrowIfNull(cpu);
         string path = GetSlotPath(dataDir, moduleId, slot);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        string tmp = $"{path}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            using (var header = new BinaryWriter(fs, Encoding.UTF8, leaveOpen: true))
-            {
-                header.Write(Magic);
-                header.Write(SchemaVersion);
-                header.Write(moduleId);
-                header.Flush();
-                using var gz = new GZipStream(fs, CompressionLevel.Fastest, leaveOpen: true);
-                using var body = new BinaryWriter(gz, Encoding.UTF8, leaveOpen: true);
-                cpu.WriteSnapshotState(body);
-            }
-            File.Move(tmp, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(tmp)) File.Delete(tmp);
-        }
+        SaveToFileWithTrailer(cpu, path, moduleId, QuickSaveTrailer.CaptureDefaultChunks(cpu), cpu.Logger);
     }
 
     public static bool TryLoad(PsxCpu cpu, string dataDir, string moduleId, int slot)
@@ -70,18 +51,11 @@ public static class QuickSaveManager
         if (!File.Exists(path)) return false;
         try
         {
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            if (fs.Length < 12) return false;
-            using var header = new BinaryReader(fs, Encoding.UTF8, leaveOpen: true);
-            if (header.ReadUInt32() != Magic || header.ReadInt32() != SchemaVersion) return false;
-            if (!string.Equals(header.ReadString(), moduleId, StringComparison.Ordinal)) return false;
-            using var gz = new GZipStream(fs, CompressionMode.Decompress, leaveOpen: true);
-            using var body = new BinaryReader(gz, Encoding.UTF8, leaveOpen: true);
-            cpu.ReadSnapshotState(body);
-            return true;
+            return LoadCore(cpu, path, expectedModuleId: moduleId, cpu.Logger).Success;
         }
         catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
         {
+            cpu.Logger?.Warn("SAVE", $"Rejected corrupt quick-save '{Path.GetFileName(path)}': {ex.Message}");
             return false;
         }
     }
@@ -109,8 +83,11 @@ public static class QuickSaveManager
         return true;
     }
 
-    /// <summary>Loads an "RST1" (plus optional "RSTX" trailer in Slice 1) snapshot file into <paramref name="cpu"/>.</summary>
-    public static QuickSaveLoadResult LoadFromFile(PsxCpu cpu, string path, ReStationLogger? logger = null)
+    /// <summary>Loads an "RST1" (plus optional "RSTX" trailer) snapshot file into <paramref name="cpu"/>.</summary>
+    public static QuickSaveLoadResult LoadFromFile(PsxCpu cpu, string path, ReStationLogger? logger = null) =>
+        LoadCore(cpu, path, expectedModuleId: null, logger);
+
+    private static QuickSaveLoadResult LoadCore(PsxCpu cpu, string path, string? expectedModuleId, ReStationLogger? logger)
     {
         ArgumentNullException.ThrowIfNull(cpu);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -126,16 +103,37 @@ public static class QuickSaveManager
         using var hdr = new BinaryReader(fs, Encoding.UTF8, leaveOpen: true);
         if (hdr.ReadUInt32() != Magic || hdr.ReadInt32() != SchemaVersion)
             throw new InvalidDataException($"Snapshot '{Path.GetFileName(full)}' has invalid RST1 header.");
-        _ = hdr.ReadString();
-        using var gz = new GZipStream(fs, CompressionMode.Decompress, leaveOpen: true);
-        using var body = new BinaryReader(gz, Encoding.UTF8, leaveOpen: true);
-        cpu.ReadSnapshotState(body);
+        string storedMod = hdr.ReadString();
+        if (expectedModuleId is not null && !string.Equals(storedMod, expectedModuleId, StringComparison.Ordinal))
+            throw new InvalidDataException($"Snapshot module '{storedMod}' does not match expected '{expectedModuleId}'.");
+
+        long payloadStart = fs.Position;
+        Stream gzInput = QuickSaveTrailer.OpenBoundedGzipPayload(fs, payloadStart, out Dictionary<string, byte[]> chunks, out bool hasRstx);
+        try
+        {
+            using var gz = new GZipStream(gzInput, CompressionMode.Decompress, leaveOpen: true);
+            using var body = new BinaryReader(gz, Encoding.UTF8, leaveOpen: true);
+            cpu.ReadSnapshotState(body);
+        }
+        finally
+        {
+            if (!ReferenceEquals(gzInput, fs)) gzInput.Dispose();
+        }
+
+        if (chunks.TryGetValue(QuickSaveTrailer.ChunkBios, out byte[]? biosPayload) &&
+            biosPayload.Length >= 6 && BinaryPrimitives.ReadUInt32LittleEndian(biosPayload) == 0x534F4942U)
+        {
+            cpu.Bios.RestoreSnapshot(biosPayload);
+        }
+
         cpu.Bus.NotifyRamWriteRange(0, PsxMemoryBus.RamSize);
-        logger?.Info("SAVE", $"Loaded '{Path.GetFileName(full)}' (format=RST1, frame={cpu.FrameCount}, chunks=none).");
-        return new QuickSaveLoadResult(true, "RST1");
+        string format = hasRstx ? "RST1+RSTX" : "RST1";
+        string chunkLabel = chunks.Count > 0 ? string.Join(',', chunks.Keys) : "none";
+        logger?.Info("SAVE", $"Loaded '{Path.GetFileName(full)}' (format={format}, frame={cpu.FrameCount}, chunks={chunkLabel}).");
+        return new QuickSaveLoadResult(true, format, chunks);
     }
 
-    /// <summary>Atomically writes a compressed "RST1" snapshot to <paramref name="path"/> (with optional "RSTX" trailer support in Slice 1).</summary>
+    /// <summary>Atomically writes a compressed "RST1" snapshot to <paramref name="path"/>, appending optional "RSTX" trailer chunks.</summary>
     public static void SaveToFileWithTrailer(
         PsxCpu cpu,
         string path,
@@ -146,25 +144,34 @@ public static class QuickSaveManager
         ArgumentNullException.ThrowIfNull(cpu);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
-        _ = rstxChunks;
         string full = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         string tmp = $"{full}.{Guid.NewGuid():N}.tmp";
         try
         {
+            string format = "RST1";
+            string chunkLabel = "none";
             using (var fs = new FileStream(tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            using (var header = new BinaryWriter(fs, Encoding.UTF8, leaveOpen: true))
             {
-                header.Write(Magic);
-                header.Write(SchemaVersion);
-                header.Write(moduleId);
-                header.Flush();
-                using var gz = new GZipStream(fs, CompressionLevel.Fastest, leaveOpen: true);
-                using var body = new BinaryWriter(gz, Encoding.UTF8, leaveOpen: true);
-                cpu.WriteSnapshotState(body);
+                using (var header = new BinaryWriter(fs, Encoding.UTF8, leaveOpen: true))
+                {
+                    header.Write(Magic);
+                    header.Write(SchemaVersion);
+                    header.Write(moduleId);
+                    header.Flush();
+                    using var gz = new GZipStream(fs, CompressionLevel.Fastest, leaveOpen: true);
+                    using var body = new BinaryWriter(gz, Encoding.UTF8, leaveOpen: true);
+                    cpu.WriteSnapshotState(body);
+                    body.Flush();
+                }
+                if (rstxChunks is { Count: > 0 })
+                {
+                    chunkLabel = QuickSaveTrailer.WriteTrailer(fs, rstxChunks);
+                    format = "RST1+RSTX";
+                }
             }
             File.Move(tmp, full, overwrite: true);
-            logger?.Info("SAVE", $"Saved '{Path.GetFileName(full)}' (format=RST1, frame={cpu.FrameCount}, chunks=none).");
+            logger?.Info("SAVE", $"Saved '{Path.GetFileName(full)}' (format={format}, frame={cpu.FrameCount}, chunks={chunkLabel}).");
         }
         finally
         {

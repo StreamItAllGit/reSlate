@@ -35,7 +35,7 @@ public sealed class ReStationLogger : IDisposable
         _sink = new CappedSharedLogSink(LogFilePath, maxLogBytes);
         _heartbeat = new HeartbeatLogger(
             ReStationEngineInfo.EngineId,
-            logSink: line => Write("INFO", "HEARTBEAT", line),
+            logSink: line => Write("INFO", "HEARTBEAT", StripHeartbeatPrefix(line)),
             terminalWriter: null,
             enableInPlaceAnsi: false,
             heartbeatInterval: heartbeatInterval);
@@ -69,7 +69,8 @@ public sealed class ReStationLogger : IDisposable
         {
             if (_disposed) return false;
             int before = _heartbeat.HeartbeatEmitCount;
-            _heartbeat.ReportProgress(snapshot.FrameNumber, 0, snapshot.ToHeartbeatLine(), forceEmit: force);
+            long frame = Math.Max(0L, snapshot.FrameNumber);
+            _heartbeat.ReportProgress(frame, Math.Max(1L, frame), snapshot.ToHeartbeatMetrics(), forceEmit: force);
             return _heartbeat.HeartbeatEmitCount > before;
         }
     }
@@ -94,7 +95,7 @@ public sealed class ReStationLogger : IDisposable
 
     private void Write(string level, string category, string message)
     {
-        string line = $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ} [{level}] [{category}] {message}";
+        string line = FormatLine(level, category, message);
         bool writeFile;
         lock (_sync)
         {
@@ -105,6 +106,12 @@ public sealed class ReStationLogger : IDisposable
         }
         if (writeFile) _sink.AppendLine(line);
     }
+
+    private static string FormatLine(string level, string category, string message) =>
+        $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ} [v{ReStationEngineInfo.Version}] [PID:{Environment.ProcessId}/T:{Environment.CurrentManagedThreadId:D2}] [{level}] [{category}] {message}";
+
+    private static string StripHeartbeatPrefix(string line) =>
+        line.StartsWith("[HEARTBEAT] ", StringComparison.Ordinal) ? line["[HEARTBEAT] ".Length..] : line;
 
     public void Dispose()
     {

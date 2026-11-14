@@ -19,6 +19,7 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     private int _scale = 1, _outW = 320, _outH = 240, _vramFboScale, _dispFboW, _dispFboH, _scratchW, _scratchH;
     private int _batchCount, _clipL, _clipT, _clipR = PsxGpu.VramWidth - 1, _clipB = PsxGpu.VramHeight - 1;
     private int _presentW, _presentH;
+    private long _primitivesSubmitted;
     private uint _batchBlendKey, _texWindowPacked;
     private uint _drawProg, _blitProg, _drawVao, _drawVbo, _blitVao, _blitVbo;
     private uint _vramTex, _vramFbo, _vramColorTex, _displayFbo, _displayTex, _scratchFbo, _scratchTex, _presentTex;
@@ -38,19 +39,33 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     public int ScaleFactor { get => _scale; set => _scale = value <= 1 ? 1 : value <= 2 ? 2 : value <= 4 ? 4 : 8; }
     public int SurfaceWidth { get; private set; } = 320;
     public int SurfaceHeight { get; private set; } = 240;
-    public long PrimitivesSubmitted { get; private set; }
+    public long PrimitivesSubmitted => Volatile.Read(ref _primitivesSubmitted);
 
     public void AttachPgxp(PgxpTracker? tracker) => _pgxp = tracker;
 
-    public void SetTextureWindow(int maskX, int maskY, int offsetX, int offsetY) =>
+    public void SetTextureWindow(int maskX, int maskY, int offsetX, int offsetY)
+    {
+        if (IsOffOwnerThread) { EnqueueSetTextureWindow(maskX, maskY, offsetX, offsetY); return; }
+        ApplyTextureWindow(maskX, maskY, offsetX, offsetY);
+    }
+
+    private void ApplyTextureWindow(int maskX, int maskY, int offsetX, int offsetY) =>
         _texWindowPacked = (uint)((maskX & 31) | ((maskY & 31) << 5) | ((offsetX & 31) << 10) | ((offsetY & 31) << 15));
 
     public bool TryReadVramRect(int x, int y, int w, int h, Span<ushort> destination) => false; // Lazy glReadPixels ONLY in CaptureRgba.
 
+    private void InitGlIfNeeded()
+    {
+        if (_ownerThreadId == 0) _ownerThreadId = Environment.CurrentManagedThreadId;
+        EnsureGlResources();
+    }
+
     public void Initialize(int initialWidth, int initialHeight, int scaleFactor)
     {
+        _ownerThreadId = Environment.CurrentManagedThreadId;
         Resize(initialWidth, initialHeight, scaleFactor);
         EnsureGlResources();
+        FlushQueuedOpsOnOwnerThread();
     }
 
     public void Resize(int width, int height, int scaleFactor)
@@ -67,7 +82,8 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (width <= 0 || height <= 0 || rgba.Length < width * height * 4) throw new ArgumentException("RGBA buffer too small.", nameof(rgba));
-        EnsureGlResources();
+        InitGlIfNeeded();
+        FlushQueuedOpsOnOwnerThread();
         FlushBatch();
         if (_presentTex == 0 || _presentW != width || _presentH != height)
         {
@@ -90,7 +106,13 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (w <= 0 || h <= 0) return;
-        EnsureGlResources();
+        if (IsOffOwnerThread) { EnqueueUploadVramRect(x, y, w, h, pixels15); return; }
+        ExecuteUploadVramRectCore(x, y, w, h, pixels15);
+    }
+
+    private void ExecuteUploadVramRectCore(int x, int y, int w, int h, ReadOnlySpan<ushort> pixels15)
+    {
+        InitGlIfNeeded();
         EnsureVramFboSize();
         FlushBatch();
         for (int row = 0, i = 0; row < h; row++)
@@ -106,7 +128,13 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (w <= 0 || h <= 0) return;
-        EnsureGlResources();
+        if (IsOffOwnerThread) { EnqueueCopyVramRect(srcX, srcY, dstX, dstY, w, h); return; }
+        ExecuteCopyVramRectCore(srcX, srcY, dstX, dstY, w, h);
+    }
+
+    private void ExecuteCopyVramRectCore(int srcX, int srcY, int dstX, int dstY, int w, int h)
+    {
+        InitGlIfNeeded();
         EnsureVramFboSize();
         FlushBatch();
         for (int r = 0, i = 0; r < h; r++)
@@ -148,7 +176,13 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (w <= 0 || h <= 0) return;
-        EnsureGlResources();
+        if (IsOffOwnerThread) { EnqueueFillDisplayRect(x, y, w, h, bgr24); return; }
+        ExecuteFillDisplayRectCore(x, y, w, h, bgr24);
+    }
+
+    private void ExecuteFillDisplayRectCore(int x, int y, int w, int h, uint bgr24)
+    {
+        InitGlIfNeeded();
         EnsureVramFboSize();
         FlushBatch();
         ushort c15 = (ushort)(((bgr24 >> 3) & 0x1F) | (((bgr24 >> 11) & 0x1F) << 5) | (((bgr24 >> 19) & 0x1F) << 10));
@@ -180,8 +214,19 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         int clipLeft, int clipTop, int clipRight, int clipBottom)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        PrimitivesSubmitted++;
-        EnsureGlResources();
+        Interlocked.Increment(ref _primitivesSubmitted);
+        if (IsOffOwnerThread)
+        {
+            EnqueueSubmitPrimitive(gp0Opcode, words, texPage, drawOffsetX, drawOffsetY, clipLeft, clipTop, clipRight, clipBottom);
+            return;
+        }
+        ExecuteSubmitPrimitiveCore(gp0Opcode, words, texPage, drawOffsetX, drawOffsetY, clipLeft, clipTop, clipRight, clipBottom);
+    }
+
+    private void ExecuteSubmitPrimitiveCore(uint gp0Opcode, ReadOnlySpan<uint> words, ushort texPage, int drawOffsetX, int drawOffsetY,
+        int clipLeft, int clipTop, int clipRight, int clipBottom)
+    {
+        InitGlIfNeeded();
         EnsureVramFboSize();
         uint op = gp0Opcode & 0xFFU;
         if (op is >= 0x20 and <= 0x3F)
@@ -189,31 +234,21 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
             Span<PsxVertex> v = stackalloc PsxVertex[4];
             int n = PsxPrimitiveDecoder.DecodePolygon(op, words, texPage, drawOffsetX, drawOffsetY, _pgxp, v, out PsxDrawState st);
             if (n < 3 || !PsxPrimitiveDecoder.IsDrawable(v[0], v[1], v[2])) return;
-            uint texInfo = PackTexInfo(st);
-            PrepareBatchState(st, clipLeft, clipTop, clipRight, clipBottom, n == 4 ? 6 : 3);
-            AppendTri(v[0], v[1], v[2], texInfo);
-            if (n == 4 && PsxPrimitiveDecoder.IsDrawable(v[1], v[2], v[3])) AppendTri(v[1], v[2], v[3], texInfo);
-            FlushIfTwoPass(st);
+            EmitDecodedPolygon(st, v[0], v[1], v[2], v[3], n, clipLeft, clipTop, clipRight, clipBottom);
         }
         else if (op is >= 0x40 and <= 0x5F && PsxPrimitiveDecoder.DecodeLine(op, words, texPage, drawOffsetX, drawOffsetY, out PsxVertex a, out PsxVertex b, out PsxDrawState ls))
-        {
-            PrepareBatchState(ls, clipLeft, clipTop, clipRight, clipBottom, 6);
-            AppendLineQuad(a, b, PackTexInfo(ls));
-        }
+            EmitDecodedLine(ls, a, b, clipLeft, clipTop, clipRight, clipBottom);
         else if (op is >= 0x60 and <= 0x7F && PsxPrimitiveDecoder.DecodeRect(op, words, texPage, drawOffsetX, drawOffsetY, out PsxRect rc, out PsxDrawState rs))
-        {
-            PrepareBatchState(rs, clipLeft, clipTop, clipRight, clipBottom, 6);
-            AppendRectQuad(rc, PackTexInfo(rs));
-            FlushIfTwoPass(rs);
-        }
+            EmitDecodedRect(rs, rc, clipLeft, clipTop, clipRight, clipBottom);
     }
 
     public void EndFrameAndPresent(int dispX, int dispY, int dispW, int dispH, bool is24Bit, bool widescreen16By9)
     {
         _ = widescreen16By9;
         ObjectDisposedException.ThrowIf(_disposed, this);
-        EnsureGlResources();
+        InitGlIfNeeded();
         EnsureVramFboSize();
+        FlushQueuedOpsOnOwnerThread();
         FlushBatch();
 
         int dw = Math.Clamp(dispW, 1, PsxGpu.VramWidth), dh = Math.Clamp(dispH, 1, PsxGpu.VramHeight);
@@ -231,9 +266,11 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     public byte[] CaptureRgba(out int width, out int height)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        FlushQueuedOpsOnOwnerThread();
         width = _outW; height = _outH;
         byte[] rgba = new byte[width * height * 4];
         if (!_glReady || !_hasPresented || _displayFbo == 0) return rgba;
+        FlushBatch();
         Gl.BindFramebuffer(GlConst.ReadFramebuffer, _displayFbo);
         Gl.PixelStorei(GlConst.PackAlignment, 1);
         fixed (byte* p = rgba) Gl.ReadPixels(0, 0, width, height, GlConst.Rgba, GlConst.UnsignedByte, p);
@@ -244,6 +281,8 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     public void Dispose()
     {
         if (_disposed) return;
+        FlushQueuedOpsOnOwnerThread();
+        lock (_queueLock) _queuedOps.Clear();
         _disposed = true;
         if (!_glReady || !Gl.IsInitialized) return;
         DeleteProg(ref _drawProg); DeleteProg(ref _blitProg);

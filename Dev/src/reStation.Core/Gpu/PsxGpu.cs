@@ -154,7 +154,12 @@ public sealed class PsxGpu
     }
 
     /// <summary>Resets transient GPU draw command state at the start of an interpolated sub-tick pass.</summary>
-    public void BeginSubTickFrame() => ResetCommandFifo();
+    public void BeginSubTickFrame()
+    {
+        ResetCommandFifo();
+        _vramWordsLeft = _uploadCount = 0;
+        _polyHasFirst = _polyExpectingColor = false;
+    }
 
     /// <summary>Resolves the current display area through the backend (called by the host at VBlank).</summary>
     public void PresentFrame()
@@ -209,8 +214,11 @@ public sealed class PsxGpu
         if (op == 0x1F) { IrqPending = true; return; }
         if (op is >= 0x20 and <= 0x7F)
         {
-            PrimitiveCount++;
-            Backend.SubmitPrimitive(op, _cmdBuf.AsSpan(0, _cmdLen), TexPage, DrawOffsetX, DrawOffsetY, DrawAreaLeft, DrawAreaTop, DrawAreaRight, DrawAreaBottom);
+            if (!SkipPolygonRasterization)
+            {
+                PrimitiveCount++;
+                Backend.SubmitPrimitive(op, _cmdBuf.AsSpan(0, _cmdLen), TexPage, DrawOffsetX, DrawOffsetY, DrawAreaLeft, DrawAreaTop, DrawAreaRight, DrawAreaBottom);
+            }
             return;
         }
         if (op is >= 0x80 and <= 0x9F) { ExecuteCopyVram(); return; }
@@ -335,8 +343,11 @@ public sealed class PsxGpu
         if (shaded) { seg[2] = _polyPendingColor; seg[3] = word; _polyPrevColor = _polyPendingColor; _polyExpectingColor = true; }
         else seg[2] = word;
         _polyPrevXy = word;
-        PrimitiveCount++;
-        Backend.SubmitPrimitive(_polyOp, seg[..(shaded ? 4 : 3)], TexPage, DrawOffsetX, DrawOffsetY, DrawAreaLeft, DrawAreaTop, DrawAreaRight, DrawAreaBottom);
+        if (!SkipPolygonRasterization)
+        {
+            PrimitiveCount++;
+            Backend.SubmitPrimitive(_polyOp, seg[..(shaded ? 4 : 3)], TexPage, DrawOffsetX, DrawOffsetY, DrawAreaLeft, DrawAreaTop, DrawAreaRight, DrawAreaBottom);
+        }
     }
 
     private void ResetCommandFifo() { _cmdLen = _cmdExpected = 0; _gp0Mode = Gp0Mode.Idle; }

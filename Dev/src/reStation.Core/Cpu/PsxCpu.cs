@@ -4,6 +4,7 @@
 // @exports: PsxCpu
 // @owner: devv-cpu-cd (T2)
 
+using System.Security.Cryptography;
 using reStation.Contracts;
 using reStation.Core.Audio;
 using reStation.Core.Bios;
@@ -22,10 +23,12 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     public const int ModuleSlotCount = 12;
     private const uint SnapshotMarker = 0x55504352U; // "RCPU"
 
-    private readonly IRecompModule?[] _modules = new IRecompModule?[ModuleSlotCount];
+    private readonly List<IRecompModule> _modules = new();
+    private OverlayEntry[] _overlays = [];
+    private bool _ramWriteHooked;
     private readonly ushort[] _padButtons = new ushort[2];
     private readonly byte[] _padAxes = new byte[8];
-    private readonly Stack<(bool ShouldUnwind, uint UnwindTarget)> _unwindStack = new();
+    private readonly Stack<(bool ShouldUnwind, uint UnwindTarget, bool InSubTickRender)> _unwindStack = new();
 
     public PsxCpu(RecompSettings settings, string dataDirectory, IPsxRenderBackend renderBackend, ReStationLogger? logger = null)
     {
@@ -37,7 +40,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         DataDirectory = Path.GetFullPath(dataDirectory);
         GameDataDir = DiscManifest.GetGameDataDir(DataDirectory);
         Pgxp = new PgxpTracker { IsEnabled = settings.IsPgxpEnabled };
-        Bus = new PsxMemoryBus(this);
+        Bus = new PsxMemoryBus(this) { IsSubTickRenderGuard = () => InSubTickRender };
         Gte = new PsxGte(settings, Pgxp);
         Gpu = new PsxGpu(settings, Pgxp, renderBackend);
         Spu = new PsxSpu(settings);
@@ -93,6 +96,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     public int PendingQuickLoadSlot { get; set; } = -1;
     public long CompiledDispatchCount { get; private set; }
     public long InterpreterFallbackCount { get; private set; }
+    public long OverlayHashComputations { get; private set; }
     public double CdSectorsPerSec => CdRom.SectorsPerSec;
 
     /// <summary>Attaches a verified disc manifest (CD-ROM sector source + memory card scope + gamedata lookup).</summary>
@@ -107,16 +111,23 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     public void RegisterModule(IRecompModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
-        if (module.ExeId is < 0 or >= ModuleSlotCount)
-            throw new ArgumentOutOfRangeException(nameof(module), $"ExeId {module.ExeId} outside 0..{ModuleSlotCount - 1}.");
-        _modules[module.ExeId] = module;
+        if (module.ExeId < 0)
+            throw new ArgumentOutOfRangeException(nameof(module), $"ExeId {module.ExeId} must be non-negative.");
+        if (module is IOverlayRecompModule overlay)
+        {
+            RegisterOverlayModule(overlay);
+            return;
+        }
+        int existingIdx = _modules.FindIndex(m => m is not IOverlayRecompModule && m.ExeId == module.ExeId);
+        if (existingIdx >= 0) _modules[existingIdx] = module;
+        else _modules.Add(module);
     }
 
     /// <summary>Loads a PS-X EXE into RAM, sets PC/GP/SP/RA, and switches <see cref="ActiveExeId"/>.</summary>
     public bool LoadExecutable(string exeRelativePath, int exeId = 0)
     {
         if (!Bios.LoadExecutableIntoRam(exeRelativePath, out uint pc0, out uint gp0, out uint spBase, out _)) return false;
-        ActiveExeId = Math.Clamp(exeId, 0, ModuleSlotCount - 1);
+        ActiveExeId = Math.Max(0, exeId);
         Pc = pc0;
         R[28] = gp0;
         R[29] = spBase != 0 ? spBase : 0x801FFF00U;

@@ -6,6 +6,7 @@
 
 using System.Buffers.Binary;
 using System.Text;
+using reStation.Core.CdRom;
 
 namespace reStation.Core.DiscIngestion;
 
@@ -220,7 +221,7 @@ public sealed class Iso9660RawReader : IDisposable
         Span<byte> sub = stackalloc byte[4];
         _stream.Seek((long)lba * RawSectorSize + 16, SeekOrigin.Begin);
         _stream.ReadExactly(sub);
-        return (sub[2] & 0x26) != 0; // submode: Form2 (0x20), audio (0x04), video (0x02)
+        return PsxCdRomTiming.HasStreamingSubmode(sub[2]);
     }
 
     private static void ReadUser(FileStream fs, int stride, int userOffset, uint lba, Span<byte> dest)
