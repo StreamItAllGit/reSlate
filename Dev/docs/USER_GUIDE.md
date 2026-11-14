@@ -1,6 +1,6 @@
 # reStation — User Guide
 
-**Synced Version:** `0.1.0` (`2026-11-13`)
+**Synced Version:** `0.1.1` (`2026-11-14`)
 
 ---
 
@@ -15,10 +15,10 @@
 
 ## 2. First-Run Setup via `reEngine` Side-by-Side
 
-Running `reStation-Setup-v0.1.0-win-x64.exe` automatically bootstraps or updates `reEngine` (no background service or Windows Startup entries are created) and installs `reStation` side-by-side into:
+Running `reStation-Setup-v0.1.1-win-x64.exe` automatically bootstraps or updates `reEngine` (`v0.1.1`, no background service or Windows Startup entries created) and installs `reStation` side-by-side into:
 
 ```text
-<reEngineInstallDir>\engines\reStation\v0.1.0\
+<reEngineInstallDir>\engines\reStation\v0.1.1\
 ├── reStation.exe               # Clean-root launcher
 ├── AGENTS.md                   # Runtime context anchor
 ├── app\
@@ -31,11 +31,11 @@ Running `reStation-Setup-v0.1.0-win-x64.exe` automatically bootstraps or updates
     └── rom\                    # Optional local media drop folder
 ```
 
-By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.0\`. Older `reStation` tracks remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.0"`).
+By default, `reEngine` installs under `<PROGRAMS_ROOT>\reEngine\`, placing this engine track at `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.1\`. Older `reStation` tracks (`v0.1.0`, etc.) remain untouched side-by-side so existing `.recomp` game modules stay pinned safely to their tested engine version (`compatibleEngineTrack: "0.1.x"`, `engineVersion: "0.1.1"`).
 
 ### Ways to Launch
-1. **Through `reEngine` (Recommended):** Double-click any `.recomp` / `module.recomp.json` package or run `reEngine.exe --open "<path>\module.recomp.json"`. `reEngine` resolves the matching `engines\reStation\v0.1.0\` track and launches automatically.
-2. **Direct Launcher:** Run `reStation.exe --module "<path>\module.recomp.json"` (optionally passing `--disc "<path>\disc.chd"`).
+1. **Through `reEngine` (Recommended):** Double-click any `.recomp` / `module.recomp.json` package or run `reEngine.exe --open "<path>\module.recomp.json"`. `reEngine` resolves the matching `engines\reStation\v0.1.1\` track and forwards `--preload-media` / `--wait` automatically.
+2. **Direct Launcher:** Run `reStation.exe --module "<path>\module.recomp.json"` (optionally passing `--disc "<path>\disc.chd"`, `--preload-media "<path>"`, `--wait`, or `--version` to print `reStation v0.1.1`).
 3. **Interactive Gate:** Launch `reStation.exe` with no arguments to open the **First-Run Media Verification** window.
 
 ---
@@ -87,13 +87,13 @@ app\reStation.Compiler.exe (--disc <image> | --gamedata-dir <dir> | --exe-path <
 ### Key Options
 | Flag | Description |
 | :--- | :--- |
-| `--disc <image>` | Reads `SYSTEM.CNF` and all `PS-X EXE` files (up to 12 EXEs) from `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip`. |
+| `--disc <image>` | Reads `SYSTEM.CNF` and all `PS-X EXE` files (unlimited EXE discovery; `12`-EXE cap removed in `v0.1.1`) from `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip`. |
 | `--gamedata-dir <dir>` | Scans an already-extracted game directory for `SYSTEM.CNF` and `PS-X EXE` binaries. |
 | `--exe-path <exe>` | Lifts a single `PS-X EXE` file directly. |
 | `--decomp-dir <dir>` / `--functions-json <file>` | Optional symbol/function boundary hints. When omitted, the compiler discovers `Pc0`, `JAL` call targets, stack prologues, and `.rdata` jump tables automatically. |
 | `--out-dir <dir>` | Destination folder for generated C# chunks (`PartNNN.g.cs`, `DispatchNN.g.cs`), `<PascalId>GameModule.g.cs`, `<moduleId>.Module.csproj`, and `module.recomp.json`. |
 | `--module-id`, `--serial`, `--title` | Required module ID (e.g., `kings_field`), PS1 disc serial (e.g., `SLUS-00158`), and display title. |
-| `--version <semver>` | Module SemVer (defaults to `0.1.0`). |
+| `--version <semver>` | Module SemVer (defaults to `0.1.1`). |
 | `--compile-dll` | Compiles `<moduleId>.Module.csproj` (`net8.0`, Release, deterministic) against engine libraries (`ReStationLibDir` / `RESTATION_LIB_DIR` / `RESTATION_SHARED_DIR` / `<outDir>\lib\`) to emit `<moduleId>.recomp.dll` and `<moduleId>.recomp.deps.json`. |
 
 Exit codes: `0` on success, `1` on lift/build failure, `2` on invalid CLI arguments.
@@ -158,9 +158,9 @@ Pressing `F3` displays a compact top-left status bar showing the active timing b
 
 ---
 
-## 7. Quick-Save Slots (`"RST1"`) & `.mcr` Memory Cards
+## 7. Quick-Save Slots (`"RST1"` + `"RSTX"`) & `.mcr` Memory Cards
 
 All saves live inside `<dataDir>\saves\` (next to `settings.json`):
 
-- **Quick-Save Snapshots (`<safeModuleId>_slot<0..9>.rst`):** Up to 10 slots (`0`–`9`; `F5`/`F9` and the System tab target Slot `0`). Files use the `"RST1"` binary header (schema v1), verify `moduleId` parity to prevent cross-game corruption, GZip-compress complete `PsxCpu` machine state (RAM, CPU/GTE, GPU, SPU, MDEC, CD-ROM, Timers/DMA, BIOS HLE), and write atomically via `.tmp` replacement. Quick-loading cleanly unwinds lifted execution at the next VBlank boundary.
+- **Quick-Save Snapshots (`<safeModuleId>_slot<0..9>.rst`):** Up to 10 slots (`0`–`9`; `F5`/`F9` and the System tab target Slot `0`). Files keep frozen `"RST1"` schema v1 compatibility plus optional EOF-anchored `"RSTX"` trailer chunks (`"BIOS"` event/timer/card state + `"OVLY"` module overlay bytes), verify `moduleId` parity to prevent cross-game corruption, GZip-compress complete `PsxCpu` machine state (RAM, CPU/GTE, GPU, SPU, MDEC, CD-ROM, Timers/DMA, BIOS HLE), and write atomically via `.tmp` replacement. Quick-loading cleanly unwinds lifted execution at the next VBlank boundary.
 - **PS1 Memory Cards (`memcard_<serialOrModuleId>_slot1.mcr`):** `reStation` emulates standard `128 KB` (`131,072`-byte, 16-block × 8,192-byte, `"MC"` header with XOR frame checksums) `.mcr` cards via BIOS `bu00:` file syscalls. Each title receives an isolated memory card scoped by its `SerialNumber` (or `ModuleId` fallback), flushed atomically on every game save, erase, or format and compatible with standard PS1 `.mcr` tools.

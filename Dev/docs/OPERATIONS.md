@@ -1,6 +1,6 @@
 # reStation — Operations & Verification Runbook
 
-**Synced Version:** `0.1.0` (`2026-11-13`)  
+**Synced Version:** `0.1.1` (`2026-11-14`)  
 **Owner:** `reStation` Engine (`@tessa` / Dev Bible Standard 16)
 
 ---
@@ -8,13 +8,16 @@
 ## 1. CLI Automation Switches
 
 ### 1.1 `reStation.exe` / `reStation.Player.exe` Flags (`CliOptions`)
-`reStation.exe` (`reStation.Launcher`) forwards all arguments to `app\reStation.Player.exe`. Passing any verification or CLI flag (`--visible-test`, `--fixture`, `--verify`, `--test-mode`, `--headless`, `--version`, `--help`, `-h`, `/?`) causes the launcher to wait synchronously and propagate the exact exit code (`0` pass, `1` runtime/verify/fixture failure, `2` CLI usage error, `3` fail-closed sandbox violation, `4` disc ingestion failure).
+`reStation.exe` (`reStation.Launcher`) forwards all arguments to `app\reStation.Player.exe`. Passing `--wait` (using `[MethodImpl(MethodImplOptions.NoInlining)]` Windows `JobObjectGuard` child-tree supervision via `LauncherArgsHelper`) or any verification/CLI switch (`--visible-test`, `--fixture`, `--verify`, `--test-mode`, `--headless`, `--version`, `--help`, `-h`, `/?`) causes the launcher to wait synchronously and propagate the exact exit code (`0` pass, `1` runtime/verify/fixture failure, `2` CLI usage error, `3` fail-closed `STD-03` sandbox violation, `4` disc ingestion failure, reserved `5` `--jit-bringup` non-VBlank watchdog timeout [`v0.2.0`], reserved `6` `--require-backend` hardware/ICD unavailable [`v0.3.0`], and `130` clean `SIGINT` cancellation).
 
 | Flag | Values / Syntax | Operational Behavior |
 | :--- | :--- | :--- |
-| `--module` | `<module.recomp.json>` | Loads and validates the `.recomp` manifest, entry assembly, and `IGameFramePatch`. |
-| `--disc` | `<image>` | Extracts and SHA-256-verifies `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip` into `<dataDir>\gamedata\`. Overrides `<module>\data\rom\` auto-discovery. |
-| `--backend` | `opengl \| software` | Selects `OpenGl33RenderBackend` (`opengl`) or deterministic `SoftwareCpuRenderBackend` oracle (`software`). In-memory override (not persisted). |
+| `--module` | `<module.recomp.json>` | Loads and validates the `.recomp` manifest, entry assembly, and `IGameFramePatch` / `ISubTickFrameHook` / `IOverlayRecompModule`. |
+| `--disc` | `<image>` | Extracts and SHA-256-verifies `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip` into `<dataDir>\gamedata\`. Highest priority (`--disc` > `--preload-media` > `<module>\data\rom\`). |
+| `--preload-media` | `<path>` | Explicit preloaded disc/archive override forwarded by `reEngine` (`--open --wait`); verified fail-closed inside sandbox boundaries (`Exit 3` escape, `Exit 4` missing media). |
+| `--wait` | *(switch)* | Holds parent `reStation.exe` launcher cleanly via Windows `JobObjectGuard` until `reStation.Player.exe` exits and propagates child exit code (`v0.1.1`). |
+| `--version` | *(switch)* | Prints `reStation v0.1.1` cleanly across both `reStation.exe` and `app\reStation.Player.exe` and exits `0`. |
+| `--backend` | `opengl \| software` | Selects `OpenGl33RenderBackend` (`opengl`, off-thread FIFO `Queue.cs`) or deterministic `SoftwareCpuRenderBackend` oracle (`software`). In `--headless`, `opengl` logs `[WARN] [GL_FALLBACK] reason=headless forced=software`. |
 | `--scale` | `1 \| 2 \| 4 \| 8` | Overrides internal render resolution multiplier (`1x`–`8x`). |
 | `--fps-mode` | `original \| enhanced` | Selects hardware `60.0 Hz` cap (`original`) or configurable `--target-fps` (`enhanced`). |
 | `--target-fps` | `0 \| unlocked \| 30..500` | Sets target FPS (`0` / `unlocked` = uncapped). Values `1..29` or `> 500` throw `ArgumentException` (exit `2`). |
@@ -81,14 +84,14 @@ dotnet test  Dev\src\reStation.slnx -c Release --no-build --logger "console;verb
 - **NoInlining AssemblyResolve:** `reStation.Installer.Program` resolves `Foundation.Core`, `Foundation.Installer`, and `reEngine.Core` from embedded `.dll.gz` streams before `RunInstallerCore` (`MethodImplOptions.NoInlining`) JITs.
 - **Side-by-Side `reEngine` Bootstrap (`ReStationInstallerBootstrap`):**
   - Skipped for informational/cleanup invocations (`--help`, `-h`, `/?`, `help`, `--version`, `-v`, `--verify`, `--dry-run`, `--uninstall`, `--visible-test`, or when running as `uninstall.exe`).
-  - **Live Mode:** Extracts embedded `reEngine-Setup.exe`, ensures `reEngine` is installed, computes `<reEngineDir>\engines\reStation\v0.1.0`, and seeds `RESTATION_INSTALL_DIR` when `--install-dir` / `--target-dir` is omitted.
-  - **Contained `--test-mode`:** Resolves sandbox root (`--data-dir`, else `--install-dir`/`--target-dir`, else `%TEMP%\restation-setup-sandbox`), extracts/bootstraps `reEngine` inside `<sandboxRoot>\`, rewrites effective args to `--data-dir <sandboxRoot> --install-dir <sandboxRoot>\reEngine\engines\reStation\v0.1.0`, and deletes temporary `_bootstrap\` files on exit.
+  - **Live Mode:** Extracts embedded `reEngine-Setup.exe` (`v0.1.1`), ensures `reEngine` is installed, computes `<reEngineDir>\engines\reStation\v0.1.1`, and seeds `RESTATION_INSTALL_DIR` when `--install-dir` / `--target-dir` is omitted.
+  - **Contained `--test-mode`:** Resolves sandbox root (`--data-dir`, else `--install-dir`/`--target-dir`, else `%TEMP%\restation-setup-sandbox`), extracts/bootstraps `reEngine` inside `<sandboxRoot>\`, rewrites effective args to `--data-dir <sandboxRoot> --install-dir <sandboxRoot>\reEngine\engines\reStation\v0.1.1`, and deletes temporary `_bootstrap\` files on exit. *(Note: `--uninstall` expects the leaf `InstallLocation` `...\engines\reStation\v<Ver>` rather than parent base root; non-blocking `P3` UX improvement tracked for `v0.1.2`/`v0.2.0`.)*
 
 ### 3.2 Packaging & Audit Pipeline (`Dev\scripts\build_release.ps1`)
 ```powershell
-# Single-pass Release Packager (LOC gate, build/test, Builds\v0.1.0\, Authenticode sign,
-# Installers\, <INSTALLERS_ROOT>\, audit_installer.ps1, 6-file Releases\, SharedLibs\, Archive\)
-powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1
+# Single-pass Release Packager (LOC gate, build/test [87 methods / 125 executions], --help/--version parity,
+# Builds\v0.1.1\, Authenticode sign, Installers\, <INSTALLERS_ROOT>\, audit_installer.ps1, 6-file Releases\, SharedLibs\, Archive\)
+powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.1.1
 ```
 
 To verify installer compliance standalone via `audit_installer.ps1`:
@@ -96,12 +99,12 @@ To verify installer compliance standalone via `audit_installer.ps1`:
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File "$env:USERPROFILE\.gemini\config\skills\release-packaging\scripts\audit_installer.ps1" `
   -InstallerPath "Installers" `
-  -StagingDir "Builds\v0.1.0" `
-  -ExpectedVersion "0.1.0"
+  -StagingDir "Builds\v0.1.1" `
+  -ExpectedVersion "0.1.1"
 ```
 Checks enforced by `audit_installer.ps1`:
-1. `Installers\` holds strictly the versioned `.exe` + `RELEASE_NOTES.md` (zero sidecar dirs/files) and mirrors byte-for-byte to `<INSTALLERS_ROOT>\reStation-Setup-v0.1.0-win-x64.exe`.
-2. Staging dir (`Builds\v0.1.0\`) contains zero `.pdb`, `.db`, `.sqlite`, `.sqlite3`, `.log`, `.env`, `oauth_creds*.json`, or `*secret*.json` files.
+1. `Installers\` holds strictly the versioned `.exe` + `RELEASE_NOTES.md` (zero sidecar dirs/files) and mirrors byte-for-byte to `<INSTALLERS_ROOT>\reStation-Setup-v0.1.1-win-x64.exe`.
+2. Staging dir (`Builds\v0.1.1\`) contains zero `.pdb`, `.db`, `.sqlite`, `.sqlite3`, `.log`, `.env`, `oauth_creds*.json`, or `*secret*.json` files.
 3. All `.exe` binaries carry a valid (or intact self-signed) Authenticode signature (`CertThumbprint` `A5414BDD36F7F113C7B2356F189B7A43F69C35E6`).
 4. ASCII and UTF-16LE binary scans confirm zero leaked host PII (`<USER_HOME_PREFIX>\...`, `<PROJECTS_ROOT>\`, `<PROGRAMS_ROOT>\`) or secret/token literals.
 
@@ -111,17 +114,17 @@ Checks enforced by `audit_installer.ps1`:
 
 ### 4.1 3-Tier Log Sweep Roots (Standard 15)
 Always inspect all three roots (with `20–50` lines of preceding context) before diagnosing runtime issues:
-1. **Production (Read-Only during Audits):** `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.0\logs\` (plus `data\logs\` if deployed with sidecar data).
+1. **Production (Read-Only during Audits):** `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.1\logs\` (plus `data\logs\` if deployed with sidecar data).
 2. **Development:** `Dev\logs\`
 3. **Sandbox:** `Sandbox\logs\` (`runtime.log`, `screenshots\`, `fixtures\`, `crashes\`).
 
 ### 4.2 `ReStationLogger` & `<= 15s` Telemetry Heartbeats
-- **Log Sink:** `ReStationLogger` wraps `Foundation.Core.CappedSharedLogSink` (`runtime.log`, `4 MiB` max cap) plus an always-active `200`-line in-memory circular buffer (`GetRecentLines()`) even when disk logging is toggled off.
-- **Heartbeat Cadence:** `HeartbeatLogger` (`Foundation.Core`) emits a `[HEARTBEAT]` line every `<= 15s` (and forces frame `1` / `--verify` emission) formatted via `PsxTelemetrySnapshot.ToHeartbeatLine()`:
+- **Log Sink & Standard 15 Format:** `ReStationLogger` wraps `Foundation.Core.CappedSharedLogSink` (`runtime.log`, `4 MiB` max cap) plus an always-active `200`-line in-memory circular buffer (`GetRecentLines()`), stamping every line as `yyyy-MM-ddTHH:mm:ss.fffZ [v0.1.1] [PID:<pid>/T:<tid:D2>]`.
+- **Heartbeat Cadence:** `HeartbeatLogger` (`Foundation.Core`) emits a single-prefix `[HEARTBEAT]` line every `<= 15s` (plus forced frame `1` / `--verify` / `FixtureRunnerHost` ticks with positive denominators) formatted via `PsxTelemetrySnapshot.ToHeartbeatLine()`:
   ```text
-  [HEARTBEAT] frame=240 fps=60.0 p99Ms=16.72 cpuMs=1.18 gpuMs=2.04 waitMs=13.40 resolutionScale=4 backend=opengl sectorsPerSec=150.0 mdecMbPerSec=24 activeSpuVoices=8 xaDrops=0 audioFillPct=51.4 audioUnderruns=0
+  2026-11-14T03:59:00.282Z [v0.1.1] [PID:54352/T:01] [INFO] [HEARTBEAT] reStation: 1/180 (0.6%) | 2.4s | frame=1 fps=13.3 p99Ms=75.03 cpuMs=66.73 gpuMs=3.99 waitMs=0.88 resolutionScale=4 backend=opengl sectorsPerSec=0.0 mdecMbPerSec=0 activeSpuVoices=0 xaDrops=0 audioFillPct=0.0 audioUnderruns=0
   ```
-- **Healthy Parity Baselines:** `xaDrops = 0`, `audioUnderruns = 0`, `sectorsPerSec` near `150.0` during `2x` CD-ROM streaming (`75.0` at `1x`), and `p99Ms` within frame budget.
+- **Healthy Parity Baselines:** `xaDrops = 0`, `audioUnderruns = 0`, `sectorsPerSec` near `150.0` during `2x` CD-ROM streaming (`75.0` at `1x`), `p99Ms` within frame budget, and `5/5` Wave 2 Gates `0.1.1-A..E` verified `PASS` ([`0.1.1.20261114-040030.-.sandbox-verify.md`](Dev/docs/reports/archive/0.1.1.20261114-040030.-.sandbox-verify.md)).
 
 ### 4.3 `CrashBundleService` Diagnostics
 `Program.cs` registers `CrashBundleService.RegisterGlobalHandlers(...)` (`AppDomain.CurrentDomain.UnhandledException` + `TaskScheduler.UnobservedTaskException`) and explicitly calls `TryWriteCrashBundle(...)` on fatal host exceptions and emulation-thread faults (`ReStationHost.RunFrame()`).
@@ -130,18 +133,19 @@ Always inspect all three roots (with `20–50` lines of preceding context) befor
 
 ---
 
-## 5. Immutable `SharedLibs\reStation\v0.1.0\` SDK Consumption Rules
+## 5. Immutable `SharedLibs\reStation\v0.1.1\` SDK Consumption Rules
 
-`Dev\scripts\build_release.ps1` (`[6/7]`) publishes the engine SDK drop to:
-- **Immutable Version Drop:** `<SHARED_LIBS_ROOT>\reStation\v0.1.0\`
-- **Rolling Convenience Pointer:** `<SHARED_LIBS_ROOT>\reStation\Latest\`
+`Dev\scripts\build_release.ps1` (`[6/7]`) preserves prior immutable releases (`v0.1.0`) and publishes clean engine SDK drops (recreating `Latest\` cleanly) to:
+- **Immutable Version Drop:** `<SHARED_LIBS_ROOT>\reStation\v0.1.1\`
+- **Rolling Convenience Pointer:** `<SHARED_LIBS_ROOT>\reStation\Latest\` *(refreshed atomically each release without overwriting `v0.1.0`)*
 
-Published artifacts (indexed in `sdk-manifest.json` with `schemaVersion: 1`, `fileName`, `fileSizeBytes`, `sha256Hex`):
+Published artifacts (indexed in `sdk-manifest.json` with `schemaVersion: 1`, `fileName`, `fileSizeBytes`, `sha256Hex`, plus `engine.manifest.json` declaring `"supportedEngineTracks": ["0.1.x"]` and root `README.md`):
 - `reStation.Contracts.dll` / `.xml` / `.deps.json`
 - `reStation.Core.dll` / `.xml` / `.deps.json`
 - `reStation.Compiler.exe` / `.dll` / `.deps.json` / `.runtimeconfig.json`
 - `Foundation.Core.dll` / `Foundation.Retro.dll`
-- `reStation-Setup-v0.1.0-win-x64.exe`
+- `reStation-Setup-v0.1.1-win-x64.exe`
+- `README.md`, `engine.manifest.json`, `sdk-manifest.json`
 
 ### Downstream Rules (Standard 00 §4 & Standard 01 §3.7)
 1. **Immutability:** Never modify or overwrite files inside an already-published `<SHARED_LIBS_ROOT>\reStation\v<Ver>\` folder. Existing `<Game>Recomp` modules remain pinned to their validated engine drop.
