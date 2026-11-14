@@ -15,7 +15,9 @@ public sealed class CliOptions
 {
     public const string HelpText =
         "reStation v" + ReStationEngineInfo.Version + " — PS1 static recompilation engine\n" +
-        "Usage: reStation.exe [--module <module.recomp.json>] [--disc <image>] [options]\n" +
+        "Usage: reStation.exe [--module <module.recomp.json>] [--disc <image> | --preload-media <path>] [options]\n" +
+        "  --preload-media <path>      Preload optical image/archive fallback when --disc is omitted\n" +
+        "  --wait                      Wait for engine completion when launched synchronously\n" +
         "  --backend opengl|software   --scale 1|2|4|8      --fps-mode original|enhanced\n" +
         "  --target-fps <n|unlocked>   --vsync [on|off]     --no-vsync   --frames <n>\n" +
         "  --fixture <spec.json>       --dump-screenshot <png>\n" +
@@ -25,6 +27,8 @@ public sealed class CliOptions
     public IReadOnlyList<string> RawArgs { get; private init; } = Array.Empty<string>();
     public string? ModulePath { get; private init; }
     public string? DiscPath { get; private init; }
+    public string? PreloadMediaPath { get; private init; }
+    public bool ShouldWait { get; private init; }
     public string? BackendId { get; private init; }
     public int? ResolutionScale { get; private init; }
     public FrameRateMode? FpsMode { get; private init; }
@@ -49,11 +53,11 @@ public sealed class CliOptions
     public static CliOptions Parse(IReadOnlyList<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        string? module = null, disc = null, backend = null, fixture = null, dump = null, data = null, config = null, log = null;
+        string? module = null, disc = null, preloadMedia = null, backend = null, fixture = null, dump = null, data = null, config = null, log = null;
         int? scale = null, targetFps = null, frames = null;
         FrameRateMode? fpsMode = null;
         bool? vsync = null;
-        bool test = false, headless = false, visible = false, verify = false, openSettings = false, enableLogs = false, showFps = false, help = false;
+        bool test = false, headless = false, visible = false, verify = false, openSettings = false, enableLogs = false, showFps = false, shouldWait = false, help = false;
 
         for (int i = 0; i < args.Count; i++)
         {
@@ -62,8 +66,10 @@ public sealed class CliOptions
             {
                 case "--module": module = Next(args, ref i, arg); break;
                 case "--disc": disc = Next(args, ref i, arg); break;
+                case "--preload-media": preloadMedia = NextValidatedPath(args, ref i, arg); break;
                 case "--backend":
                     backend = Next(args, ref i, arg).ToLowerInvariant();
+                    if (backend == "gl") backend = PsxRenderBackendIds.OpenGl;
                     if (backend is not (PsxRenderBackendIds.OpenGl or PsxRenderBackendIds.Software))
                         throw new ArgumentException($"--backend must be '{PsxRenderBackendIds.OpenGl}' or '{PsxRenderBackendIds.Software}'.");
                     break;
@@ -120,6 +126,7 @@ public sealed class CliOptions
                 case "--open-settings": openSettings = true; break;
                 case "--enable-logs": enableLogs = true; break;
                 case "--show-fps": showFps = true; break;
+                case "--wait": shouldWait = true; break;
                 case "--help" or "-h" or "/?": help = true; break;
                 default: throw new ArgumentException($"Unknown option '{arg}'. Pass --help for usage.");
             }
@@ -127,7 +134,8 @@ public sealed class CliOptions
 
         return new CliOptions
         {
-            RawArgs = args.ToArray(), ModulePath = module, DiscPath = disc, BackendId = backend, ResolutionScale = scale,
+            RawArgs = args.ToArray(), ModulePath = module, DiscPath = disc, PreloadMediaPath = preloadMedia,
+            ShouldWait = shouldWait, BackendId = backend, ResolutionScale = scale,
             FpsMode = fpsMode, TargetFps = targetFps, Vsync = vsync, MaxFrames = frames, FixturePath = fixture,
             DumpScreenshotPath = dump, DataDir = data, ConfigPath = config, LogDir = log, TestMode = test, Headless = headless,
             VisibleTest = visible, VerifyOnly = verify, OpenSettings = openSettings, EnableLogs = enableLogs, ShowFps = showFps, ShowHelp = help
@@ -154,7 +162,7 @@ public sealed class CliOptions
         return sandbox;
     }
 
-    private static string ResolveSandboxBoundary(SandboxEnvironment sandbox)
+    public static string ResolveSandboxBoundary(SandboxEnvironment sandbox)
     {
         string fullData = Path.GetFullPath(sandbox.DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         string? cursor = fullData;
@@ -206,7 +214,18 @@ public sealed class CliOptions
     {
         if (i + 1 >= args.Count || string.IsNullOrWhiteSpace(args[i + 1]))
             throw new ArgumentException($"Option '{flag}' requires a value.");
-        return args[++i].Trim().Trim('"');
+        string val = args[++i].Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(val))
+            throw new ArgumentException($"Option '{flag}' requires a non-empty value.");
+        return val;
+    }
+
+    private static string NextValidatedPath(IReadOnlyList<string> args, ref int i, string flag)
+    {
+        string value = Next(args, ref i, flag);
+        if (value.StartsWith("--", StringComparison.Ordinal) || value is "-h" or "/?" || value.IndexOfAny(Path.GetInvalidPathChars()) >= 0 || value.Contains('\0'))
+            throw new ArgumentException($"Option '{flag}' requires a valid filesystem path, got '{value}'.");
+        return value;
     }
 
     private static int ParseInt(string value, string flag) =>

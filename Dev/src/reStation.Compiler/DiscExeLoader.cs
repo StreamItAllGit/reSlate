@@ -148,7 +148,14 @@ public static class DiscExeLoader
         }
         finally
         {
-            if (Directory.Exists(tempDir)) try { Directory.Delete(tempDir, recursive: true); } catch { }
+            if (Directory.Exists(tempDir))
+            {
+                try { Directory.Delete(tempDir, recursive: true); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Console.Error.WriteLine($"[WARN] [COMPILER] Failed to clean temp dir '{tempDir}': {ex.Message}");
+                }
+            }
         }
     }
 
@@ -206,8 +213,8 @@ public static class DiscExeLoader
         }
 
         var usedFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new List<DiscoveredExe>(Math.Min(12, raw.Count));
-        for (int i = 0; i < raw.Count && i < 12; i++)
+        var result = new List<DiscoveredExe>(raw.Count);
+        for (int i = 0; i < raw.Count; i++)
         {
             string name = Path.GetFileName(raw[i].Rel);
             string baseStem = ToPascalIdentifier(Path.GetFileNameWithoutExtension(name));

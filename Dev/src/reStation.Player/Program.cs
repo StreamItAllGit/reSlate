@@ -38,7 +38,7 @@ internal static partial class Program
         }
     }
 
-    private static int RunMain(string[] args)
+    internal static int RunMain(string[] args)
     {
         CliOptions options;
         try { options = CliOptions.Parse(args); }
@@ -54,11 +54,18 @@ internal static partial class Program
         options.ApplyOverrides(settings);
         using var logger = new ReStationLogger(sandbox.LogDirectory, settings.ShouldEnableRuntimeLogs);
         CrashBundleService.RegisterGlobalHandlers(sandbox.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, logger.GetRecentLines);
-        logger.Info("BOOT", $"reStation v{ReStationEngineInfo.Version} testMode={sandbox.TestMode} headless={options.Headless} visibleTest={options.VisibleTest} backend={settings.BackendId} scale={settings.ResolutionScale}x");
+        logger.Info("BOOT", $"reStation v{ReStationEngineInfo.Version} testMode={sandbox.TestMode} headless={options.Headless} visibleTest={options.VisibleTest} wait={options.ShouldWait} backend={settings.BackendId} scale={settings.ResolutionScale}x");
 
         try
         {
+            ValidateSandboxContainment(options, sandbox);
             return RunApplication(options, sandbox, settings, logger);
+        }
+        catch (InvalidOperationException ex) when (IsSandboxViolation(ex.Message))
+        {
+            logger.Error("SANDBOX", ex.Message);
+            Console.Error.WriteLine(ex.Message);
+            return 3;
         }
         catch (Exception ex)
         {
@@ -82,12 +89,12 @@ internal static partial class Program
         }
 
         if (options.VerifyOnly)
-            return RunVerify(options, sandbox, manifest, moduleDir, logger);
+            return RunVerify(options, sandbox, settings, manifest, moduleDir, logger);
 
         if (!string.IsNullOrWhiteSpace(options.FixturePath))
         {
             string fixtureOut = Path.Combine(sandbox.LogDirectory, "fixtures");
-            return FixtureRunnerHost.RunWithEngineAsync(options.FixturePath, fixtureOut, manifest, moduleDir, sandbox.DataDirectory, settings, logger)
+            return FixtureRunnerHost.RunWithEngineAsync(options.FixturePath, fixtureOut, manifest, moduleDir, sandbox.DataDirectory, settings, logger, options.Headless)
                 .GetAwaiter().GetResult();
         }
 
@@ -102,38 +109,22 @@ internal static partial class Program
         }
 
         DiscManifest? discManifest = DiscManifest.TryLoad(sandbox.DataDirectory);
-        if (manifest is not null)
-        {
-            string? candidateMedia = !string.IsNullOrWhiteSpace(options.DiscPath)
-                ? options.DiscPath
-                : discManifest is null ? PreloadRomDetector.Detect(moduleDir!, manifest).PrimaryMediaPath : null;
-            if (!string.IsNullOrWhiteSpace(candidateMedia))
-            {
-                DiscIngestResult ingest = DiscVerifierAndExtractor
-                    .IngestAsync(candidateMedia, sandbox.DataDirectory, manifest, logger, AppContext.BaseDirectory)
-                    .GetAwaiter().GetResult();
-                if (!ingest.Success) { Console.Error.WriteLine(ingest.Message); return 4; }
-                discManifest = ingest.Manifest;
-                settings.LastDiscPath = Path.GetFileName(candidateMedia);
-                settings.Save(sandbox.ConfigFilePath);
-            }
-        }
+        int mediaExit = TryResolveAndIngestMedia(options, sandbox, settings, manifest, moduleDir, logger, ref discManifest);
+        if (mediaExit != 0) return mediaExit;
 
         bool needsGate = !options.Headless && (manifest is null || discManifest is null);
         using HostVideoSurface video = options.Headless
             ? HostVideoSurface.Create($"reStation v{ReStationEngineInfo.Version}", settings, headless: true, foreground: false, logger)
             : HostVideoSurface.Create($"reStation v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD", settings, headless: false, foreground: true, logger);
 
-        if (needsGate)
-        {
-            if (!RunFirstRunMediaGate(video, sandbox, settings, logger, ref manifest, ref moduleDir, ref discManifest, options))
-                return 0;
-        }
+        if (needsGate && !RunFirstRunMediaGate(video, sandbox, settings, logger, ref manifest, ref moduleDir, ref discManifest, options))
+            return 0;
 
         if (options.Headless && manifest is not null && discManifest is null)
         {
             logger.Warn("BOOT", "Headless session started without a verified disc image or data\\rom preload; exiting cleanly.");
-            logger.TryHeartbeat(PsxTelemetrySnapshot.Empty with { ResolutionScale = settings.ResolutionScale, BackendId = video.Backend.BackendId }, force: true);
+            PsxTelemetrySnapshot idleSnap = PsxTelemetrySnapshot.Empty with { FrameNumber = 1, ResolutionScale = settings.ResolutionScale, BackendId = video.Backend.BackendId };
+            logger.TryHeartbeat(1, 1, idleSnap.ToHeartbeatMetrics(), force: true);
             return 0;
         }
 
@@ -171,19 +162,97 @@ internal static partial class Program
         return 0;
     }
 
-    private static int RunVerify(CliOptions options, SandboxEnvironment sandbox, ReStationModuleManifest? manifest, string? moduleDir, ReStationLogger logger)
+    internal static string? ResolveMediaCandidate(CliOptions options, ReStationModuleManifest? manifest, string? moduleDir, DiscManifest? existingDisc)
+    {
+        if (!string.IsNullOrWhiteSpace(options.DiscPath)) return options.DiscPath;
+        if (!string.IsNullOrWhiteSpace(options.PreloadMediaPath)) return options.PreloadMediaPath;
+        if (existingDisc is null && manifest is not null && !string.IsNullOrWhiteSpace(moduleDir))
+            return PreloadRomDetector.Detect(moduleDir, manifest).PrimaryMediaPath;
+        return null;
+    }
+
+    internal static void ValidateSandboxContainment(CliOptions options, SandboxEnvironment sandbox)
+    {
+        if (!sandbox.TestMode) return;
+        string boundary = CliOptions.ResolveSandboxBoundary(sandbox);
+        foreach (string? raw in new[] { options.DiscPath, options.PreloadMediaPath, options.FixturePath, options.DumpScreenshotPath })
+        {
+            if (!string.IsNullOrWhiteSpace(raw))
+                _ = SandboxEnvironment.AssertPathContained(Path.GetFullPath(raw), boundary);
+        }
+    }
+
+    private static bool IsSandboxViolation(string? message) =>
+        !string.IsNullOrWhiteSpace(message) &&
+        (message.Contains("Sandbox Violation", StringComparison.OrdinalIgnoreCase) ||
+         message.Contains("Containment Violation", StringComparison.OrdinalIgnoreCase));
+
+    private static int TryResolveAndIngestMedia(CliOptions options, SandboxEnvironment sandbox, RecompSettings settings,
+        ReStationModuleManifest? manifest, string? moduleDir, ReStationLogger logger, ref DiscManifest? discManifest)
+    {
+        string? candidateMedia = ResolveMediaCandidate(options, manifest, moduleDir, discManifest);
+        if (string.IsNullOrWhiteSpace(candidateMedia)) return 0;
+
+        string fullMedia = Path.GetFullPath(candidateMedia);
+        if (!File.Exists(fullMedia))
+        {
+            string missingMsg = $"Media file not found: '{candidateMedia}'.";
+            logger.Error("DISC", missingMsg);
+            Console.Error.WriteLine(missingMsg);
+            return 4;
+        }
+
+        if (manifest is null)
+        {
+            var opts = new MediaExtractionOptions(AppContext.BaseDirectory, CopyDirectMediaToDestination: false, ComputeSha256: false);
+            MediaExtractionResult verify = MediaContainerExtractor.ExtractOrVerifyAsync(fullMedia, sandbox.DataDirectory, opts).GetAwaiter().GetResult();
+            if (!verify.Success)
+            {
+                bool containment = sandbox.TestMode && IsSandboxViolation(verify.DiagnosticMessage);
+                logger.Error(containment ? "SANDBOX" : "DISC", verify.DiagnosticMessage);
+                Console.Error.WriteLine(verify.DiagnosticMessage);
+                return containment ? 3 : 4;
+            }
+            logger.Info("DISC", $"Validated CLI media '{Path.GetFileName(fullMedia)}' (module deferred).");
+            return 0;
+        }
+
+        DiscIngestResult ingest = DiscVerifierAndExtractor
+            .IngestAsync(fullMedia, sandbox.DataDirectory, manifest, logger, AppContext.BaseDirectory)
+            .GetAwaiter().GetResult();
+        if (!ingest.Success)
+        {
+            bool containment = sandbox.TestMode && IsSandboxViolation(ingest.Message);
+            logger.Error(containment ? "SANDBOX" : "DISC", ingest.Message);
+            Console.Error.WriteLine(ingest.Message);
+            return containment ? 3 : 4;
+        }
+
+        discManifest = ingest.Manifest;
+        settings.LastDiscPath = Path.GetFileName(fullMedia);
+        settings.Save(sandbox.ConfigFilePath);
+        return 0;
+    }
+
+    private static int RunVerify(CliOptions options, SandboxEnvironment sandbox, RecompSettings settings,
+        ReStationModuleManifest? manifest, string? moduleDir, ReStationLogger logger)
     {
         DiscManifest? disc = DiscManifest.TryLoad(sandbox.DataDirectory);
-        string? preload = manifest is not null && moduleDir is not null ? PreloadRomDetector.Detect(moduleDir, manifest).PrimaryMediaPath : null;
-        bool ok = disc is not null || (options.ModulePath is not null && preload is not null);
+        string? candidate = ResolveMediaCandidate(options, manifest, moduleDir, disc);
+        bool cliMediaExists = !string.IsNullOrWhiteSpace(candidate) && File.Exists(Path.GetFullPath(candidate));
+        bool ok = disc is not null || cliMediaExists;
         string msg = disc is not null
             ? $"Verified: {disc.SerialNumber} ({disc.Files.Count} files)"
-            : preload is not null
-                ? $"Preload ready: {Path.GetFileName(preload)}"
-                : "Not verified: missing verified disc gamedata and data\\rom preload.";
+            : cliMediaExists
+                ? $"Preload ready: {Path.GetFileName(candidate!)}"
+                : "Not verified: missing verified disc gamedata, --preload-media, and data\\rom preload.";
         Console.WriteLine(msg);
         logger.Info("VERIFY", msg);
-        logger.TryHeartbeat(PsxTelemetrySnapshot.Empty, force: true);
+        PsxTelemetrySnapshot verifySnap = PsxTelemetrySnapshot.Empty with
+        {
+            FrameNumber = 1, ResolutionScale = settings.ResolutionScale, BackendId = settings.BackendId
+        };
+        logger.TryHeartbeat(1, 1, verifySnap.ToHeartbeatMetrics(), force: true);
         return ok ? 0 : 1;
     }
 

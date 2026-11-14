@@ -25,6 +25,7 @@ internal static unsafe partial class Program
         public int MouseDx, MouseDy;
         public bool MouseLeft, MouseRight, MouseCaptured, QuitRequested, PrevSave, PrevLoad, UiDirty = true;
         public long HostFrame;
+        public string DiscInfo = string.Empty;
     }
 
     private static bool RunFirstRunMediaGate(
@@ -130,7 +131,10 @@ internal static unsafe partial class Program
     {
         var drawer = new SlideOverSettingsDrawer { IsOpen = options.OpenSettings };
         var overlay = new UiOverlayPresenter();
-        var st = new LoopState();
+        var st = new LoopState
+        {
+            DiscInfo = discManifest is null ? "No disc attached" : $"{discManifest.SerialNumber} ({discManifest.Files.Count} files)"
+        };
         var audioSpec = new SdlAudioSpec { Format = Sdl3Native.AudioS16Le, Channels = 2, Freq = PsxSpu.SampleRate };
         IntPtr audioStream = video.SdlAvailable && !options.Headless
             ? Sdl3Native.SDL_OpenAudioDeviceStream(Sdl3Native.DefaultAudioPlaybackDevice, &audioSpec, IntPtr.Zero, IntPtr.Zero)
@@ -138,21 +142,29 @@ internal static unsafe partial class Program
         if (audioStream != IntPtr.Zero) _ = Sdl3Native.SDL_ResumeAudioStreamDevice(audioStream);
 
         short[] audioBuf = new short[ReStationHost.SamplesPerFrame * 2];
-        string discInfo = discManifest is null ? "No disc attached" : $"{discManifest.SerialNumber} ({discManifest.Files.Count} files)";
         int maxFrames = options.MaxFrames ?? (options.Headless && gameModule is null ? 1 : 0);
+        long totalFrames = Math.Max(1L, maxFrames > 0 ? maxFrames : 1L);
+        host.AttachRuntimeContext(new HostRuntimeContext(
+            IsHeadless: options.Headless,
+            HasPendingCapture: () => !string.IsNullOrWhiteSpace(options.DumpScreenshotPath)
+                && (maxFrames > 0 ? st.HostFrame + 1 >= maxFrames : st.HostFrame + 1 == 2),
+            IsModernMouseLookActive: () => !drawer.IsOpen && st.MouseCaptured,
+            MouseSensitivity: () => (float)settings.MouseSensitivity,
+            PollSubTickLook: () => PollLiveSubTickLook(video, host, cpu, drawer, overlay, settings, sandbox, logger, st, options.Headless),
+            PresentSubTickFrame: () => PresentSubTickLoopFrame(video, host, cpu, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, options.Headless)));
 
         try
         {
             while (!st.QuitRequested && !host.HasFinished)
             {
                 long t0 = Stopwatch.GetTimestamp();
-                PumpEvents(video, host, cpu, drawer, overlay, settings, sandbox, logger, st, ref discInfo);
+                PumpEvents(video, host, cpu, drawer, overlay, settings, sandbox, logger, st);
                 if (st.QuitRequested) break;
 
                 HostInputState input = HostInputMapper.BuildLiveInput(cpu, drawer.IsOpen, settings, st.Gamepad, ref st.MouseDx, ref st.MouseDy, st.MouseLeft, st.MouseRight);
                 bool saveEdge = input.QuickSave && !st.PrevSave, loadEdge = input.QuickLoad && !st.PrevLoad;
                 st.PrevSave = input.QuickSave; st.PrevLoad = input.QuickLoad;
-                if (saveEdge) { QuickSaveManager.Save(cpu, sandbox.DataDirectory, host.ModuleManifest.ModuleId, 0); logger.Info("SAVE", "Quick-saved slot 0."); }
+                if (saveEdge) host.SaveQuickSlot(0);
                 if (loadEdge) host.RequestQuickLoad(0);
                 ModernInputController.ApplyToCpu(cpu, input, settings);
 
@@ -170,7 +182,7 @@ internal static unsafe partial class Program
 
                 st.HostFrame++;
                 bool wantShot = !string.IsNullOrWhiteSpace(options.DumpScreenshotPath) && (maxFrames > 0 ? st.HostFrame >= maxFrames : st.HostFrame == 2);
-                PresentLoopFrame(video, host, drawer, overlay, manifest, settings, discInfo, logger.IsEnabled, options.Headless, wantShot ? options.DumpScreenshotPath : null);
+                PresentLoopFrame(video, host, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, options.Headless, wantShot ? options.DumpScreenshotPath : null);
                 st.UiDirty = false;
                 long tGpu = Stopwatch.GetTimestamp();
 
@@ -179,7 +191,8 @@ internal static unsafe partial class Program
                 long tEnd = Stopwatch.GetTimestamp();
 
                 host.RecordTimings(ElapsedMs(t0, tCpu), ElapsedMs(tCpu, tGpu), ElapsedMs(tGpu, tEnd));
-                _ = logger.TryHeartbeat(host.GetTelemetry(), force: st.HostFrame == 1);
+                PsxTelemetrySnapshot telemetry = host.GetTelemetry();
+                _ = logger.TryHeartbeat(st.HostFrame, Math.Max(totalFrames, st.HostFrame), telemetry.ToHeartbeatMetrics(), force: st.HostFrame == 1);
 
                 if (maxFrames > 0 && st.HostFrame >= maxFrames) break;
             }
@@ -192,8 +205,29 @@ internal static unsafe partial class Program
         }
     }
 
+    private static (float MouseDx, float MouseDy, float StickX, float StickY) PollLiveSubTickLook(
+        HostVideoSurface video, ReStationHost host, PsxCpu cpu, SlideOverSettingsDrawer drawer, UiOverlayPresenter overlay,
+        RecompSettings settings, SandboxEnvironment sandbox, ReStationLogger logger, LoopState st, bool headless)
+    {
+        if (!headless && video.SdlAvailable) PumpEvents(video, host, cpu, drawer, overlay, settings, sandbox, logger, st);
+        float mdx = !drawer.IsOpen && st.MouseCaptured ? st.MouseDx : 0f;
+        float mdy = !drawer.IsOpen && st.MouseCaptured ? st.MouseDy : 0f;
+        st.MouseDx = 0; st.MouseDy = 0;
+        (float sx, float sy) = HostInputMapper.ReadRightStick(st.Gamepad);
+        return (mdx, mdy, sx, sy);
+    }
+
+    private static void PresentSubTickLoopFrame(HostVideoSurface video, ReStationHost host, PsxCpu cpu, SlideOverSettingsDrawer drawer,
+        UiOverlayPresenter overlay, IReStationModuleManifest? manifest, RecompSettings settings, string discInfo, bool loggingActive, bool headless)
+    {
+        if (headless) return;
+        video.SyncViewport(settings.ResolutionScale);
+        cpu.Gpu.PresentFrame();
+        PresentLoopFrame(video, host, drawer, overlay, manifest, settings, discInfo, loggingActive, headless: false, shotPath: null);
+    }
+
     private static void PumpEvents(HostVideoSurface video, ReStationHost host, PsxCpu cpu, SlideOverSettingsDrawer drawer,
-        UiOverlayPresenter overlay, RecompSettings settings, SandboxEnvironment sandbox, ReStationLogger logger, LoopState st, ref string discInfo)
+        UiOverlayPresenter overlay, RecompSettings settings, SandboxEnvironment sandbox, ReStationLogger logger, LoopState st)
     {
         if (!video.SdlAvailable) return;
         byte* ev = stackalloc byte[128];
@@ -222,7 +256,7 @@ internal static unsafe partial class Program
                 }
                 else if (sc == Sdl3Native.ScF3) { settings.IsFpsOverlayEnabled = !settings.IsFpsOverlayEnabled; settings.Save(sandbox.ConfigFilePath); overlay.MarkDirty(); }
                 else if (sc == Sdl3Native.ScEsc && st.MouseCaptured) { st.MouseCaptured = false; video.SetRelativeMouse(false); }
-                else if (sc == Sdl3Native.ScF5) { QuickSaveManager.Save(cpu, sandbox.DataDirectory, host.ModuleManifest.ModuleId, 0); logger.Info("SAVE", "Quick-saved slot 0."); }
+                else if (sc == Sdl3Native.ScF5) host.SaveQuickSlot(0);
                 else if (sc == Sdl3Native.ScF9) host.RequestQuickLoad(0);
             }
             else if (type == Sdl3Native.EventMouseButtonDown)
@@ -244,7 +278,7 @@ internal static unsafe partial class Program
                 else if (act == DrawerAction.ToggleVsync) video.SetVsync(settings.IsVsyncEnabled);
                 else if (act == DrawerAction.ToggleBackend) logger.Info("VIDEO", $"Saved backend preference '{settings.BackendId}' (applies on next launch).");
                 else if (act == DrawerAction.ToggleRuntimeLogging) logger.SetEnabled(settings.ShouldEnableRuntimeLogs || sandbox.TestMode);
-                else if (act == DrawerAction.QuickSave) { QuickSaveManager.Save(cpu, sandbox.DataDirectory, host.ModuleManifest.ModuleId, 0); logger.Info("SAVE", "Quick-saved slot 0."); }
+                else if (act == DrawerAction.QuickSave) host.SaveQuickSlot(0);
                 else if (act == DrawerAction.QuickLoad) host.RequestQuickLoad(0);
                 else if (act == DrawerAction.ChangeDisc && Sdl3Native.ShowOpenFileDialog("Select PS1 Disc Image", Sdl3Native.DiscImageFilter) is { } dp)
                 {
@@ -252,7 +286,7 @@ internal static unsafe partial class Program
                     if (r.Success && r.Manifest is not null)
                     {
                         cpu.AttachDisc(r.Manifest);
-                        discInfo = $"{r.Manifest.SerialNumber} ({r.Manifest.Files.Count} files)";
+                        st.DiscInfo = $"{r.Manifest.SerialNumber} ({r.Manifest.Files.Count} files)";
                         settings.LastDiscPath = Path.GetFileName(dp);
                         settings.Save(sandbox.ConfigFilePath);
                     }
@@ -281,7 +315,7 @@ internal static unsafe partial class Program
                 if (r.Success && r.Manifest is not null)
                 {
                     cpu.AttachDisc(r.Manifest);
-                    discInfo = $"{r.Manifest.SerialNumber} ({r.Manifest.Files.Count} files)";
+                    st.DiscInfo = $"{r.Manifest.SerialNumber} ({r.Manifest.Files.Count} files)";
                     settings.LastDiscPath = Path.GetFileName(dropped);
                     settings.Save(sandbox.ConfigFilePath);
                 }

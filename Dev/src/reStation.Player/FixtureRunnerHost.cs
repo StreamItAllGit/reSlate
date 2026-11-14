@@ -4,6 +4,7 @@
 // @exports: FixtureRunnerHost
 // @owner: devv-player-ui (T6)
 
+using System.Diagnostics;
 using System.Text.Json;
 using Foundation.Core;
 using Foundation.Retro;
@@ -39,6 +40,53 @@ public static class FixtureRunnerHost
         }).ToArray();
     }
 
+    /// <summary>Executes each fixture in <paramref name="specs"/>, isolating corrupt/invalid failures per fixture.</summary>
+    public static async Task<IReadOnlyList<SaveStateFixtureResult>> RunFixturesAsync(
+        IReadOnlyList<SaveStateFixtureSpec> specs,
+        string artifactOutputDir,
+        Func<SaveStateFixtureSpec, int, CancellationToken, Task<SaveStateFixtureFrameOutput>> stepFrameAsync,
+        ReStationLogger? logger = null,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(specs);
+        ArgumentNullException.ThrowIfNull(stepFrameAsync);
+        var results = new List<SaveStateFixtureResult>(specs.Count);
+        foreach (SaveStateFixtureSpec spec in specs)
+        {
+            ct.ThrowIfCancellationRequested();
+            SaveStateFixtureResult result;
+            try
+            {
+                result = await SaveStateFixtureRunner
+                    .RunFixtureAsync(spec, stepFrameAsync, artifactOutputDir, referenceRgbaPixels: null, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                result = new SaveStateFixtureResult(
+                    spec.FixtureId,
+                    spec.SceneName,
+                    Passed: false,
+                    FramesExecuted: 0,
+                    ActualFramebufferSha256: null,
+                    ActualAudioWavSha256: null,
+                    MaxChannelDelta: int.MaxValue,
+                    ScreenshotPngPath: null,
+                    AudioWavPath: null,
+                    DiagnosticMessage: $"Fixture '{spec.FixtureId}' failed ({ex.GetType().Name}): {ex.Message}");
+            }
+
+            results.Add(result);
+            if (result.Passed) logger?.Info("FIXTURE", result.DiagnosticMessage);
+            else logger?.Error("FIXTURE", result.DiagnosticMessage);
+        }
+        return results;
+    }
+
     /// <summary>Runs every fixture; returns 0 when all pass, 1 when any fixture fails, 2 when no fixtures were found.</summary>
     public static async Task<int> RunAsync(
         string specPath,
@@ -55,21 +103,25 @@ public static class FixtureRunnerHost
             return 2;
         }
 
-        IReadOnlyList<SaveStateFixtureResult> results = await SaveStateFixtureRunner
-            .RunAllFixturesAsync(specs, stepFrameAsync, artifactOutputDir, ct)
-            .ConfigureAwait(false);
-        foreach (SaveStateFixtureResult r in results)
-        {
-            if (r.Passed) logger?.Info("FIXTURE", r.DiagnosticMessage);
-            else logger?.Error("FIXTURE", r.DiagnosticMessage);
-        }
+        IReadOnlyList<SaveStateFixtureResult> results = await RunFixturesAsync(specs, artifactOutputDir, stepFrameAsync, logger, ct).ConfigureAwait(false);
         return results.All(r => r.Passed) ? 0 : 1;
     }
 
     /// <summary>
-    /// Runs <paramref name="specPath"/> against a deterministic <see cref="SoftwareCpuRenderBackend"/>-backed
+    /// Runs <paramref name="specPath"/> against a deterministic <see cref="IPsxRenderBackend"/>-backed
     /// <see cref="PsxCpu"/> (and optional loaded <see cref="IRecompGameModule"/>), writing PNG/WAV artifacts under <paramref name="artifactOutputDir"/>.
     /// </summary>
+    public static Task<int> RunWithEngineAsync(
+        string specPath,
+        string artifactOutputDir,
+        IReStationModuleManifest? manifest,
+        string? moduleDirectory,
+        string dataDirectory,
+        RecompSettings settings,
+        ReStationLogger logger,
+        CancellationToken ct = default) =>
+        RunWithEngineAsync(specPath, artifactOutputDir, manifest, moduleDirectory, dataDirectory, settings, logger, headless: false, ct);
+
     public static async Task<int> RunWithEngineAsync(
         string specPath,
         string artifactOutputDir,
@@ -78,6 +130,7 @@ public static class FixtureRunnerHost
         string dataDirectory,
         RecompSettings settings,
         ReStationLogger logger,
+        bool headless,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(specPath);
@@ -87,57 +140,97 @@ public static class FixtureRunnerHost
 
         string fullSpecPath = Path.GetFullPath(specPath);
         string specDir = Path.GetDirectoryName(fullSpecPath) ?? Directory.GetCurrentDirectory();
-        using var backend = new SoftwareCpuRenderBackend();
-        backend.Initialize(HostVideoSurface.NativeWidth, HostVideoSurface.NativeHeight, settings.ResolutionScale);
-        var cpu = new PsxCpu(settings, dataDirectory, backend, logger);
-        using var pacer = new HighResFramePacer(0);
-        IReStationModuleManifest effectiveManifest = manifest ?? new ReStationModuleManifest
-        {
-            ModuleId = "fixture-host", DisplayName = "Fixture Host", Title = "Fixture Host"
-        };
-
-        using var host = new ReStationHost(cpu, effectiveManifest, dataDirectory,
-            new RecompHostOptions { TargetFps = 60, ScaleFactor = settings.ResolutionScale }, pacer, logger);
-        IRecompGameModule? gameModule = null;
-        ModuleAssemblyLoader? alc = null;
-        if (manifest is not null && !string.IsNullOrWhiteSpace(moduleDirectory) && !string.IsNullOrWhiteSpace(manifest.EntryAssembly))
-        {
-            gameModule = ModuleAssemblyLoader.LoadGameModule(manifest, moduleDirectory, out alc);
-            await gameModule.InitializeAsync(host, ct).ConfigureAwait(false);
-        }
-
-        string? loadedSpecId = null;
-        var audioChunk = new short[ReStationHost.SamplesPerFrame * 2];
+        IPsxRenderBackend backend = CreateFixtureBackend(settings, headless, logger, out HostVideoSurface? videoSurface, out SoftwareCpuRenderBackend? ownedSoftware);
+        logger.Info("FIXTURE", $"Fixture engine initialized backend={backend.BackendId} requested={settings.BackendId} scale={settings.ResolutionScale}x headless={headless}.");
 
         try
         {
-            return await RunAsync(fullSpecPath, artifactOutputDir, async (spec, frameIndex, token) =>
+            var cpu = new PsxCpu(settings, dataDirectory, backend, logger);
+            using var pacer = new HighResFramePacer(0);
+            IReStationModuleManifest effectiveManifest = manifest ?? new ReStationModuleManifest
             {
-                if (frameIndex == 0 || !string.Equals(loadedSpecId, spec.FixtureId, StringComparison.Ordinal))
+                ModuleId = "fixture-host", DisplayName = "Fixture Host", Title = "Fixture Host"
+            };
+
+            using var host = new ReStationHost(cpu, effectiveManifest, dataDirectory,
+                new RecompHostOptions { TargetFps = 60, ScaleFactor = settings.ResolutionScale }, pacer, logger);
+            host.AttachRuntimeContext(new HostRuntimeContext(IsHeadless: headless));
+
+            IRecompGameModule? gameModule = null;
+            ModuleAssemblyLoader? alc = null;
+            if (manifest is not null && !string.IsNullOrWhiteSpace(moduleDirectory) && !string.IsNullOrWhiteSpace(manifest.EntryAssembly))
+            {
+                gameModule = ModuleAssemblyLoader.LoadGameModule(manifest, moduleDirectory, out alc);
+                await gameModule.InitializeAsync(host, ct).ConfigureAwait(false);
+            }
+
+            string? loadedSpecId = null;
+            var audioChunk = new short[ReStationHost.SamplesPerFrame * 2];
+
+            try
+            {
+                return await RunAsync(fullSpecPath, artifactOutputDir, async (spec, frameIndex, token) =>
                 {
-                    loadedSpecId = spec.FixtureId;
-                    string? statePath = ResolveSaveStatePath(spec.SaveStatePath, dataDirectory, moduleDirectory, specDir);
-                    if (statePath is not null)
+                    if (frameIndex == 0 || !string.Equals(loadedSpecId, spec.FixtureId, StringComparison.Ordinal))
                     {
-                        if (gameModule is not null) await gameModule.LoadSaveStateAsync(statePath, token).ConfigureAwait(false);
-                        else LoadRst1Snapshot(cpu, statePath);
+                        loadedSpecId = spec.FixtureId;
+                        if (!string.IsNullOrWhiteSpace(spec.SaveStatePath))
+                        {
+                            string? statePath = ResolveSaveStatePath(spec.SaveStatePath, dataDirectory, moduleDirectory, specDir)
+                                ?? throw new FileNotFoundException($"Fixture save-state file not found: '{spec.SaveStatePath}'.", spec.SaveStatePath);
+                            if (gameModule is not null) await gameModule.LoadSaveStateAsync(statePath, token).ConfigureAwait(false);
+                            else _ = QuickSaveManager.LoadFromFile(cpu, statePath, logger);
+                        }
                     }
-                }
 
-                if (gameModule is not null) await host.StepModuleFrameAsync(gameModule, token).ConfigureAwait(false);
-                else host.RunFrame();
+                    long t0 = Stopwatch.GetTimestamp();
+                    if (gameModule is not null) await host.StepModuleFrameAsync(gameModule, token).ConfigureAwait(false);
+                    else host.RunFrame();
+                    long tCpu = Stopwatch.GetTimestamp();
 
-                cpu.Gpu.PresentFrame();
-                byte[] rgba = backend.CaptureRgba(out int w, out int h);
-                int read = cpu.Spu.Output.Read(audioChunk);
-                short[] pcm = read > 0 ? audioChunk.AsSpan(0, read).ToArray() : new short[audioChunk.Length];
-                return new SaveStateFixtureFrameOutput(rgba, w, h, pcm, 44_100, 2);
-            }, logger, ct).ConfigureAwait(false);
+                    cpu.Gpu.PresentFrame();
+                    byte[] rgba = backend.CaptureRgba(out int w, out int h);
+                    int read = cpu.Spu.Output.Read(audioChunk);
+                    short[] pcm = read > 0 ? audioChunk.AsSpan(0, read).ToArray() : new short[audioChunk.Length];
+                    long tGpu = Stopwatch.GetTimestamp();
+
+                    double ticksToMs = 1000.0 / Stopwatch.Frequency;
+                    host.RecordTimings((tCpu - t0) * ticksToMs, (tGpu - tCpu) * ticksToMs, 0.0);
+                    PsxTelemetrySnapshot snap = host.GetTelemetry();
+                    _ = logger.TryHeartbeat(frameIndex + 1, Math.Max(1, spec.FrameCount), snap.ToHeartbeatMetrics(), force: frameIndex == 0);
+                    return new SaveStateFixtureFrameOutput(rgba, w, h, pcm, 44_100, 2);
+                }, logger, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                _ = alc;
+            }
         }
         finally
         {
-            _ = alc;
+            videoSurface?.Dispose();
+            ownedSoftware?.Dispose();
         }
+    }
+
+    private static IPsxRenderBackend CreateFixtureBackend(RecompSettings settings, bool headless, ReStationLogger logger,
+        out HostVideoSurface? videoSurface, out SoftwareCpuRenderBackend? ownedSoftware)
+    {
+        bool requestedGl = string.Equals(settings.BackendId, PsxRenderBackendIds.OpenGl, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(settings.BackendId, "gl", StringComparison.OrdinalIgnoreCase);
+        if (!headless && requestedGl)
+        {
+            videoSurface = HostVideoSurface.Create("reStation Fixture Host", settings, headless: false, foreground: false, logger);
+            ownedSoftware = null;
+            return videoSurface.Backend;
+        }
+
+        if (headless && requestedGl)
+            logger.Warn("GL_FALLBACK", "reason=headless forced=software");
+        videoSurface = null;
+        ownedSoftware = new SoftwareCpuRenderBackend();
+        ownedSoftware.Initialize(HostVideoSurface.NativeWidth, HostVideoSurface.NativeHeight, settings.ResolutionScale);
+        return ownedSoftware;
     }
 
     private static string? ResolveSaveStatePath(string saveStatePath, string dataDir, string? moduleDir, string specDir)
@@ -150,17 +243,5 @@ public static class FixtureRunnerHost
             if (File.Exists(full)) return full;
         }
         return null;
-    }
-
-    private static void LoadRst1Snapshot(PsxCpu cpu, string statePath)
-    {
-        using var fs = File.OpenRead(statePath);
-        using var hdr = new BinaryReader(fs, System.Text.Encoding.UTF8, leaveOpen: true);
-        if (hdr.ReadUInt32() != QuickSaveManager.Magic) throw new InvalidDataException($"Snapshot '{Path.GetFileName(statePath)}' missing RST1 magic.");
-        _ = hdr.ReadInt32();
-        _ = hdr.ReadString();
-        using var gz = new System.IO.Compression.GZipStream(fs, System.IO.Compression.CompressionMode.Decompress);
-        using var r = new BinaryReader(gz, System.Text.Encoding.UTF8);
-        cpu.ReadSnapshotState(r);
     }
 }
