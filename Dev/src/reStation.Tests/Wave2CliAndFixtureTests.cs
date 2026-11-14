@@ -15,6 +15,7 @@ using reStation.Core;
 using reStation.Core.Cpu;
 using reStation.Core.DiscIngestion;
 using reStation.Core.Gpu;
+using reStation.Core.Saves;
 using reStation.Player;
 using Xunit;
 using PlayerProgram = reStation.Player.Program;
@@ -184,9 +185,39 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
         Assert.Equal(1, subPresents);
 
         host.SaveQuickSlot(0);
+        string slot0 = QuickSaveManager.GetSlotPath(dataDir, manifest.ModuleId, 0);
+        cpu.R[9] = 0x2F; cpu.Bios.HandleVectorCall(0xA0); uint expectedNextRng = cpu.R[2];
+        cpu.R[9] = 0x2F; cpu.Bios.HandleVectorCall(0xA0); Assert.NotEqual(expectedNextRng, cpu.R[2]);
+        using (var probeCpu = new PsxCpu(new RecompSettings(), dataDir, backend, logger))
+        {
+            QuickSaveLoadResult saved = QuickSaveManager.LoadFromFile(probeCpu, slot0);
+            Assert.Equal("RST1+RSTX", saved.Format);
+            Assert.True(saved.RstxChunks is not null && saved.RstxChunks.TryGetValue(QuickSaveTrailer.ChunkBios, out byte[]? biosChunk) && biosChunk.Length > 0);
+        }
         Assert.True(host.RequestQuickLoad(0));
+        cpu.R[9] = 0x2F; cpu.Bios.HandleVectorCall(0xA0);
+        Assert.Equal(expectedNextRng, cpu.R[2]);
         Assert.Contains(logger.GetRecentLines(), static l => l.Contains("[SAVE] Saved", StringComparison.Ordinal));
         Assert.Contains(logger.GetRecentLines(), static l => l.Contains("[SAVE] Loaded", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Program_RunMain_VersionFlag_ExitsZeroAndPrintsVersion()
+    {
+        TextWriter origOut = Console.Out;
+        using var sw = new StringWriter();
+        int code;
+        try
+        {
+            Console.SetOut(sw);
+            code = PlayerProgram.RunMain(new[] { "--version" });
+        }
+        finally
+        {
+            Console.SetOut(origOut);
+        }
+        Assert.Equal(0, code);
+        Assert.Contains($"reStation v{ReStationEngineInfo.Version}", sw.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

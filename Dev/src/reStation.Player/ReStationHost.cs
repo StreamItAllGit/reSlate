@@ -248,7 +248,7 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
 
     /// <summary>Saves a quick-save slot atomically using <see cref="QuickSaveManager.SaveToFileWithTrailer"/>.</summary>
     public void SaveQuickSlot(int slot) =>
-        QuickSaveManager.SaveToFileWithTrailer(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), ModuleManifest.ModuleId, null, _logger);
+        QuickSaveManager.SaveToFileWithTrailer(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), ModuleManifest.ModuleId, QuickSaveTrailer.CaptureDefaultChunks(_cpu), _logger);
 
     /// <summary>Requests a quick-load at the next frame boundary (unwinds lifted code when booted).</summary>
     public bool RequestQuickLoad(int slot)

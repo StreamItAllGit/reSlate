@@ -166,10 +166,14 @@ Invoke-Sign (Join-Path $stageDir "reStation.exe")
 foreach ($cliExe in @((Join-Path $stageApp "reStation.Player.exe"), (Join-Path $stageDir "reStation.exe"))) {
     $helpOut = (& $cliExe --help | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "CLI --help check failed ($LASTEXITCODE) for $cliExe" }
-    foreach ($requiredFlag in @("--preload-media", "--wait")) {
+    foreach ($requiredFlag in @("--preload-media", "--wait", "--version")) {
         if ($helpOut -notmatch [regex]::Escape($requiredFlag)) {
             throw "CLI --help parity check failed for ${cliExe}: missing '$requiredFlag'."
         }
+    }
+    $verOut = (& $cliExe --version | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or ($verOut -notmatch [regex]::Escape("reStation v$Version"))) {
+        throw "CLI --version parity check failed ($LASTEXITCODE) for ${cliExe}: '$verOut'"
     }
 }
 
@@ -275,6 +279,9 @@ $sharedRoot = Join-Path (Split-Path -Parent (Split-Path -Parent $root)) "SharedL
 $contractsOut = Join-Path $devDir "src\reStation.Contracts\bin\Release\net8.0"
 $coreOut = Join-Path $devDir "src\reStation.Core\bin\Release\net8.0"
 foreach ($sdkDir in @((Join-Path $sharedRoot "v$Version"), (Join-Path $sharedRoot "Latest"))) {
+    if ((Test-Path -LiteralPath $sdkDir) -and ((Split-Path -Leaf $sdkDir) -ine "v0.1.0")) {
+        Remove-Item -LiteralPath $sdkDir -Recurse -Force
+    }
     New-Item -ItemType Directory -Force $sdkDir | Out-Null
     $copiedNames = [System.Collections.Generic.List[string]]::new()
     foreach ($pair in @(

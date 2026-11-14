@@ -41,7 +41,7 @@ public sealed class CliAndSettingsTests : IDisposable
             "--config", Path.Combine(_tempRoot, "custom.json"),
             "--log-dir", Path.Combine(_tempRoot, "logs"),
             "--test-mode", "--headless", "--visible-test", "--verify",
-            "--open-settings", "--enable-logs", "--show-fps", "--help"
+            "--open-settings", "--enable-logs", "--show-fps", "--version", "--help"
         });
 
         Assert.Equal("game.recomp.json", parsed.ModulePath);
@@ -56,7 +56,8 @@ public sealed class CliAndSettingsTests : IDisposable
         Assert.Equal("frame.png", parsed.DumpScreenshotPath);
         Assert.Equal(_tempRoot, parsed.DataDir);
         Assert.True(parsed.TestMode && parsed.Headless && parsed.VisibleTest && parsed.VerifyOnly);
-        Assert.True(parsed.OpenSettings && parsed.EnableLogs && parsed.ShowFps && parsed.ShowHelp);
+        Assert.True(parsed.OpenSettings && parsed.EnableLogs && parsed.ShowFps && parsed.ShowVersion && parsed.ShowHelp);
+        Assert.Contains("--version", CliOptions.HelpText, StringComparison.Ordinal);
     }
 
     [Theory]

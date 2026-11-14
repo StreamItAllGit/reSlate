@@ -22,7 +22,7 @@ public sealed class CliOptions
         "  --target-fps <n|unlocked>   --vsync [on|off]     --no-vsync   --frames <n>\n" +
         "  --fixture <spec.json>       --dump-screenshot <png>\n" +
         "  --data-dir <dir>  --config <path>  --log-dir <dir>  --test-mode  --headless  --visible-test\n" +
-        "  --verify  --open-settings  --enable-logs  --show-fps  --help";
+        "  --verify  --open-settings  --enable-logs  --show-fps  --version  --help";
 
     public IReadOnlyList<string> RawArgs { get; private init; } = Array.Empty<string>();
     public string? ModulePath { get; private init; }
@@ -47,6 +47,7 @@ public sealed class CliOptions
     public bool OpenSettings { get; private init; }
     public bool EnableLogs { get; private init; }
     public bool ShowFps { get; private init; }
+    public bool ShowVersion { get; private init; }
     public bool ShowHelp { get; private init; }
 
     /// <summary>Parses <paramref name="args"/>; throws <see cref="ArgumentException"/> on unknown flags or invalid values.</summary>
@@ -57,7 +58,7 @@ public sealed class CliOptions
         int? scale = null, targetFps = null, frames = null;
         FrameRateMode? fpsMode = null;
         bool? vsync = null;
-        bool test = false, headless = false, visible = false, verify = false, openSettings = false, enableLogs = false, showFps = false, shouldWait = false, help = false;
+        bool test = false, headless = false, visible = false, verify = false, openSettings = false, enableLogs = false, showFps = false, shouldWait = false, showVersion = false, help = false;
 
         for (int i = 0; i < args.Count; i++)
         {
@@ -127,6 +128,7 @@ public sealed class CliOptions
                 case "--enable-logs": enableLogs = true; break;
                 case "--show-fps": showFps = true; break;
                 case "--wait": shouldWait = true; break;
+                case "--version": showVersion = true; break;
                 case "--help" or "-h" or "/?": help = true; break;
                 default: throw new ArgumentException($"Unknown option '{arg}'. Pass --help for usage.");
             }
@@ -138,7 +140,7 @@ public sealed class CliOptions
             ShouldWait = shouldWait, BackendId = backend, ResolutionScale = scale,
             FpsMode = fpsMode, TargetFps = targetFps, Vsync = vsync, MaxFrames = frames, FixturePath = fixture,
             DumpScreenshotPath = dump, DataDir = data, ConfigPath = config, LogDir = log, TestMode = test, Headless = headless,
-            VisibleTest = visible, VerifyOnly = verify, OpenSettings = openSettings, EnableLogs = enableLogs, ShowFps = showFps, ShowHelp = help
+            VisibleTest = visible, VerifyOnly = verify, OpenSettings = openSettings, EnableLogs = enableLogs, ShowFps = showFps, ShowVersion = showVersion, ShowHelp = help
         };
     }
 

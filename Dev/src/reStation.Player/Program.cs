@@ -45,6 +45,7 @@ internal static partial class Program
         catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 2; }
 
         if (options.ShowHelp) { Console.WriteLine(CliOptions.HelpText); return 0; }
+        if (options.ShowVersion) { Console.WriteLine($"reStation v{ReStationEngineInfo.Version}"); return 0; }
 
         SandboxEnvironment sandbox;
         try { sandbox = options.CreateSandbox(); }

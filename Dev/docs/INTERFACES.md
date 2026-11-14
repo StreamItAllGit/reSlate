@@ -14,13 +14,13 @@ Parsed fail-closed by [`CliOptions.Parse`](Dev/src/reStation.Core/Core/CliOption
 - `--fixture <spec.json>`: Runs deterministic `Foundation.Retro.SaveStateFixtureRunner` verification and writes PNG + WAV artifacts to `<logDir>\fixtures\`.
 - `--data-dir <path>`, `--config <path>`, `--log-dir <path>` *(under `--test-mode`, allows sibling `Sandbox\data` + `Sandbox\logs` / `<root>\data` + `<root>\logs` while rejecting any escape outside the resolved sandbox root)*.
 - `--test-mode`, `--headless`, `--visible-test`, `--frames <n>`, `--verify`, `--open-settings`, `--enable-logs`, `--show-fps`, `--version`, `--help` / `-h` / `/?`.
-  *(Note: `reStation.Launcher` and `reStation.Player` share flag parity in `--help`, and [`LauncherArgsHelper.SyncWaitFlags`](Dev/src/reStation.Launcher/LauncherArgsHelper.cs) triggers synchronous wait + exit propagation whenever `--wait`, `--visible-test`, `--fixture`, `--verify`, `--test-mode`, `--headless`, `--version`, `--help`, `-h`, or `/?` are present.)*
+  *(Note: `reStation.Launcher` and `reStation.Player` share `--help` + `--version` parity, and [`LauncherArgsHelper.SyncWaitFlags`](Dev/src/reStation.Launcher/LauncherArgsHelper.cs) triggers synchronous wait + exit propagation whenever `--wait`, `--visible-test`, `--fixture`, `--verify`, `--test-mode`, `--headless`, `--version`, `--help`, `-h`, or `/?` are present.)*
 
 ---
 
 ## 2. Foundation & reEngine Contracts Consumed
 - **`Foundation.Retro`:** `IRecompModuleManifest`, `IRecompRenderBackend`, `IRecompHost`, `IRecompGameModule`, `SaveStateFixtureSpec`, `SaveStateFixtureRunner`, `IVisibleTestHarness`, `MediaContainerExtractor`.
-- **`Foundation.Core`:** `SandboxEnvironment`, `GranularSettingsManager<T>`, `CappedSharedLogSink`, `HeartbeatLogger`, `CrashBundleService`, `HighResFramePacer`, `AudioRingBuffer(65_536, 2)`, `PixelOverlayCanvas`, `RgbaPngWriter`, `WavCaptureWriter`, `ToolResolver`, `JobObjectGuard`.
+- **`Foundation.Core`:** `SandboxEnvironment`, `GranularSettingsManager`, `CappedSharedLogSink`, `HeartbeatLogger`, `CrashBundleService`, `HighResFramePacer`, `AudioRingBuffer(65_536, 2)`, `PixelOverlayCanvas`, `RgbaPngWriter`, `WavCaptureWriter`, `ToolResolver`, `JobObjectGuard`.
 - **`Foundation.Launcher` & `Foundation.Installer`:** `RootLauncherHost`, `StandardInstallerHost`, `InstallerAppDescriptor`, `InstallerThemeOptions`.
 - **`reEngine.Core`:** `RecompPackageManifest`, `RecompPackageReader.DiscoverPreloadMedia`, `ReEngineBootstrapHelper`.
 

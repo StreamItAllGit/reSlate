@@ -23,7 +23,7 @@ All `.cs` and `.ps1` files obey the `<= 400 LOC` ceiling (`<= 350 LOC` target; `
 | [`reStation.Player`](Dev/src/reStation.Player/reStation.Player.csproj) | `net8.0-windows` | SDL3/OpenGL 3.3 Core host (`ReStationHost` `IReStationHostEx`), `AssemblyLoadContext` module loader, `PreloadRomDetector`, first-run gate, `F1` drawer, `F3` HUD, `--preload-media`/`--wait`, `--fixture` & `--visible-test`. |
 | [`reStation.Launcher`](Dev/src/reStation.Launcher/reStation.Launcher.csproj) | `net8.0-windows` | Root `reStation.exe` launcher embedding `Foundation.Launcher.dll` + `Foundation.Core.dll`, [`LauncherArgsHelper`](Dev/src/reStation.Launcher/LauncherArgsHelper.cs) (`--wait`, `--preload-media` resolution), and `JobObjectGuard` child supervision. |
 | [`reStation.Installer`](Dev/src/reStation.Installer/reStation.Installer.csproj) | `net8.0-windows` | 4-pillar signed zero-PII setup EXE (`reStation-Setup-v$(Version)-win-x64.exe`, `AllowAutoStart = false`), compressed `.dll.gz` dependencies, conditional `payload.zip` + `reEngine` bootstrapper, `--test-mode` isolation. |
-| [`reStation.Tests`](Dev/src/reStation.Tests/reStation.Tests.csproj) | `net8.0-windows` | Deterministic xUnit verification suite (`86` test methods / `124` executions across `11` files, `0` failed, `0` skipped). |
+| [`reStation.Tests`](Dev/src/reStation.Tests/reStation.Tests.csproj) | `net8.0-windows` | Deterministic xUnit verification suite (`87` test methods / `125` executions across `11` files, `0` failed, `0` skipped). |
 
 ---
 

@@ -140,6 +140,8 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("reEngine-Setup-v0.1.1-win-x64.exe", script, StringComparison.Ordinal);
         Assert.Contains("--preload-media", script, StringComparison.Ordinal);
         Assert.Contains("--wait", script, StringComparison.Ordinal);
+        Assert.Contains("--version", script, StringComparison.Ordinal);
+        Assert.Contains("Remove-Item -LiteralPath $sdkDir", script, StringComparison.Ordinal);
         Assert.Contains("engine.manifest.json", script, StringComparison.Ordinal);
         Assert.Contains("sdk-manifest.json", script, StringComparison.Ordinal);
         Assert.Contains("supportedEngineTracks", script, StringComparison.Ordinal);
