@@ -132,6 +132,21 @@
             invoking <paramref name="bundledInstallerPath"/> silently via <see cref="T:Foundation.Core.JobObjectGuard"/> when needed.
             </summary>
         </member>
+        <member name="T:reEngine.Core.Bootstrap.ReEngineTelemetryFormatter">
+            <summary>
+            Formats Standard 15 runtime log lines with version, process/thread identifiers, and single <c>[HEARTBEAT]</c> tags.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineTelemetryFormatter.FormatLogLine(System.String,System.String,System.Nullable{System.DateTime})">
+            <summary>
+            Formats a UTC log entry matching Standard 15 §5.1 (<c>timestamp [vVer] [PID:id/T:tid] [LEVEL] message</c>).
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineTelemetryFormatter.StripHeartbeatPrefix(System.String)">
+            <summary>
+            Removes a leading <c>[HEARTBEAT] </c> prefix produced by <c>Foundation.Core.HeartbeatLogger</c> to avoid duplicate tags.
+            </summary>
+        </member>
         <member name="T:reEngine.Core.Manifests.RecompPackageManifest">
             <summary>
             Canonical Standard 18 manifest schema for <c>.recomp</c> modules (<c>module.recomp.json</c> / <c>*.recomp</c>).
@@ -267,6 +282,34 @@
             Resolves the highest installed engine matching <paramref name="manifest"/>'s track and minimum version.
             </summary>
         </member>
+        <member name="T:reEngine.Core.Updates.UpdateCoordinator">
+            <summary>
+            Coordinates schema-versioned settings persistence and track-safe engine update checks/staging.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.#ctor(System.String,System.String)">
+            <summary>
+            Initializes an update coordinator bound to <paramref name="dataDirectory"/> and <paramref name="configPath"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.LoadSettings">
+            <summary>Loads <c>settings.json</c> with automatic backup self-healing.</summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.SaveSettings(reEngine.Core.Updates.ReEngineSettings)">
+            <summary>Persists <paramref name="settings"/> atomically with timestamp update.</summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.CheckAndStageAsync(reEngine.Core.Updates.ReEngineSettings,System.String,reEngine.Core.Resolution.SemVer,System.String,System.String,System.Net.Http.HttpMessageHandler,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Checks <paramref name="feedSource"/> for compatible track patches (auto-staging when enabled)
+            and newer breaking releases (alert-only, never overwriting existing tracks).
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdateCoordinator.CheckAllInstalledEnginesAsync(reEngine.Core.Updates.ReEngineSettings,System.Collections.Generic.IReadOnlyList{reEngine.Core.Resolution.InstalledEngineCandidate},System.String,System.Net.Http.HttpMessageHandler,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Sweeps every distinct <c>(EngineId, Track)</c> target across <paramref name="installedEngines"/>,
+            fetching the feed manifest once and degrading transient network/socket/JSON faults cleanly.
+            </summary>
+        </member>
         <member name="T:reEngine.Core.Updates.ReEngineSettings">
             <summary>
             Persisted <c>data\settings.json</c> schema following Standard 18 &amp; Standard 19.
@@ -327,34 +370,22 @@
         </member>
         <member name="T:reEngine.Core.Updates.UpdateCheckOutcome">
             <summary>
-            Result of evaluating an update feed against the active engine version and compatibility track.
+            Result of evaluating an update feed against an active engine version and compatibility track.
             </summary>
         </member>
-        <member name="M:reEngine.Core.Updates.UpdateCheckOutcome.#ctor(System.Boolean,System.Boolean,System.Boolean,System.String,System.Boolean,System.String,System.String)">
+        <member name="M:reEngine.Core.Updates.UpdateCheckOutcome.#ctor(System.Boolean,System.Boolean,System.Boolean,System.String,System.Boolean,System.String,System.String,System.Boolean)">
             <summary>
-            Result of evaluating an update feed against the active engine version and compatibility track.
+            Result of evaluating an update feed against an active engine version and compatibility track.
             </summary>
         </member>
-        <member name="T:reEngine.Core.Updates.UpdateCoordinator">
+        <member name="T:reEngine.Core.Updates.MultiEngineUpdateSweepResult">
             <summary>
-            Coordinates schema-versioned settings persistence and track-safe engine update checks/staging.
+            Aggregate result of sweeping all distinct <c>(EngineId, Track)</c> targets installed under <c>engines\</c>.
             </summary>
         </member>
-        <member name="M:reEngine.Core.Updates.UpdateCoordinator.#ctor(System.String,System.String)">
+        <member name="M:reEngine.Core.Updates.MultiEngineUpdateSweepResult.#ctor(System.Boolean,System.Boolean,System.Collections.Generic.IReadOnlyList{reEngine.Core.Updates.UpdateCheckOutcome},System.String)">
             <summary>
-            Initializes an update coordinator bound to <paramref name="dataDirectory"/> and <paramref name="configPath"/>.
-            </summary>
-        </member>
-        <member name="M:reEngine.Core.Updates.UpdateCoordinator.LoadSettings">
-            <summary>Loads <c>settings.json</c> with automatic backup self-healing.</summary>
-        </member>
-        <member name="M:reEngine.Core.Updates.UpdateCoordinator.SaveSettings(reEngine.Core.Updates.ReEngineSettings)">
-            <summary>Persists <paramref name="settings"/> atomically with timestamp update.</summary>
-        </member>
-        <member name="M:reEngine.Core.Updates.UpdateCoordinator.CheckAndStageAsync(reEngine.Core.Updates.ReEngineSettings,System.String,reEngine.Core.Resolution.SemVer,System.String,System.String,System.Net.Http.HttpMessageHandler,System.String,System.Threading.CancellationToken)">
-            <summary>
-            Checks <paramref name="feedSource"/> for compatible track patches (auto-staging when enabled)
-            and newer breaking releases (alert-only, never overwriting existing tracks).
+            Aggregate result of sweeping all distinct <c>(EngineId, Track)</c> targets installed under <c>engines\</c>.
             </summary>
         </member>
     </members>

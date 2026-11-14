@@ -42,11 +42,14 @@ public sealed record PsxTelemetrySnapshot(
     /// <summary>Zeroed snapshot used before the first frame.</summary>
     public static PsxTelemetrySnapshot Empty { get; } = new(0, 0, 0, 0, 0, 0, 1, PsxRenderBackendIds.Software, 0, 0, 0, 0, 0, 0);
 
-    /// <summary>Structured key=value heartbeat line (invariant culture) for runtime.log.</summary>
-    public string ToHeartbeatLine() => string.Create(CultureInfo.InvariantCulture,
-        $"[HEARTBEAT] frame={FrameNumber} fps={CurrentFps:F1} p99Ms={P99FrameMs:F2} cpuMs={CpuMs:F2} gpuMs={GpuMs:F2} waitMs={WaitMs:F2} " +
+    /// <summary>Structured key=value heartbeat metrics (invariant culture) without a leading [HEARTBEAT] prefix.</summary>
+    public string ToHeartbeatMetrics() => string.Create(CultureInfo.InvariantCulture,
+        $"frame={FrameNumber} fps={CurrentFps:F1} p99Ms={P99FrameMs:F2} cpuMs={CpuMs:F2} gpuMs={GpuMs:F2} waitMs={WaitMs:F2} " +
         $"resolutionScale={ResolutionScale} backend={BackendId} sectorsPerSec={CdSectorsPerSec:F1} mdecMbPerSec={MdecMacroblocksPerSec:F0} " +
         $"activeSpuVoices={ActiveSpuVoices} xaDrops={XaDrops} audioFillPct={AudioFillRatio * 100.0:F1} audioUnderruns={AudioUnderruns}");
+
+    /// <summary>Structured key=value heartbeat line (invariant culture) for runtime.log.</summary>
+    public string ToHeartbeatLine() => $"[HEARTBEAT] {ToHeartbeatMetrics()}";
 
     /// <summary>Compact single-line F3 HUD text.</summary>
     public string ToHudLine() => string.Create(CultureInfo.InvariantCulture,

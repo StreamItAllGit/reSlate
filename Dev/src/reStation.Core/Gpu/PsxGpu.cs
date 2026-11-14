@@ -67,6 +67,7 @@ public sealed class PsxGpu
     public bool IrqPending { get; private set; }
     public long PrimitiveCount { get; private set; }
     public long FramesPresented { get; private set; }
+    public bool SkipPolygonRasterization { get; set; }
     public long NextVBlankCycle => _lastVBlankCycle + CyclesPerVBlank;
     public int OutputWidth => Is24BitDisplay ? Math.Max(1, DisplayWidth) : Math.Max(1, DisplayWidth * Backend.ScaleFactor);
     public int OutputHeight => Is24BitDisplay ? Math.Max(1, DisplayHeight) : Math.Max(1, DisplayHeight * Backend.ScaleFactor);
@@ -151,6 +152,9 @@ public sealed class PsxGpu
         _lastVBlankCycle = totalCycles;
         _gpuStat ^= 0x80000000U;
     }
+
+    /// <summary>Resets transient GPU draw command state at the start of an interpolated sub-tick pass.</summary>
+    public void BeginSubTickFrame() => ResetCommandFifo();
 
     /// <summary>Resolves the current display area through the backend (called by the host at VBlank).</summary>
     public void PresentFrame()

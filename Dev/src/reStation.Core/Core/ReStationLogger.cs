@@ -74,6 +74,18 @@ public sealed class ReStationLogger : IDisposable
         }
     }
 
+    /// <summary>Emits a structured progress heartbeat when forced or when the <= 15s interval elapsed; returns true when emitted.</summary>
+    public bool TryHeartbeat(long completed, long total, string? item = null, bool force = false)
+    {
+        lock (_sync)
+        {
+            if (_disposed) return false;
+            int before = _heartbeat.HeartbeatEmitCount;
+            _heartbeat.ReportProgress(Math.Max(0L, completed), Math.Max(1L, total), item, forceEmit: force);
+            return _heartbeat.HeartbeatEmitCount > before;
+        }
+    }
+
     /// <summary>Snapshot of the most recent log lines (for crash bundles and the HUD).</summary>
     public IReadOnlyList<string> GetRecentLines()
     {

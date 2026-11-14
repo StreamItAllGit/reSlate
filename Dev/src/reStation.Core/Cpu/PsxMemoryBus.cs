@@ -32,6 +32,17 @@ public sealed class PsxMemoryBus
     public uint CacheControl { get; set; } = 0x00000800U;
     public uint RamSizeRegister { get; set; } = 0x00000B88U;
     public long UnmappedAccesses { get; private set; }
+    /// <summary>Optional callback invoked when guest RAM in [physOffset, physOffset + byteLength) is written.</summary>
+    public event Action<uint, uint>? OnRamWriteRange;
+
+    /// <summary>Notifies overlay/cache observers that guest RAM in [address, address + byteLength) was modified.</summary>
+    public void NotifyRamWriteRange(uint address, uint byteLength)
+    {
+        if (byteLength == 0) return;
+        uint phys = address & 0x1FFFFFFFU;
+        if (phys >= 0x00800000U) return;
+        OnRamWriteRange?.Invoke(phys & RamMask, Math.Min(byteLength, RamSize));
+    }
 
     private bool CacheIsolated => (_cpu.Cop0Sr & 0x00010000U) != 0;
 

@@ -12,11 +12,14 @@ public sealed partial class PsxCpu
 {
     public long SubTickDeadlineCycle { get; set; }
 
-    public void RunSlice(uint entryPc, uint unwindTarget)
+    public void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false)
     {
+        if (inSubTickRender && InSubTickRender) return;
+        bool prevSubTick = InSubTickRender;
         _unwindStack.Push((ShouldUnwind, UnwindTargetPc));
         ShouldUnwind = false;
-        UnwindTargetPc = unwindTarget;
+        UnwindTargetPc = returnSentinelPc;
+        if (inSubTickRender) InSubTickRender = true;
         try
         {
             Call(entryPc);
@@ -26,6 +29,7 @@ public sealed partial class PsxCpu
             bool unwindingOut = ExitRequested || PendingQuickLoadSlot >= 0;
             var prev = _unwindStack.Pop();
             UnwindTargetPc = prev.UnwindTarget;
+            InSubTickRender = prevSubTick;
             if (!unwindingOut) ShouldUnwind = prev.ShouldUnwind;
         }
     }

@@ -76,7 +76,8 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
         string sandboxRoot = Path.Combine(_tempRoot, "sandbox");
         string reEngineApp = Path.Combine(sandboxRoot, "reEngine", "app");
         Directory.CreateDirectory(reEngineApp);
-        File.WriteAllText(Path.Combine(reEngineApp, "version.txt"), ReStationInstallerTheme.Version);
+        string reEngineSdkVersion = typeof(reEngine.Core.Bootstrap.ReEngineBootstrapHelper).Assembly.GetName().Version?.ToString(3) ?? "0.1.1";
+        File.WriteAllText(Path.Combine(reEngineApp, "version.txt"), reEngineSdkVersion);
 
         int rc = ReStationInstallerBootstrap.Prepare(
             new[] { "--test-mode", "--silent", "--data-dir", sandboxRoot },

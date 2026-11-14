@@ -16,7 +16,7 @@ using reStation.Core.Mdec;
 
 namespace reStation.Core.Cpu;
 
-public sealed partial class PsxCpu : IReStationCpu, IDisposable
+public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
 {
     public const int CyclesPerFrame = 564_480; // 33,868,800 Hz / 60 Hz
     public const int ModuleSlotCount = 12;
@@ -58,7 +58,7 @@ public sealed partial class PsxCpu : IReStationCpu, IDisposable
     public uint Cop0Epc { get; set; }
     public uint Cop0BadVAddr { get; set; }
     public long TotalCycles { get; set; }
-    public long NextEventCycle { get; private set; } = 1024;
+    public long NextEventCycle { get; set; } = 1024;
     public long FrameCount { get; private set; }
     public int ActiveExeId { get; set; }
     public bool ShouldUnwind { get; set; }
@@ -67,6 +67,9 @@ public sealed partial class PsxCpu : IReStationCpu, IDisposable
     public bool ExitRequested { get; private set; }
     public bool FrameReadyFlag { get; set; }
     public uint UnwindTargetPc { get; set; } = IReStationCpu.ReturnSentinelPc;
+    public bool SkipPolygonRasterization { get => Gpu.SkipPolygonRasterization; set => Gpu.SkipPolygonRasterization = value; }
+
+    public void BeginSubTickFrame() => Gpu.BeginSubTickFrame();
 
     public RecompSettings Settings { get; }
     public ReStationLogger? Logger { get; }

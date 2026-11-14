@@ -1,5 +1,5 @@
 # Standard 11 Outer-Root .gitignore (Track Root Quartet, AGENTS.md, *.state, and Dev\ source)
-Archive/
+/Archive/
 Builds/
 Installers/
 Releases/
