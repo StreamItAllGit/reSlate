@@ -33,6 +33,8 @@ internal sealed unsafe class VisibleTestHarness : IVisibleTestHarness
         using var pacer = new HighResFramePacer(60.0);
         var canvas = new PixelOverlayCanvas(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight);
         var sw = Stopwatch.StartNew();
+        long estimatedTotal = Math.Max(1L, (long)Math.Ceiling(durationMs * 60.0 / 1000.0));
+        double ticksToMs = 1000.0 / Stopwatch.Frequency;
         byte* ev = stackalloc byte[128];
         long frame = 0;
         bool quit = false;
@@ -46,17 +48,24 @@ internal sealed unsafe class VisibleTestHarness : IVisibleTestHarness
             if (quit) break;
 
             frame++;
+            long tStart = Stopwatch.GetTimestamp();
             UiOverlayPresenter.RenderShowcaseScene(canvas, frame, _settings, video.Backend.BackendId, pacer.CurrentFps, sw.ElapsedMilliseconds, durationMs);
+            long tAfterCpu = Stopwatch.GetTimestamp();
             if (video.CanPresent) video.PresentRgba(canvas.Width, canvas.Height, canvas.Pixels);
+            long tAfterGpu = Stopwatch.GetTimestamp();
             _ = pacer.WaitForNextFrame();
-            _ = _logger.TryHeartbeat(PsxTelemetrySnapshot.Empty with
-            {
-                FrameNumber = frame,
-                CurrentFps = pacer.CurrentFps,
-                P99FrameMs = pacer.P99FrameMs,
-                ResolutionScale = _settings.ResolutionScale,
-                BackendId = video.Backend.BackendId
-            }, force: frame == 1);
+            long tAfterWait = Stopwatch.GetTimestamp();
+
+            PsxTelemetrySnapshot snapshot = CreateTelemetrySnapshot(
+                frame,
+                (tAfterCpu - tStart) * ticksToMs,
+                (tAfterGpu - tAfterCpu) * ticksToMs,
+                (tAfterWait - tAfterGpu) * ticksToMs,
+                pacer.CurrentFps,
+                pacer.P99FrameMs,
+                _settings.ResolutionScale,
+                video.Backend.BackendId);
+            _ = _logger.TryHeartbeat(frame, Math.Max(frame, estimatedTotal), snapshot.ToHeartbeatMetrics(), force: frame == 1);
             if (!options.AutoExit && sw.ElapsedMilliseconds >= durationMs) break;
         }
 
@@ -65,5 +74,32 @@ internal sealed unsafe class VisibleTestHarness : IVisibleTestHarness
 
         _logger.Info("VISIBLE_TEST", $"Completed frames={frame} elapsedMs={sw.ElapsedMilliseconds} backend={video.Backend.BackendId} presented={video.CanPresent} screenshot={Path.GetFileName(options.CaptureScreenshotPath ?? "none")}");
         return Task.FromResult(video.HasWindow && video.CanPresent);
+    }
+
+    internal static PsxTelemetrySnapshot CreateTelemetrySnapshot(
+        long frame,
+        double cpuMs,
+        double gpuMs,
+        double waitMs,
+        double currentFps,
+        double p99FrameMs,
+        int resolutionScale,
+        string backendId)
+    {
+        double safeCpu = Math.Max(0.0, cpuMs);
+        double safeGpu = Math.Max(0.0, gpuMs);
+        double safeWait = Math.Max(0.0, waitMs);
+        double effectiveP99 = p99FrameMs > 0.0 ? p99FrameMs : safeCpu + safeGpu + safeWait;
+        return PsxTelemetrySnapshot.Empty with
+        {
+            FrameNumber = frame,
+            CpuMs = safeCpu,
+            GpuMs = safeGpu,
+            WaitMs = safeWait,
+            CurrentFps = currentFps,
+            P99FrameMs = effectiveP99,
+            ResolutionScale = resolutionScale,
+            BackendId = string.IsNullOrWhiteSpace(backendId) ? PsxRenderBackendIds.Software : backendId
+        };
     }
 }

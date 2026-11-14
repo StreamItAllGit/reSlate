@@ -16,13 +16,20 @@ using reStation.Core.Saves;
 
 namespace reStation.Player;
 
+internal sealed record HostRuntimeContext(
+    bool IsHeadless,
+    Func<bool>? HasPendingCapture = null,
+    Func<bool>? IsModernMouseLookActive = null,
+    Func<float>? MouseSensitivity = null,
+    Func<(float MouseDx, float MouseDy, float StickX, float StickY)>? PollSubTickLook = null,
+    Action? PresentSubTickFrame = null);
+
 /// <summary>
 /// Runs lifted game code on a dedicated emulation thread that parks at every VBlank, so <see cref="RunFrame"/>
 /// advances exactly one emulated frame and returns control to the SDL host thread.
 /// </summary>
-internal sealed class ReStationHost : IReStationHost, IDisposable
+internal sealed class ReStationHost : IReStationHostEx, IDisposable
 {
-    /// <summary>44,100 Hz / 60 Hz VBlank (CyclesPerFrame = 33,868,800 / 60).</summary>
     public const int SamplesPerFrame = 735;
     private const int PsxExeHeaderSize = 0x800;
 
@@ -38,6 +45,8 @@ internal sealed class ReStationHost : IReStationHost, IDisposable
     private volatile bool _emuFinished;
     private volatile bool _disposing;
     private Exception? _emuFault;
+    private ISubTickFrameHook? _subTickHook;
+    private HostRuntimeContext _ctx = new(false);
     private long _lastMdecBlocks;
     private long _lastMdecTicks = Stopwatch.GetTimestamp();
     private double _mdecPerSec, _cpuMs, _gpuMs, _waitMs;
@@ -70,9 +79,27 @@ internal sealed class ReStationHost : IReStationHost, IDisposable
     public long FramesRun { get; private set; }
     public bool IsBooted => _emuThread is not null;
     public bool HasFinished => _emuFinished || _cpu.ExitRequested;
+    public bool IsHeadless => _ctx.IsHeadless;
+    public bool HasPendingCapture => _ctx.HasPendingCapture?.Invoke() ?? false;
+    public int TargetFps => Options.UnlockFps || Options.TargetFps <= 0 ? 0 : (int)Math.Round(Options.TargetFps);
+    public bool IsModernMouseLookActive => _ctx.IsModernMouseLookActive?.Invoke() ?? false;
+    public float MouseSensitivity => _ctx.MouseSensitivity?.Invoke() ?? 1.0f;
 
+    internal void AttachRuntimeContext(HostRuntimeContext context) => _ctx = context ?? throw new ArgumentNullException(nameof(context));
+    public void WaitUntilTimestamp(long targetStopwatchTicks)
+    {
+        while (!_disposing && !_cpu.ExitRequested)
+        {
+            long remaining = targetStopwatchTicks - Stopwatch.GetTimestamp();
+            if (remaining <= 0) break;
+            if (remaining * 1000.0 / Stopwatch.Frequency > 2.0) Thread.Sleep(1);
+            else Thread.SpinWait(32);
+        }
+    }
+
+    public (float MouseDx, float MouseDy, float StickX, float StickY) PollSubTickLook() => _ctx.PollSubTickLook?.Invoke() ?? default;
+    public void PresentSubTickFrame() => _ctx.PresentSubTickFrame?.Invoke();
     public RecompFrameStats GetFrameStats() => GetTelemetry().ToFrameStats();
-
     /// <summary>Records the module's presentation target (the VBlank loop itself stays hardware-paced at 60 Hz).</summary>
     public void SetTargetFps(double targetFps, bool unlock = false)
     {
@@ -82,8 +109,7 @@ internal sealed class ReStationHost : IReStationHost, IDisposable
     }
 
     public void RegisterModule(IRecompModule module) => _cpu.RegisterModule(module);
-
-    public void SetFramePatch(IGameFramePatch? patch) => _cpu.FramePatch = patch;
+    public void SetFramePatch(IGameFramePatch? patch) { _cpu.FramePatch = patch; _subTickHook = patch as ISubTickFrameHook; }
 
     /// <summary>Loads a PS-X EXE from gamedata into RAM, sets PC/GP/SP/RA, and arms the emulation thread for the next RunFrame.</summary>
     public bool LoadExecutable(string exeRelativePath, int exeId)
@@ -118,6 +144,7 @@ internal sealed class ReStationHost : IReStationHost, IDisposable
         }
 
         exe.AsSpan(PsxExeHeaderSize, copyLen).CopyTo(_cpu.Ram.Slice(ramOffset, copyLen));
+        _cpu.Bus.NotifyRamWriteRange(tAddr, (uint)copyLen);
         _cpu.Pc = pc0;
         _cpu.R[28] = gp0;
         if (sAddr != 0) _cpu.R[29] = _cpu.R[30] = sAddr + sSize;
@@ -174,8 +201,39 @@ internal sealed class ReStationHost : IReStationHost, IDisposable
             _cpu.RequestExit();
         }
 
+        long frameStartTicks = Stopwatch.GetTimestamp();
         if (parked) _cpu.Spu.RenderFrames(SamplesPerFrame);
         FramesRun++;
+        if (parked && _subTickHook is not null && !_ctx.IsHeadless)
+            ForwardSubTickHook(frameStartTicks);
+    }
+
+    private void ForwardSubTickHook(long frameStartTicks)
+    {
+        if (_subTickHook is not { } hook || _disposing || _cpu.ExitRequested) return;
+        int fps = TargetFps;
+        uint total = fps <= 0 ? 2U : (uint)Math.Clamp((fps + 59) / 60, 1, 8);
+        long subStepTicks = Math.Max(1L, (Stopwatch.Frequency / 60L) / total);
+        for (uint sub = 0; sub < total && !_disposing && !_cpu.ExitRequested; sub++)
+        {
+            if (!hook.ShouldRunSubTick(sub, total)) continue;
+            if (fps > 0 && sub > 0) WaitUntilTimestamp(frameStartTicks + sub * subStepTicks);
+            _cpu.BeginSubTickFrame();
+            hook.OnSubTickBegin(_cpu, sub, total);
+            long prevDeadline = _cpu.SubTickDeadlineCycle;
+            bool completed = true;
+            try
+            {
+                if (hook.SubTickEntryPc != 0U && _cpu.HasCompiledEntry(hook.SubTickEntryPc))
+                {
+                    _cpu.SubTickDeadlineCycle = hook.MaxSubTickCycles > 0U ? _cpu.TotalCycles + hook.MaxSubTickCycles : 0L;
+                    _cpu.RunSlice(hook.SubTickEntryPc, IReStationCpu.ReturnSentinelPc, inSubTickRender: true);
+                    completed = _cpu.SubTickDeadlineCycle == 0L || _cpu.TotalCycles < _cpu.SubTickDeadlineCycle;
+                }
+            }
+            finally { _cpu.SubTickDeadlineCycle = prevDeadline; hook.OnSubTickEnd(_cpu, sub, completed); }
+            if (sub > 0) PresentSubTickFrame();
+        }
     }
 
     /// <summary>Steps the module one frame; if the module did not advance the machine itself, the host does.</summary>
@@ -186,16 +244,25 @@ internal sealed class ReStationHost : IReStationHost, IDisposable
         if (FramesRun == before) RunFrame();
     }
 
+    /// <summary>Saves a quick-save slot atomically using <see cref="QuickSaveManager.SaveToFileWithTrailer"/>.</summary>
+    public void SaveQuickSlot(int slot) =>
+        QuickSaveManager.SaveToFileWithTrailer(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), ModuleManifest.ModuleId, null, _logger);
+
     /// <summary>Requests a quick-load at the next frame boundary (unwinds lifted code when booted).</summary>
     public bool RequestQuickLoad(int slot)
     {
-        if (_emuThread is not null && !_emuFinished)
+        if (_emuThread is not null && !_emuFinished) { _cpu.PendingQuickLoadSlot = slot; _cpu.ShouldUnwind = true; return true; }
+        return LoadQuickSlot(slot);
+    }
+
+    private bool LoadQuickSlot(int slot)
+    {
+        try { return QuickSaveManager.LoadFromFile(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), _logger).Success; }
+        catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
         {
-            _cpu.PendingQuickLoadSlot = slot;
-            _cpu.ShouldUnwind = true;
-            return true;
+            _logger.Warn("SAVE", $"Quick-load slot {slot} invalid ({ex.GetType().Name}: {ex.Message}).");
+            return false;
         }
-        return QuickSaveManager.TryLoad(_cpu, _dataDirectory, ModuleManifest.ModuleId, slot);
     }
 
     private void EmulationThreadMain()
@@ -210,25 +277,14 @@ internal sealed class ReStationHost : IReStationHost, IDisposable
                 int slot = _cpu.PendingQuickLoadSlot;
                 _cpu.PendingQuickLoadSlot = -1;
                 _cpu.ShouldUnwind = false;
-                if (!QuickSaveManager.TryLoad(_cpu, _dataDirectory, ModuleManifest.ModuleId, slot))
-                {
-                    _logger.Warn("SAVE", $"Quick-load slot {slot} unavailable.");
-                    break;
-                }
+                if (!LoadQuickSlot(slot)) { _logger.Warn("SAVE", $"Quick-load slot {slot} unavailable."); break; }
                 _logger.Info("SAVE", $"Quick-loaded slot {slot}; resuming at pc=0x{_cpu.Pc:X8}.");
                 _cpu.DispatchFunction(_cpu.Pc);
             }
             _logger.Info("EMU", $"Emulation thread finished frames={_cpu.FrameCount} exitRequested={_cpu.ExitRequested}.");
         }
-        catch (Exception ex)
-        {
-            _emuFault = ex;
-        }
-        finally
-        {
-            _emuFinished = true;
-            if (_frameReached.CurrentCount == 0) _frameReached.Release();
-        }
+        catch (Exception ex) { _emuFault = ex; }
+        finally { _emuFinished = true; if (_frameReached.CurrentCount == 0) _frameReached.Release(); }
     }
 
     private void OnVBlank(PsxCpu cpu)

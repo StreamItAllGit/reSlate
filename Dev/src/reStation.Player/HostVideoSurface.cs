@@ -48,6 +48,14 @@ internal sealed unsafe class HostVideoSurface : IDisposable
     public static HostVideoSurface Create(string title, RecompSettings settings, bool headless, bool foreground, ReStationLogger logger)
     {
         Sdl3Native.InstallResolver();
+        bool requestedGl = string.Equals(settings.BackendId, PsxRenderBackendIds.OpenGl, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(settings.BackendId, "gl", StringComparison.OrdinalIgnoreCase);
+        bool loggedHeadlessFallback = false;
+        if (headless && requestedGl)
+        {
+            logger.Warn("GL_FALLBACK", "reason=headless forced=software");
+            loggedHeadlessFallback = true;
+        }
         if (headless)
         {
             Environment.SetEnvironmentVariable("SDL_VIDEODRIVER", "dummy");
@@ -56,12 +64,13 @@ internal sealed unsafe class HostVideoSurface : IDisposable
 
         if (!Sdl3Native.TryInit(Sdl3Native.InitVideo | Sdl3Native.InitAudio | Sdl3Native.InitGamepad, out string initError))
         {
-            logger.Warn("VIDEO", $"[GL_FALLBACK] stage=SDL_Init reason=\"{initError}\" backend=software mode=offscreen");
-            return CreateOffscreen(settings, logger, "sdl-init-failed");
+            if (!loggedHeadlessFallback)
+                logger.Warn("GL_FALLBACK", $"stage=SDL_Init reason=\"{initError}\" forced=software mode=offscreen");
+            return CreateOffscreen(settings, logger, headless && requestedGl ? "headless" : "sdl-init-failed");
         }
 
         ulong baseFlags = Sdl3Native.WindowResizable | (settings.IsFullscreen && !headless && !foreground ? Sdl3Native.WindowFullscreen : 0UL);
-        bool wantGl = !headless && string.Equals(settings.BackendId, PsxRenderBackendIds.OpenGl, StringComparison.Ordinal);
+        bool wantGl = !headless && requestedGl;
         string? fallback = wantGl ? null : headless ? "headless" : "backend=software requested";
 
         if (wantGl)
@@ -72,7 +81,7 @@ internal sealed unsafe class HostVideoSurface : IDisposable
                 return glSurface;
             }
             fallback = glError;
-            logger.Warn("VIDEO", $"[GL_FALLBACK] stage=GL33Core reason=\"{glError}\" backend=software renderer=SDL_CreateRenderer");
+            logger.Warn("GL_FALLBACK", $"stage=GL33Core reason=\"{glError}\" forced=software renderer=SDL_CreateRenderer");
         }
 
         var surface = new HostVideoSurface(new SoftwareCpuRenderBackend()) { SdlAvailable = true, FallbackReason = fallback };
