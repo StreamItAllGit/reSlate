@@ -18,4 +18,8 @@ public interface ISubTickFrameHook : IGameFramePatch
     void OnSubTickBegin(IReStationCpuEx cpu, uint subFrameIndex, uint totalSubFrames);
     /// <summary>Restores state after the sub-tick render pass finishes or unwinds.</summary>
     void OnSubTickEnd(IReStationCpuEx cpu, uint subFrameIndex, bool completedCleanly);
+    /// <summary>Optional hook to intercept or skip a call during an active sub-tick render pass.</summary>
+    bool TryInterceptSubTickCall(IReStationCpuEx cpu, uint canonPc) => false;
+    /// <summary>Invoked after a non-intercepted main-tick call returns or unwinds (never during sub-tick passes).</summary>
+    void OnAfterCall(IReStationCpuEx cpu, uint canonPc) { }
 }

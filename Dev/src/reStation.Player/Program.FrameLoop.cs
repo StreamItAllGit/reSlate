@@ -151,7 +151,8 @@ internal static unsafe partial class Program
             IsModernMouseLookActive: () => !drawer.IsOpen && st.MouseCaptured,
             MouseSensitivity: () => (float)settings.MouseSensitivity,
             PollSubTickLook: () => PollLiveSubTickLook(video, host, cpu, drawer, overlay, settings, sandbox, logger, st, options.Headless),
-            PresentSubTickFrame: () => PresentSubTickLoopFrame(video, host, cpu, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, options.Headless)));
+            PresentSubTickFrame: () => PresentSubTickLoopFrame(video, host, cpu, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, options.Headless),
+            IsEnhancedFrameRateEnabled: () => settings.FrameRateMode == FrameRateMode.Enhanced));
 
         try
         {

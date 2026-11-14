@@ -1,6 +1,6 @@
 // @module: reStation.Tests.Wave2CoreSeamTests
 // @purpose: Wave 2 Slice 1 seam verification: unlimited slots, 0x8019F07C SHA-256 overlays, sub-tick MMIO guard, polygon skip, ExecOverlay reset, Mode2 0x12, RSTX, Std 15 logs.
-// @depends-on: Xunit, reStation.Contracts, reStation.Core, reStation.Core.CdRom, reStation.Core.Cpu, reStation.Core.DiscIngestion, reStation.Core.Gpu, reStation.Core.Saves
+// @depends-on: Xunit, Foundation.Retro, reStation.Contracts, reStation.Core, reStation.Core.CdRom, reStation.Core.Cpu, reStation.Core.DiscIngestion, reStation.Core.Gpu, reStation.Core.Saves, reStation.Player
 // @exports: Wave2CoreSeamTests
 // @owner: devv-core
 
@@ -8,6 +8,8 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using Foundation.Core;
+using Foundation.Retro;
 using reStation.Contracts;
 using reStation.Core;
 using reStation.Core.CdRom;
@@ -15,6 +17,7 @@ using reStation.Core.Cpu;
 using reStation.Core.DiscIngestion;
 using reStation.Core.Gpu;
 using reStation.Core.Saves;
+using reStation.Player;
 using Xunit;
 
 namespace reStation.Tests;
@@ -248,5 +251,123 @@ public sealed class Wave2CoreSeamTests
         Assert.Single(Regex.Matches(line, @"\[HEARTBEAT\]"));
         Assert.DoesNotContain("1/0", line);
         Assert.Contains("resolutionScale=", line); Assert.Contains("sectorsPerSec=", line);
+    }
+
+    private sealed class SeamSubTickHook : ISubTickFrameHook
+    {
+        public uint SubTickEntryPc => 0x80010040U;
+        public uint MaxSubTickCycles => 4096U;
+        public int MainInterceptCount { get; private set; }
+        public int SubInterceptCount { get; private set; }
+        public List<uint> AfterCallPcs { get; } = [];
+        public bool ShouldRunSubTick(uint subFrameIndex, uint totalSubFrames) => true;
+        public void ApplyPostFrame(IReStationCpu cpu) { }
+        public void OnSubTickBegin(IReStationCpuEx cpu, uint subFrameIndex, uint totalSubFrames) { }
+        public void OnSubTickEnd(IReStationCpuEx cpu, uint subFrameIndex, bool completedCleanly) { }
+        public void Reset() { }
+        public bool TryInterceptCall(IReStationCpu cpu, uint pc)
+        {
+            if (pc != 0x800100C0U) return false;
+            MainInterceptCount++;
+            return true;
+        }
+        public bool TryInterceptSubTickCall(IReStationCpuEx cpu, uint canonPc)
+        {
+            if (canonPc != 0x80010080U) return false;
+            SubInterceptCount++;
+            return true;
+        }
+        public void OnAfterCall(IReStationCpuEx cpu, uint canonPc) => AfterCallPcs.Add(canonPc);
+    }
+
+    private sealed class MinimalDefaultSubTickHook : ISubTickFrameHook
+    {
+        public uint SubTickEntryPc => 0;
+        public uint MaxSubTickCycles => 0;
+        public bool ShouldRunSubTick(uint subFrameIndex, uint totalSubFrames) => false;
+        public void ApplyPostFrame(IReStationCpu cpu) { }
+        public bool TryInterceptCall(IReStationCpu cpu, uint pc) => false;
+        public void OnSubTickBegin(IReStationCpuEx cpu, uint subFrameIndex, uint totalSubFrames) { }
+        public void OnSubTickEnd(IReStationCpuEx cpu, uint subFrameIndex, bool completedCleanly) { }
+        public void Reset() { }
+    }
+
+    [Fact]
+    public void SubTickHook_TryInterceptSubTickCall_And_OnAfterCall_EnforceModeAndFinallyCleanup()
+    {
+        using PsxCpu cpu = CreateCpu();
+        ISubTickFrameHook defaults = new MinimalDefaultSubTickHook();
+        Assert.False(defaults.TryInterceptSubTickCall(cpu, 0x80010040U));
+        defaults.OnAfterCall(cpu, 0x80010040U);
+
+        int calls = 0;
+        cpu.RegisterModule(new StubModule(0, "M.EXE", 0x80010000U, 0x80011000U, c =>
+        {
+            calls++;
+            if (c.Pc == 0xFFFFFFFFU) throw new InvalidOperationException("unwind");
+        }));
+        var hook = new SeamSubTickHook();
+        cpu.FramePatch = hook;
+
+        cpu.Call(0x80010040U); // normal main call -> module + OnAfterCall
+        cpu.Call(0x800100C0U); // main intercepted -> neither module nor OnAfterCall
+        cpu.Pc = 0xFFFFFFFFU;
+        Assert.Throws<InvalidOperationException>(() => cpu.Call(0x800100F0U)); // throws -> finally still calls OnAfterCall
+        cpu.Pc = 0;
+
+        cpu.InSubTickRender = true;
+        cpu.Call(0x80010080U); // sub-tick intercepted -> module skipped, OnAfterCall skipped
+        cpu.Call(0x80010040U); // sub-tick non-intercepted -> module runs, OnAfterCall still skipped
+        cpu.InSubTickRender = false;
+
+        Assert.Equal(3, calls);
+        Assert.Equal(1, hook.MainInterceptCount);
+        Assert.Equal(1, hook.SubInterceptCount);
+        Assert.Equal([0x80010040U, 0x800100F0U], hook.AfterCallPcs);
+    }
+
+    [Fact]
+    public void PsxCpu_TryAdvanceToNextVBlank_RespectsMaskAndGuards_AndRaisesVBlank()
+    {
+        using PsxCpu cpu = CreateCpu();
+        int vblanks = 0;
+        cpu.OnVBlankFrame = _ => vblanks++;
+
+        Assert.False(cpu.TryAdvanceToNextVBlank()); // I_MASK bit 0 masked initially
+        cpu.Bus.Write32(0x1F801074U, 1U); // enable VBlank IRQ mask
+        cpu.InSubTickRender = true;
+        Assert.False(cpu.TryAdvanceToNextVBlank());
+        cpu.InSubTickRender = false;
+        cpu.ShouldUnwind = true;
+        Assert.False(cpu.TryAdvanceToNextVBlank());
+        cpu.ShouldUnwind = false;
+
+        Assert.True(cpu.TryAdvanceToNextVBlank());
+        Assert.Equal(1L, cpu.FrameCount);
+        Assert.Equal(1, vblanks);
+        Assert.True(cpu.TotalCycles >= PsxCpu.CyclesPerFrame);
+    }
+
+    [Fact]
+    public void ReStationHost_IsEnhancedFrameRateEnabled_TracksSettingsAndRuntimeContext()
+    {
+        using var backend = new SoftwareCpuRenderBackend();
+        using var logger = new ReStationLogger(Path.GetTempPath(), enabled: false);
+        using var pacer = new HighResFramePacer(60);
+        var manifest = new ReStationModuleManifest { ModuleId = "seam-test", Title = "Seam", DisplayName = "Seam" };
+
+        using var origCpu = new PsxCpu(new RecompSettings { FrameRateMode = FrameRateMode.Original }, Path.GetTempPath(), backend, logger);
+        using var origHost = new ReStationHost(origCpu, manifest, Path.GetTempPath(), new RecompHostOptions { TargetFps = 60 }, pacer, logger);
+        Assert.False(((IReStationHostEx)origHost).IsEnhancedFrameRateEnabled);
+
+        using var enhCpu = new PsxCpu(new RecompSettings { FrameRateMode = FrameRateMode.Enhanced }, Path.GetTempPath(), backend, logger);
+        using var enhHost = new ReStationHost(enhCpu, manifest, Path.GetTempPath(), new RecompHostOptions { TargetFps = 120 }, pacer, logger);
+        Assert.True(((IReStationHostEx)enhHost).IsEnhancedFrameRateEnabled);
+
+        bool dynamicEnhanced = false;
+        enhHost.AttachRuntimeContext(new HostRuntimeContext(IsHeadless: true, IsEnhancedFrameRateEnabled: () => dynamicEnhanced));
+        Assert.False(enhHost.IsEnhancedFrameRateEnabled);
+        dynamicEnhanced = true;
+        Assert.True(enhHost.IsEnhancedFrameRateEnabled);
     }
 }

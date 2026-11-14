@@ -14,6 +14,8 @@ public interface IReStationHostEx : IReStationHost
     bool HasPendingCapture { get; }
     /// <summary>Configured host presentation rate in Hz (0 = unlocked).</summary>
     int TargetFps { get; }
+    /// <summary>True when host frame pacing is running in Enhanced FPS mode rather than Original 60/30 mode.</summary>
+    bool IsEnhancedFrameRateEnabled { get; }
     /// <summary>True when modern free-look mouse capture is currently enabled.</summary>
     bool IsModernMouseLookActive { get; }
     /// <summary>Configured mouse sensitivity multiplier for modern look input.</summary>

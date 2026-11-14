@@ -61,6 +61,15 @@ public sealed partial class PsxCpu
         NextEventCycle = wake;
     }
 
+    public bool TryAdvanceToNextVBlank()
+    {
+        if (ShouldUnwind || ExitRequested || InSubTickRender || (TimersAndDma.InterruptMask & 1) == 0)
+            return false;
+        TotalCycles = Math.Max(TotalCycles + 64, Gpu.NextVBlankCycle);
+        PollEvents();
+        return true;
+    }
+
     public bool HasCompiledEntry(uint pc)
     {
         uint canonPc = 0x80000000U | (pc & 0x1FFFFFFFU);

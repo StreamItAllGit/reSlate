@@ -22,7 +22,8 @@ internal sealed record HostRuntimeContext(
     Func<bool>? IsModernMouseLookActive = null,
     Func<float>? MouseSensitivity = null,
     Func<(float MouseDx, float MouseDy, float StickX, float StickY)>? PollSubTickLook = null,
-    Action? PresentSubTickFrame = null);
+    Action? PresentSubTickFrame = null,
+    Func<bool>? IsEnhancedFrameRateEnabled = null);
 
 /// <summary>
 /// Runs lifted game code on a dedicated emulation thread that parks at every VBlank, so <see cref="RunFrame"/>
@@ -82,6 +83,7 @@ internal sealed class ReStationHost : IReStationHostEx, IDisposable
     public bool IsHeadless => _ctx.IsHeadless;
     public bool HasPendingCapture => _ctx.HasPendingCapture?.Invoke() ?? false;
     public int TargetFps => Options.UnlockFps || Options.TargetFps <= 0 ? 0 : (int)Math.Round(Options.TargetFps);
+    public bool IsEnhancedFrameRateEnabled => _ctx.IsEnhancedFrameRateEnabled?.Invoke() ?? (_cpu.Settings.FrameRateMode == FrameRateMode.Enhanced);
     public bool IsModernMouseLookActive => _ctx.IsModernMouseLookActive?.Invoke() ?? false;
     public float MouseSensitivity => _ctx.MouseSensitivity?.Invoke() ?? 1.0f;
 

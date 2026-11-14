@@ -177,16 +177,31 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
             return;
         }
         uint canonPc = 0x80000000U | masked;
-        if (!InSubTickRender && FramePatch is not null && FramePatch.TryInterceptCall(this, canonPc)) return;
-        IRecompModule? module = ResolveModule(canonPc);
-        if (module is not null && module.TryExecuteFunction(this, canonPc))
+        if (InSubTickRender)
         {
-            CompiledDispatchCount++;
+            if (FramePatch is ISubTickFrameHook subHook && subHook.TryInterceptSubTickCall(this, canonPc)) return;
+        }
+        else if (FramePatch is not null && FramePatch.TryInterceptCall(this, canonPc))
+        {
             return;
         }
-        if (InterpreterFallbackCount < 5) Logger?.Warn("CPU", $"Interpreter fallback #{InterpreterFallbackCount + 1} pc=0x{canonPc:X8} exe={ActiveExeId}");
-        InterpreterFallbackCount++;
-        PsxInterpreter.ExecuteUntilReturnOrCompiled(this, canonPc, module);
+        IRecompModule? module = ResolveModule(canonPc);
+        try
+        {
+            if (module is not null && module.TryExecuteFunction(this, canonPc))
+            {
+                CompiledDispatchCount++;
+                return;
+            }
+            if (InterpreterFallbackCount < 5) Logger?.Warn("CPU", $"Interpreter fallback #{InterpreterFallbackCount + 1} pc=0x{canonPc:X8} exe={ActiveExeId}");
+            InterpreterFallbackCount++;
+            PsxInterpreter.ExecuteUntilReturnOrCompiled(this, canonPc, module);
+        }
+        finally
+        {
+            if (!InSubTickRender && FramePatch is ISubTickFrameHook afterHook)
+                afterHook.OnAfterCall(this, canonPc);
+        }
     }
 
     public void JumpIndirect(uint targetPc)

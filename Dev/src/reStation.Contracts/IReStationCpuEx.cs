@@ -24,4 +24,6 @@ public interface IReStationCpuEx : IReStationCpu
     bool HasCompiledEntry(uint canonPc);
     /// <summary>Executes a compiled slice at <paramref name="entryPc"/> until <paramref name="returnSentinelPc"/> or unwind.</summary>
     void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false);
+    /// <summary>Advances cycles to the next VBlank when unmasked and outside sub-tick/unwind states.</summary>
+    bool TryAdvanceToNextVBlank();
 }
