@@ -2,7 +2,7 @@
 // @purpose: Zero-PII reStation installer identity (names, version, accent, embedded resource names) and the InstallerAppDescriptor factory (AllowAutoStart = false).
 // @depends-on: Foundation.Installer
 // @exports: ReStationInstallerTheme
-// @owner: devv-pkg-test (T7)
+// @owner: devv-pkg (Wave 2 Slice 3)
 
 using Foundation.Installer;
 
@@ -13,7 +13,7 @@ internal static class ReStationInstallerTheme
 {
     public const string ProductName = "reStation";
     public const string EngineId = "reStation";
-    public const string Version = "0.1.0";
+    public const string Version = "0.1.1";
     public const string Publisher = "StreamItAll";
     public const string Subtitle = "PS1 Static Recompilation Engine for reEngine";
     public const string BrandAccentHex = "#38BDF8";

@@ -15,7 +15,12 @@
       <HintPath>$(ReStationLibDir)Foundation.Launcher.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Foundation.Core">
+      <HintPath>$(ReStationLibDir)Foundation.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <EmbeddedResource Include="$(ReStationLibDir)Foundation.Launcher.dll" LogicalName="Foundation.Launcher.dll" />
+    <EmbeddedResource Include="..\..\lib\Foundation.Core.dll" LogicalName="Foundation.Core.dll" />
   </ItemGroup>
 
 </Project>

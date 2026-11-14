@@ -154,6 +154,41 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
         Assert.DoesNotContain("WorkingDirectory = Path.GetDirectoryName(playerExe)", content, StringComparison.Ordinal);
         Assert.Contains("!redirOut && !redirErr", content, StringComparison.Ordinal);
         Assert.Contains("RedirectStandardError = redirErr", content, StringComparison.Ordinal);
+        Assert.Contains("\"Foundation.Launcher\"", content, StringComparison.Ordinal);
+        Assert.Contains("\"Foundation.Core\"", content, StringComparison.Ordinal);
+        Assert.Contains("AttachJobGuard", content, StringComparison.Ordinal);
+        Assert.Contains("[WARN] [LAUNCHER]", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerAndLauncher_Expose011MetadataParameterizedAssemblyAndZeroEmptyCatches()
+    {
+        Assert.Equal("0.1.1", ReStationInstallerTheme.Version);
+        Assert.Equal("reStation-Setup-v0.1.1-win-x64", typeof(Program).Assembly.GetName().Name);
+
+        string srcRoot = FindSrcRoot();
+        string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));
+        Assert.Contains("<AssemblyName>reStation-Setup-v$(Version)-win-x64</AssemblyName>", installerCsproj, StringComparison.Ordinal);
+
+        string launcherCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Launcher", "reStation.Launcher.csproj"));
+        Assert.Contains("LogicalName=\"Foundation.Launcher.dll\"", launcherCsproj, StringComparison.Ordinal);
+        Assert.Contains("LogicalName=\"Foundation.Core.dll\"", launcherCsproj, StringComparison.Ordinal);
+
+        string[] checkedFiles =
+        {
+            Path.Combine(srcRoot, "reStation.Launcher", "Program.cs"),
+            Path.Combine(srcRoot, "reStation.Launcher", "LauncherArgsHelper.cs"),
+            Path.Combine(srcRoot, "reStation.Installer", "ReStationInstallerTheme.cs"),
+            Path.Combine(srcRoot, "reStation.Installer", "ReStationInstallerBootstrap.cs")
+        };
+        foreach (string file in checkedFiles)
+        {
+            string text = File.ReadAllText(file);
+            Assert.DoesNotContain("0.1.0", text, StringComparison.Ordinal);
+            Assert.False(
+                Regex.IsMatch(text, @"catch\s*(?:\([^)]*\))?\s*\{\s*\}"),
+                $"Empty catch block found in {Path.GetFileName(file)}");
+        }
     }
 
     private static string FindSrcRoot()
