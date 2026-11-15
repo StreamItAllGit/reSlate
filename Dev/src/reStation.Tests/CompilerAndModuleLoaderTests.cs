@@ -227,7 +227,7 @@ public sealed class CompilerAndModuleLoaderTests : IDisposable
         Assert.True(ModuleAssemblyLoader.WaitForUnload(weakAlc), "Collectible ModuleAssemblyLoader should unload with zero leaks.");
 
         var cacheMgr = new reEngine.Core.Aot.AotCacheManager(dataDir);
-        var activeKey = new reEngine.Core.Aot.AotCacheKey("aotmod", first.RomSha256Hex, "reStation", reStation.Contracts.ReStationEngineInfo.Version, "0.2.1");
+        var activeKey = new reEngine.Core.Aot.AotCacheKey("aotmod", first.RomSha256Hex, "reStation", reStation.Contracts.ReStationEngineInfo.Version, "0.2.2");
         _ = await cacheMgr.StoreCompiledAssemblyAsync(activeKey, first.AssemblyPath);
         int evicted = await cacheMgr.EvictStaleEntriesAsync("aotmod", activeKey);
         Assert.Equal(1, evicted);

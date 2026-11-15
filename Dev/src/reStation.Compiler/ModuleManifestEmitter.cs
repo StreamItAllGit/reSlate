@@ -22,11 +22,12 @@ public static class ModuleManifestEmitter
         string pascalId,
         IReadOnlyList<GeneratedExeSpec> specs,
         out string manifestPath,
-        out string csprojPath)
+        out string csprojPath,
+        string? generatedAssemblyNameOverride = null)
     {
         var emitted = new List<string>(4);
         string assemblyName = options.CompileGeneratedDll || options.EmitCleanRoomOnly
-            ? $"{options.ModuleId}.Generated"
+            ? ResolveGeneratedAssemblySimpleName(generatedAssemblyNameOverride, options.ModuleId)
             : $"{options.ModuleId}.recomp";
         string moduleClassName = $"{pascalId}GameModule";
         string moduleTypeName = $"{rootNamespace}.{moduleClassName}";
@@ -274,6 +275,21 @@ public static class ModuleManifestEmitter
 </Project>
 """;
         File.WriteAllText(csprojPath, xml, new UTF8Encoding(false));
+    }
+
+    /// <summary>Resolves the simple PE assembly name for generated AOT output, honoring <paramref name="generatedAssemblyNameOverride"/> when specified.</summary>
+    internal static string ResolveGeneratedAssemblySimpleName(string? generatedAssemblyNameOverride, string moduleId)
+    {
+        if (!string.IsNullOrWhiteSpace(generatedAssemblyNameOverride))
+        {
+            string fileOnly = Path.GetFileName(generatedAssemblyNameOverride.Trim());
+            string stripped = fileOnly.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
+                ? Path.GetFileNameWithoutExtension(fileOnly)
+                : fileOnly;
+            if (!string.IsNullOrWhiteSpace(stripped))
+                return stripped;
+        }
+        return $"{moduleId}.Generated";
     }
 
     private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\"", "\\\"");

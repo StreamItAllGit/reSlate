@@ -128,7 +128,7 @@ public sealed class RecompCompilerPipeline
         List<DiscoveredExe> exes;
         try
         {
-            exes = DiscExeLoader.Discover(Options);
+            exes = DiscExeLoader.Discover(Options, inputRecipe);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or FileNotFoundException or UnauthorizedAccessException)
         {
@@ -139,7 +139,7 @@ public sealed class RecompCompilerPipeline
         Directory.CreateDirectory(outDir);
         string pascalId = DiscExeLoader.ToPascalIdentifier(Options.ModuleId);
         string rootNamespace = $"{pascalId}.Recomp";
-        IReadOnlyCollection<uint>? extraSeeds = inputRecipe?.EntryAddresses;
+        IReadOnlyCollection<uint>? globalSeeds = inputRecipe?.EntryAddresses;
 
         var specs = new List<GeneratedExeSpec>(exes.Count);
         var emittedFiles = new List<string>();
@@ -149,17 +149,25 @@ public sealed class RecompCompilerPipeline
             foreach (DiscoveredExe exe in exes)
             {
                 ct.ThrowIfCancellationRequested();
+                int codeStartOffset = exe.IsOverlay ? 0 : 0x800;
                 uint ReadWord(uint vaddr)
                 {
                     if (vaddr < exe.Header.TextAddr || vaddr >= exe.Header.TextEnd) return 0U;
-                    int off = 0x800 + (int)(vaddr - exe.Header.TextAddr);
+                    int off = codeStartOffset + (int)(vaddr - exe.Header.TextAddr);
                     if (off < 0 || off + 4 > exe.Bytes.Length) return 0U;
                     return BinaryPrimitives.ReadUInt32LittleEndian(exe.Bytes.AsSpan(off, 4));
                 }
 
                 string? jsonPath = ExeScanHelpers.ResolveFunctionsJson(Options, exe);
+                IReadOnlyCollection<uint>? extraSeeds = SelectUniqueSeedsForExe(exe, exes, globalSeeds);
                 (List<GeneratedFnSpec> funcs, HashSet<uint> rdataTargets) = ExeScanHelpers.DiscoverFunctions(exe, ReadWord, jsonPath, extraSeeds);
-                var spec = new GeneratedExeSpec(exe.ExeId, exe.ExeName, exe.RelativePath, exe.FolderName, exe.ClassName, exe.Header.TextAddr, exe.Header.TextEnd, funcs);
+                var spec = new GeneratedExeSpec(exe.ExeId, exe.ExeName, exe.RelativePath, exe.FolderName, exe.ClassName, exe.Header.TextAddr, exe.Header.TextEnd, funcs)
+                {
+                    IsOverlay = exe.IsOverlay,
+                    LoadRamAddress = exe.Header.TextAddr,
+                    ContentSizeBytes = exe.Bytes.Length,
+                    ContentSha256Hex = exe.ContentSha256Hex
+                };
                 if (!Options.EmitCleanRoomOnly)
                     emittedFiles.AddRange(FunctionChunkEmitter.EmitModule(outDir, rootNamespace, spec, ReadWord, rdataTargets));
                 specs.Add(spec);
@@ -195,8 +203,10 @@ public sealed class RecompCompilerPipeline
                 $"Emitted clean-room recipe ({totalFuncs} entrypoints, {exes.Count} EXE(s)) -> '{manifestPath}'.");
         }
 
-        emittedFiles.AddRange(ModuleManifestEmitter.EmitAll(outDir, Options, rootNamespace, pascalId, specs, out manifestPath, out string csprojPath));
-        string buildTargetName = Options.CompileGeneratedDll ? $"{Options.ModuleId}.Generated" : $"{Options.ModuleId}.recomp";
+        emittedFiles.AddRange(ModuleManifestEmitter.EmitAll(outDir, Options, rootNamespace, pascalId, specs, out manifestPath, out string csprojPath, generatedCacheAsmName));
+        string buildTargetName = Options.CompileGeneratedDll
+            ? ModuleManifestEmitter.ResolveGeneratedAssemblySimpleName(generatedCacheAsmName, Options.ModuleId)
+            : $"{Options.ModuleId}.recomp";
         if (Options.CompileGeneratedDll || Options.CompileDll)
         {
             (bool ok, string? dllPath, string diag) = ModuleManifestEmitter.CompileModuleAssembly(csprojPath, outDir, buildTargetName, ct);
@@ -290,5 +300,28 @@ public sealed class RecompCompilerPipeline
         else if (!string.IsNullOrWhiteSpace(Options.AotRecipePath) && !File.Exists(Options.AotRecipePath))
             error = $"AOT recipe not found: '{Options.AotRecipePath}'.";
         return error is not null;
+    }
+
+    private static IReadOnlyCollection<uint>? SelectUniqueSeedsForExe(
+        DiscoveredExe target,
+        IReadOnlyList<DiscoveredExe> allExes,
+        IReadOnlyCollection<uint>? globalSeeds)
+    {
+        if (globalSeeds is not { Count: > 0 }) return null;
+        if (allExes.Count <= 1) return globalSeeds;
+        var filtered = new List<uint>();
+        foreach (uint raw in globalSeeds)
+        {
+            uint addr = DiscExeLoader.CanonicalRam(raw);
+            if (addr < target.Header.TextAddr || addr >= target.Header.TextEnd) continue;
+            bool shared = false;
+            foreach (DiscoveredExe other in allExes)
+            {
+                if (ReferenceEquals(other, target)) continue;
+                if (addr >= other.Header.TextAddr && addr < other.Header.TextEnd) { shared = true; break; }
+            }
+            if (!shared) filtered.Add(addr);
+        }
+        return filtered.Count > 0 ? filtered : null;
     }
 }

@@ -159,10 +159,34 @@ public static class PlayerMediaResolver
         if (recipe.Executables.Count == 0) return false;
 
         var matchedPaths = new List<string>(recipe.Executables.Count);
+        var containerCache = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         var shaConcat = new StringBuilder();
         foreach (AotRecipeExecutableSpec exe in recipe.Executables)
         {
-            string? found = FindExecutableFile(romDir, exe);
+            int hashIdx = exe.BootExePath.IndexOf('#');
+            if (hashIdx >= 0)
+            {
+                if (hashIdx == 0 || hashIdx + 1 >= exe.BootExePath.Length)
+                    throw new InvalidDataException($"Invalid overlay container path '{exe.BootExePath}'.");
+                string containerRel = exe.BootExePath[..hashIdx];
+                string? containerPath = FindMediaFile(romDir, containerRel);
+                if (containerPath is null) return false;
+                if (!containerCache.TryGetValue(containerPath, out byte[]? containerBytes))
+                {
+                    containerBytes = File.ReadAllBytes(containerPath);
+                    containerCache[containerPath] = containerBytes;
+                }
+                if (exe.TextSizeBytes <= 0 || !TryFindContainerSliceOffset(containerBytes, exe.TextSizeBytes, exe.Sha256, out _))
+                {
+                    throw new InvalidDataException(
+                        $"ROM container slice checksum mismatch for '{exe.BootExePath}' in '{containerPath}': expected {exe.Sha256} ({exe.TextSizeBytes} bytes).");
+                }
+                matchedPaths.Add(containerPath);
+                shaConcat.Append(exe.Sha256.ToLowerInvariant());
+                continue;
+            }
+
+            string? found = FindMediaFile(romDir, exe.BootExePath);
             if (found is null) return false;
 
             string actualSha = ComputeFileSha256Hex(found);
@@ -176,7 +200,7 @@ public static class PlayerMediaResolver
             shaConcat.Append(actualSha);
         }
 
-        if (matchedPaths.Count == 1)
+        if (matchedPaths.Count == 1 && !recipe.Executables[0].BootExePath.Contains('#', StringComparison.Ordinal))
         {
             resolved = new ResolvedPlayerMedia(MediaInputKind.ExeFile, matchedPaths[0], shaConcat.ToString(), romDir);
             return true;
@@ -187,22 +211,56 @@ public static class PlayerMediaResolver
         return true;
     }
 
-    private static string? FindExecutableFile(string romDir, AotRecipeExecutableSpec exe)
+    /// <summary>Locates a <paramref name="sliceLength"/>-byte segment in <paramref name="containerBytes"/> whose SHA-256 matches <paramref name="expectedSha256Hex"/> (2048-byte sector scan first, then 4-byte scan).</summary>
+    public static bool TryFindContainerSliceOffset(
+        ReadOnlySpan<byte> containerBytes,
+        int sliceLength,
+        string expectedSha256Hex,
+        out int sliceOffset)
     {
-        string normalizedRel = exe.BootExePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+        sliceOffset = -1;
+        if (sliceLength <= 0 || sliceLength > containerBytes.Length) return false;
+        if (string.IsNullOrWhiteSpace(expectedSha256Hex) || expectedSha256Hex.Length != 64 || !expectedSha256Hex.All(Uri.IsHexDigit))
+            return false;
+
+        byte[] expectedDigest = Convert.FromHexString(expectedSha256Hex);
+        Span<byte> actualDigest = stackalloc byte[32];
+        int limit = containerBytes.Length - sliceLength;
+
+        for (int off = 0; off <= limit; off += 2048)
+        {
+            SHA256.HashData(containerBytes.Slice(off, sliceLength), actualDigest);
+            if (actualDigest.SequenceEqual(expectedDigest)) { sliceOffset = off; return true; }
+        }
+
+        for (int off = 0; off <= limit; off += 4)
+        {
+            if ((off & 2047) == 0) continue;
+            SHA256.HashData(containerBytes.Slice(off, sliceLength), actualDigest);
+            if (actualDigest.SequenceEqual(expectedDigest)) { sliceOffset = off; return true; }
+        }
+        return false;
+    }
+
+    private static string? FindMediaFile(string romDir, string relativePath)
+    {
+        string normalizedRel = relativePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar)
+            .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         if (!normalizedRel.Contains("..", StringComparison.Ordinal))
         {
-            string direct = Path.Combine(romDir, normalizedRel);
+            string direct = SandboxEnvironment.AssertPathContained(Path.Combine(romDir, normalizedRel), romDir);
             if (File.Exists(direct)) return direct;
         }
 
         string fileName = Path.GetFileName(normalizedRel);
-        if (!string.IsNullOrWhiteSpace(fileName))
-        {
-            string byName = Path.Combine(romDir, fileName);
-            if (File.Exists(byName)) return byName;
-        }
-        return null;
+        if (string.IsNullOrWhiteSpace(fileName)) return null;
+
+        string byName = Path.Combine(romDir, fileName);
+        if (File.Exists(byName)) return byName;
+
+        return Directory.EnumerateFiles(romDir, "*", SearchOption.AllDirectories)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(p => string.Equals(Path.GetFileName(p), fileName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool ArchiveContainsEntry(string archivePath, string entryPath)

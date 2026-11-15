@@ -1,5 +1,5 @@
 // @module: reStation.Player.KeybindsDrawerTab.ModernGrid
-// @purpose: Scrollable 5-column Modern PC binding table (Action | 1st | 2nd | 3rd | Controller) with slot selection and right-click unbind.
+// @purpose: Scrollable 5-column Modern PC binding table (Action | 1st | 2nd | 3rd | Gamepad) with slot selection and right-click unbind.
 // @depends-on: Foundation.Core, reStation.Contracts, reStation.Core, reStation.Core.Input
 // @exports: KeybindsDrawerTab (partial)
 // @owner: devv-player-ui (T6)
@@ -27,7 +27,7 @@ internal sealed partial class KeybindsDrawerTab
         int maxOffset = Math.Max(0, total - VisibleModernRows);
         ScrollRowOffset = Math.Clamp(ScrollRowOffset, 0, maxOffset);
 
-        const int slotW = 120, gap = 6, scrollBtnW = 32, rowH = 35, rowGap = 4;
+        const int slotW = 96, gap = 5, scrollBtnW = 26, rowH = 35, rowGap = 4;
         int scrollArea = (scrollBtnW * 2) + 4;
         int actW = Math.Max(120, w - (4 * (slotW + gap)) - scrollArea);
         int slotsStartX = x + actW + gap;
@@ -36,7 +36,7 @@ internal sealed partial class KeybindsDrawerTab
         string rangeLabel = total == 0 ? "Action (0)" : $"Action {ScrollRowOffset + 1}-{endRow}/{total}";
         UiPaint.Text(canvas, x + 4, gridY + 7, FitText(rangeLabel, Math.Max(6, (actW - 4) / 12)), UiPaint.AccentText);
 
-        string[] headers = { "1st", "2nd", "3rd", "Controller" };
+        string[] headers = { "1st", "2nd", "3rd", "Gamepad" };
         for (int s = 0; s < 4; s++)
         {
             int sx = slotsStartX + (s * (slotW + gap));
@@ -73,7 +73,7 @@ internal sealed partial class KeybindsDrawerTab
                 int boundCode = slotIdx < 3
                     ? (slotIdx < kbm.Count ? kbm[slotIdx] : 0)
                     : (pad.Count > 0 ? pad[0] : 0);
-                string cellText = active ? "..." : FitText(FormatScancode(boundCode), 9);
+                string cellText = active ? "..." : FitText(FormatScancode(boundCode), Math.Max(6, (slotW - 6) / 12));
 
                 UiPaint.Pill(canvas, pillRect, cellText, active);
                 int capturedSlot = slotIdx;

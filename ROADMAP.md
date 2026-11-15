@@ -1,6 +1,6 @@
 # reStation — Roadmap & Milestones
 
-**Current Active Version:** `0.2.1` *(pre-1.0 `0.2.x` track)*  
+**Current Active Version:** `0.2.2` *(pre-1.0 `0.2.x` track)*  
 **Lifecycle State:** [`active.state`](active.state)  
 **Last Updated:** `2026-11-15`
 
@@ -14,12 +14,12 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 
 ---
 
-## 2. Active Track (`0.2.1` Active Release $\rightarrow$ Next Minor: `v0.3.0`)
+## 2. Active Track (`0.2.2` Active Release $\rightarrow$ Next Minor: `v0.3.0`)
 - [x] Tier A 6-folder scaffold, `active.state`, `AGENTS.md`, Root Quartet, Manual Shelf, and original `.svg`/`.png`/`.ico` logo bundle (`v0.1.0`).
 - [x] Consume `Foundation` (`v0.3.1` -> `v0.4.0`) and `reEngine` (`v0.1.0` -> `v0.2.0`) SDK binaries (`MediaContainerExtractor`, `HighResFramePacer`, `AudioRingBuffer`, `WavCaptureWriter`, `RgbaPngWriter`, `IVisibleTestHarness`, `Foundation.Installer`, `AotCacheManager`, `IDecompPlatformProvider`).
 - [x] Reusable R3000A CPU, COP0, GTE, MDEC, 2x CD-ROM (`150 sectors/s`), ADSR SPU/XA mixer, `reStation.Compiler`, `.recomp` ABI, `OpenGL 3.3 Core` (`ArrayPool` FIFO queue) <-> `SoftwareCpu` (`SDL_Texture` composite) live frame-boundary swap, `"RST1"` + `"RSTX"` quick-saves, and native ZIP `.recomp` cartridges (`v0.1.0`–`v0.2.0`).
-- [x] **Clean-Room `MPL-2.0` `.decomp`, Player-PC `<dataDir>\cache\` AOT & Opt-In Tier 3 IR/JIT (`v0.2.0`):** Shipped `reStation.Decomp` (`platformId: "ps1"`, PS-X EXE + overlay Ghidra loader, R3000A + GTE `.slaspec`, C/asset normalizer, `D4`/`D5` verifiers, `0` `GPLv3`/Sony headers), local `<dataDir>\cache\` AOT + collectible `ModuleAssemblyLoader`, and opt-in `Core\Ir\`, `Core\Jit\`, `Core\Bringup\` (`--jit-bringup`, `--force-zero-rwx`, `ExitCode = 5`).
-- [x] **User-Scope Suite Installer, Runtime Stability (`RS-07`–`RS-16`) & Multi-Bind Input (`v0.2.0`, `v0.2.1` `PATCH+1`):** Deployed per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.1\` (`--profile Lightweight|Full`, `--reengine-dir`, opt-in `--migrate-legacy`, `AllowAutoStart = false`), fixed mid-stack `F9` unwind, finite joypad `/ACK` + polled timer sync, compact `1060x34` `F3` HUD strip, `4:3` default + `IRecompWidescreenProvider`, `float` mouse deltas, and `Schema A`/`B` 3-slot KBM + `2001..2032` controller bindings (`161/161` baseline tests under `/warnaserror`), plus `v0.2.1` `DEFECT-01` `MipsLifter` dynamic-switch `.rodata` local AOT fix and `DEFECT-03` `RecompSettings.Clamp()` consumer preservation.
+- [x] **Clean-Room `MPL-2.0` `.decomp`, Player-PC `<dataDir>\cache\` AOT & Opt-In Tier 3 IR/JIT (`v0.2.0`, `v0.2.1`–`v0.2.2` `PATCH+1`):** Shipped `reStation.Decomp` (`platformId: "ps1"`, PS-X EXE + overlay Ghidra loader, R3000A + GTE `.slaspec`, C/asset normalizer, `D4`/`D5` verifiers, `0` `GPLv3`/Sony headers), local `<dataDir>\cache\` AOT + collectible `ModuleAssemblyLoader`, and opt-in `Core\Ir\`, `Core\Jit\`, `Core\Bringup\` (`--jit-bringup`, `--force-zero-rwx`, `ExitCode = 5`). In `v0.2.2`, added `DiscOverlaySliceResolver` (`<container>#<slice>` verified SHA-256 slice discovery and recipe `ExeId` ordering + `SelectUniqueSeedsForExe`), `ModuleManifestEmitter.ResolveGeneratedAssemblySimpleName` (`generatedCacheAssemblyName` PE parity for thin-shell `.recomp` archives), `PlayerMediaResolver.TryFindContainerSliceOffset`, and `ModuleAssemblyLoader.CompanionAssembly` preload + collectible `Unloading` `ClearLoadedCompanion` + `AotRecipeSpec` attachment.
+- [x] **User-Scope Suite Installer, Runtime Stability (`RS-07`–`RS-16`) & Multi-Bind Input (`v0.2.0`, `v0.2.1`–`v0.2.2` `PATCH+1`):** Deployed per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.2\` (`--profile Lightweight|Full`, `--reengine-dir`, opt-in `--migrate-legacy`, `AllowAutoStart = false`), fixed mid-stack `F9` unwind, finite joypad `/ACK` + polled timer sync, compact `1060x34` `F3` HUD strip, `4:3` default + `IRecompWidescreenProvider`, `float` mouse deltas, and `Schema A`/`B` 3-slot KBM + `2001..2032` controller bindings (`161/161` baseline tests in `v0.2.0`, `163/163` in `v0.2.1` with `MipsLifter` `.rodata` + `RecompSettings.Clamp()` fixes, and `166/166` passing unit tests under `/warnaserror` in `v0.2.2` with USB HID Numpad `Num/`..`Num.` / `Ins` / `Home` / `End` / `RAlt` labels and widened `800px` `actW = 304 px` Keybinds Modern Grid with `"Gamepad"` header; `@dean` Gate 2 `PASS`, signed installer/SDK packaging + `audit_installer.ps1` `0` findings, and `@inspecter` Sandbox QA `PASS` via [`0.2.2.2026-11-15.-.sandbox-verification.md`](Dev/docs/reports/0.2.2.2026-11-15.-.sandbox-verification.md)).
 
 ---
 
@@ -27,7 +27,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 
 ```mermaid
 flowchart LR
-    V01["v0.1.0..0.1.5 (Shipped)\nModular PS1 + Pad/SPU + Overlays"] --> V02["v0.2.0..0.2.1 (Active)\n.decomp + Local AOT + Suite + T7 + IR/JIT"]
+    V01["v0.1.0..0.1.5 (Shipped)\nModular PS1 + Pad/SPU + Overlays"] --> V02["v0.2.0..0.2.2 (Active)\n.decomp + Local AOT + Overlays + Keybinds"]
     V02 --> V03["v0.3.0\nVulkan + ParallelCpu + Overrides SDK"]
     V03 --> V04["v0.4.0\nStatic Overlay Promoter + PS1 Essentials"]
     V04 --> V10["v1.0.0 (GOLD win-x64)\nTri-Backend + 2-Title Cert"]

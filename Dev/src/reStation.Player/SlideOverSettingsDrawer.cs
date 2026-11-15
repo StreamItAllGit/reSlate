@@ -77,7 +77,7 @@ internal sealed class SlideOverSettingsDrawer
         if (!IsOpen) return;
 
         canvas.FillRect(0, 0, w, h, UiPaint.Scrim);
-        int dw = ActiveTab == 2 ? Math.Min(w, 760) : Math.Min(w, 600);
+        int dw = ActiveTab == 2 ? Math.Min(w, 800) : Math.Min(w, 600);
         int dx = w - dw;
         UiPaint.BorderRect(canvas, new UiRect(dx, 0, dw, h), new RgbaColor(0x14, 0x18, 0x22), UiPaint.Accent);
         UiPaint.Text(canvas, dx + 20, 18, "Settings", UiPaint.AccentText, 3);

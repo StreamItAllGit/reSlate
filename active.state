@@ -7,8 +7,8 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.1",
-  "activeMilestone": "0.2.1",
+  "version": "0.2.2",
+  "activeMilestone": "0.2.2",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-15",
   "lastVersionDate": "2026-11-15",
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Shipped v0.2.1 PATCH+1 cleanly (Gate 2 PASS, 163/163 passing xUnit tests under /warnaserror, 0 warnings/skipped, DEFECT-01 MipsLifter dynamic-switch delay-slot labels + CS0162/CS0164 .rodata tail tolerance + DEFECT-03 RecompSettings.Clamp consumer appId/schemaVersion preservation): build_release.ps1 + audit_installer.ps1 PASS (0 findings, signed reStation-Setup-v0.2.1-win-x64.exe, SharedLibs\\reStation\\v0.2.1\\, Archive\\reStation-v0.2.1-src.7z), @inspecter Sandbox PASS (0.2.1.2026-11-15.-.sandbox-verification.md, v021-visible-test.png, 0 host mutations/lingering procs), Quartet/AGENTS.md/Manual Shelf/.gitignore synced.",
-  "updatedAtUtc": "2026-11-15T14:20:00.000Z"
+  "notes": "Verified v0.2.2 PATCH+1 cleanly (Gate 2 PASS, 166/166 passing xUnit tests under /warnaserror, 0 warnings/skipped; DiscOverlaySliceResolver recipe ExeId ordering + <container>#<slice> overlay lifting, generatedCacheAssemblyName PE identity parity, ModuleAssemblyLoader CompanionAssembly preload + Unloading cleanup + AotRecipeSpec attach, PlayerMediaResolver TryFindContainerSliceOffset, USB HID Numpad/Nav labels & widened 800px Keybinds grid): build_release.ps1 + audit_installer.ps1 PASS (0 findings, signed reStation-Setup-v0.2.2-win-x64.exe, SharedLibs\\reStation\\v0.2.2\\, Archive\\reStation-v0.2.2-src.7z), @inspecter Sandbox PASS (0.2.2.2026-11-15.-.sandbox-verification.md, v022-visible-test.png, v022-settings-tab.png, v022-keybinds-tab.png, 0 host mutations/lingering procs), Quartet/AGENTS.md/Manual Shelf synced.",
+  "updatedAtUtc": "2026-11-15T16:00:00.000Z"
 }

@@ -186,9 +186,9 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("supportedEngineTracks", script, StringComparison.Ordinal);
         Assert.Contains("README.md", script, StringComparison.Ordinal);
 
-        Assert.Equal("0.2.1", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.Equal("0.2.2", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.2.1", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.2.2", appManifest.RootElement.GetProperty("version").GetString());
     }
 
     private static string FindDevRoot()

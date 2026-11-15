@@ -1,6 +1,6 @@
-# reStation v0.2.1 — Operations & Verification Runbook
+# reStation v0.2.2 — Operations & Verification Runbook
 
-- **Version:** `v0.2.1` (`Target Track: 0.2.x`, Backward-Compatible Track: `0.1.x`)
+- **Version:** `v0.2.2` (`Target Track: 0.2.x`, Backward-Compatible Track: `0.1.x`)
 - **Maintained By:** `@tessa` (Clarity & Ops) & `@devv` (Packaging & CLI)
 - **Canonical Production Boundary:** Zero automated edits or unconfirmed writes to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\` or any live installation during tests, builds, or audits.
 
@@ -8,12 +8,12 @@
 
 ## 1. Install Topology (`AllowAutoStart = false`)
 
-`reStation v0.2.1` follows `Foundation v0.4.0` non-admin user-scope suite deployment:
+`reStation v0.2.2` follows `Foundation v0.4.0` non-admin user-scope suite deployment:
 
 ```text
 %LOCALAPPDATA%\Programs\StreamItAll\reEngine\
 ├── toolchain\                          (Optional Full profile offline Ghidra + OpenJDK)
-└── engines\reStation\v0.2.1\
+└── engines\reStation\v0.2.2\
     ├── reStation.exe                   (Single-file launcher -> app\reStation.Player.exe)
     ├── settings.example.json           (Clean-room overlay template staged at track root)
     ├── AGENTS.md                       (Runtime context anchor)
@@ -48,14 +48,14 @@
 ### Compiler (`reStation.Compiler.exe`)
 - `--disc`, `--gamedata-dir`, `--exe-path`, `--decomp-dir`, `--functions-json`, `--out-dir`, `--module-id`, `--serial`, `--title`, `--version`, `--aot-recipe`, `--execution-tier`, `--emit-clean-room` (emits `aot-recipe.json` + clean `module.recomp.json` with zero `*.Generated.dll`), `--out-package`, `--compile-dll`, `--compile-generated-dll`, `--data-dir`, `--thin-shell`, `--help`.
 
-### Installer (`reStation-Setup-v0.2.1-win-x64.exe`)
+### Installer (`reStation-Setup-v0.2.2-win-x64.exe`)
 - `--install-dir <dir>` / `--target-dir <dir>` / `--reengine-dir <dir>` / `--suite-dir <dir>` / `--profile Lightweight|Full` / `--data-dir <dir>` / `--sandbox-root <dir>` / `--migrate-legacy` / `--confirm-legacy-cleanup` / `--uninstall` / `--test-mode` / `--silent` (`--quiet`) / `--headless` / `--dry-run` / `--verify` / `--visible-test`.
 
 ---
 
 ## 3. Config & Settings File Reference
 
-Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.2.1` template persisted to `<dataDir>\settings.json`:
+Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.2.2` template persisted to `<dataDir>\settings.json`:
 - **Suite & Decomp Metadata (`Standard 18`):** `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`.
 - **Audio/Video & Framing:** `backendId` (`"software"` / `"opengl"`), `resolutionScale`, `isWidescreen16By9` (`false` default for `4:3` framing), `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`.
 - **Input (`Schema A` & `Schema B`):** `inputProfileMode`, `controlMode`, `modernActionBindings` (`Dictionary<string, int[<=3]>` via `ModernBindingsJsonConverter` with legacy scalar read support), `modernControllerBindings` (`int[<=3]` codes `2001..2032`), `controllerDpadMode` (`"quickActions"` | `"dpadWalkStickRun"` | `"stickWalkDpadRun"`), `isometricMoveMode` (`"cropGrid"` | `"screenSpace"`), `jsonExtensionData` passthrough.
@@ -71,7 +71,7 @@ Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provid
 
 ## 5. Logs & Crash Bundles (Three-Tier Sweep)
 
-1. **Production (`Read-Only` during Audits):** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.1\logs\` (`runtime.log`, `crashes\`).
+1. **Production (`Read-Only` during Audits):** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.2\logs\` (`runtime.log`, `crashes\`).
 2. **Development (`RS-06`):** `Dev\logs\` (resolved automatically via [`ReStationLogger.TryResolveDevLogsDirectory`](../src/reStation.Core/Core/ReStationLogger.cs#L116-L132) inside source checkouts; excluded by root `.gitignore`).
 3. **Sandbox:** `Sandbox\logs\` (`runtime.log`, `installer.log`, `screenshots\`, `fixtures\`, `crashes\`).
 
@@ -81,8 +81,8 @@ Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`,
 
 ## 6. Backup, Restore & Legacy Migration (`RS-05`)
 
-- **Source Archive (`Archive\`):** Before history rewrites or release tagging, create a compressed backup via `7z.exe a -mx=9 Archive\pre-scrub-v0.2.1.7z ...` (excluding gitignored caches/logs/`bin`/`obj`).
-- **Opt-In Legacy `v0.1.1` Migration:** [`ReStationLegacyMigrationHelper`](../src/reStation.Installer/ReStationLegacyMigrationHelper.cs) detects stranded `v0.1.1` installs (`app\data\` + `logs\crashes\crash_*.json`), copies `settings.json` and preserves `data\rom\` into the `v0.2.1` `data\` directory **only** when `--migrate-legacy` is passed, and deletes non-ROM stranded artifacts **only** after explicit interactive confirmation or `--confirm-legacy-cleanup`.
+- **Source Archive (`Archive\`):** Before history rewrites or release tagging, create a compressed backup via `7z.exe a -mx=9 Archive\pre-scrub-v0.2.2.7z ...` (excluding gitignored caches/logs/`bin`/`obj`).
+- **Opt-In Legacy `v0.1.1` Migration:** [`ReStationLegacyMigrationHelper`](../src/reStation.Installer/ReStationLegacyMigrationHelper.cs) detects stranded `v0.1.1` installs (`app\data\` + `logs\crashes\crash_*.json`), copies `settings.json` and preserves `data\rom\` into the `v0.2.2` `data\` directory **only** when `--migrate-legacy` is passed, and deletes non-ROM stranded artifacts **only** after explicit interactive confirmation or `--confirm-legacy-cleanup`.
 
 ---
 
@@ -92,12 +92,12 @@ Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`,
    ```powershell
    dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore
    ```
-   Verify all `.cs` and `.ps1` files remain `<= 400` lines and **`163/163` (`Wave3Patch021RegressionTests`, `0` warnings, `0` failures, `0` skipped)** pass.
+   Verify all `.cs` and `.ps1` files remain `<= 400` lines and **`166/166` (`Wave3Patch022RegressionTests`, `0` warnings, `0` failures, `0` skipped)** pass.
 2. **Single-Pass Release Build (`Dev\scripts\build_release.ps1`):**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.2.1
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.2.2
    ```
-   Emits `Builds\v0.2.1\` (including `AGENTS.md`, `app\LICENSE`, `engine.manifest.json` with `supportedEngineTracks: ["0.2.x", "0.1.x"]`, zero `data\rom\`), compiles `Releases\v0.2.1\README.md` from `USER_GUIDE.md` via [`sanitize_release_docs.ps1`](../scripts/sanitize_release_docs.ps1), validates zero-PII/4-pillar installer via `reStation-Setup-v0.2.1-win-x64.exe`, publishes immutable `SharedLibs\reStation\v0.2.1\`, and snapshots `Archive\reStation-v0.2.1-src.7z`.
+   Emits `Builds\v0.2.2\` (including `AGENTS.md`, `app\LICENSE`, `engine.manifest.json` with `supportedEngineTracks: ["0.2.x", "0.1.x"]`, zero `data\rom\`), compiles `Releases\v0.2.2\README.md` from `USER_GUIDE.md` via [`sanitize_release_docs.ps1`](../scripts/sanitize_release_docs.ps1), validates zero-PII/4-pillar installer via `reStation-Setup-v0.2.2-win-x64.exe`, publishes immutable `SharedLibs\reStation\v0.2.2\`, and snapshots `Archive\reStation-v0.2.2-src.7z`.
 3. **Public History Hygiene Check:** Before pushing public tags, verify zero `ghidra_psx_ldr`, Sony SDK headers, `*.Generated.dll`, retail ROMs, workstation paths (`<WORKSTATION_ROOT>\`, `<PROGRAMS_ROOT>\`, `<USER_HOME>\`), hostnames, or private IDs exist in tracked source/docs/history (`git-filter-repo`).
 
 ---
@@ -105,12 +105,12 @@ Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`,
 ## 8. Sandbox Verification Recipe (`@inspecter`)
 
 1. Reset/create clean `Sandbox\{app,data,logs}` layout and test installer `--test-mode --silent --profile Lightweight` plus `--uninstall` round-trip.
-2. Run headless xUnit + AOT cold-to-warm compile test in `Sandbox\data\cache\` and clean-room `.decomp` provider D0–D5 dry/offline check.
+2. Run headless xUnit + AOT cold-to-warm compile test in `Sandbox\data\cache\` (including recipe-ordered `<container>#<slice>` overlays and `generatedCacheAssemblyName` PE assembly verification) and clean-room `.decomp` provider D0–D5 dry/offline check.
 3. Run single-instance foreground topmost GUI smoke + sequential `--input-script`:
    ```powershell
-   Builds\v0.2.1\reStation.exe --visible-test --test-mode --data-dir Sandbox\data --log-dir Sandbox\logs
+   Builds\v0.2.2\reStation.exe --visible-test --test-mode --data-dir Sandbox\data --log-dir Sandbox\logs
    ```
-   Capture and visually inspect screenshots (`read_file`): `4:3` default frame, `1060x34` `F3` HUD strip, `F1` drawer tabs (`Video`, `Controls` mode pills, 5-column scrollable `Keybinds`), live `Software <-> OpenGL 3.3` toggle/fallback banner, and `F5`/`F9` quick-save/load.
+   Capture and visually inspect screenshots (`read_file`): `4:3` default frame, `1060x34` `F3` HUD strip, `F1` drawer tabs (`Video`, `Controls` mode pills, widened `800px` 5-column scrollable `Keybinds` grid with `"Gamepad"` header and Numpad/Nav labels), live `Software <-> OpenGL 3.3` toggle/fallback banner, and `F5`/`F9` quick-save/load.
 4. Sweep all 3 log roots (`%LOCALAPPDATA%\Programs\...\logs\`, `Dev\logs\`, `Sandbox\logs\`) with preceding 20–50 lines and write timestamped report to `Dev\docs\reports\`.
 
 ---

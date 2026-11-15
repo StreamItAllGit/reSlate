@@ -72,7 +72,7 @@ public static class ExeScanHelpers
     {
         uint textAddr = exe.Header.TextAddr;
         uint textEnd = exe.Header.TextEnd;
-        HashSet<uint> rdataTargets = ScanJumpTargets(exe.Bytes, textAddr, textEnd);
+        HashSet<uint> rdataTargets = ScanJumpTargets(exe.Bytes, textAddr, textEnd, exe.IsOverlay ? 0 : 0x800);
         List<(uint Addr, uint Size)> rawList = functionsJsonPath is not null
             ? LoadFunctionsJson(functionsJsonPath, textAddr, textEnd)
             : new List<(uint Addr, uint Size)>();

@@ -5,8 +5,10 @@
 // @owner: devv-compiler (T5)
 
 using System.Buffers.Binary;
+using System.Security.Cryptography;
 using System.Text;
 using Foundation.Retro;
+using reStation.Contracts;
 
 namespace reStation.Compiler;
 
@@ -22,7 +24,7 @@ public readonly record struct PsxExeHeader(
     public uint TextEnd => TextAddr + TextSize;
 }
 
-/// <summary>One PS-X executable discovered for lifting.</summary>
+/// <summary>One PS-X executable or overlay slice discovered for lifting.</summary>
 public sealed record DiscoveredExe(
     int ExeId,
     string ExeName,
@@ -30,7 +32,11 @@ public sealed record DiscoveredExe(
     string FolderName,
     string ClassName,
     byte[] Bytes,
-    PsxExeHeader Header);
+    PsxExeHeader Header)
+{
+    public bool IsOverlay { get; init; }
+    public string ContentSha256Hex { get; init; } = string.Empty;
+}
 
 /// <summary>Discovers and validates PS-X executables from single EXE files, gamedata folders, or optical disc containers.</summary>
 public static class DiscExeLoader
@@ -62,8 +68,8 @@ public static class DiscExeLoader
         return true;
     }
 
-    /// <summary>Loads all PS-X executables matching the compiler options.</summary>
-    internal static List<DiscoveredExe> Discover(RecompCompilerOptions options)
+    /// <summary>Loads all PS-X executables (and recipe-declared overlays when <paramref name="inputRecipe"/> is provided) matching <paramref name="options"/>.</summary>
+    internal static List<DiscoveredExe> Discover(RecompCompilerOptions options, AotRecipeSpec? inputRecipe = null)
     {
         if (!string.IsNullOrWhiteSpace(options.ExePath))
         {
@@ -75,14 +81,22 @@ public static class DiscExeLoader
                 ? Path.GetRelativePath(Path.GetFullPath(options.GameDataDir), exePath).Replace('\\', '/')
                 : Path.GetFileName(exePath);
             string stem = ToPascalIdentifier(Path.GetFileNameWithoutExtension(exePath));
-            return new List<DiscoveredExe> { new(0, Path.GetFileName(exePath), rel, $"{stem}Exe", $"{stem}Module", bytes, hdr) };
+            string sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            return new List<DiscoveredExe>
+            {
+                new(0, Path.GetFileName(exePath), rel, $"{stem}Exe", $"{stem}Module", bytes, hdr)
+                {
+                    IsOverlay = false,
+                    ContentSha256Hex = sha
+                }
+            };
         }
 
         if (!string.IsNullOrWhiteSpace(options.GameDataDir))
-            return DiscoverFromDirectory(Path.GetFullPath(options.GameDataDir), options.SerialNumber);
+            return DiscoverFromDirectory(Path.GetFullPath(options.GameDataDir), options.SerialNumber, inputRecipe);
 
         if (!string.IsNullOrWhiteSpace(options.DiscPath))
-            return DiscoverFromDisc(Path.GetFullPath(options.DiscPath), options.SerialNumber);
+            return DiscoverFromDisc(Path.GetFullPath(options.DiscPath), options.SerialNumber, inputRecipe);
 
         throw new InvalidOperationException("No input media (--disc, --gamedata-dir, or --exe-path) specified.");
     }
@@ -112,14 +126,17 @@ public static class DiscExeLoader
         throw new FileNotFoundException($"PS-X executable not found: '{exePath}'.", exePath);
     }
 
-    private static List<DiscoveredExe> DiscoverFromDirectory(string rootDir, string serial)
+    private static List<DiscoveredExe> DiscoverFromDirectory(string rootDir, string serial, AotRecipeSpec? inputRecipe = null)
     {
         string? bootRel = null;
-        string sysCnf = Directory.EnumerateFiles(rootDir, "SYSTEM.CNF", SearchOption.AllDirectories).FirstOrDefault() ?? string.Empty;
-        if (File.Exists(sysCnf)) bootRel = ParseSystemCnfBoot(File.ReadAllText(sysCnf, Encoding.ASCII));
+        var allFiles = Directory.EnumerateFiles(rootDir, "*", SearchOption.AllDirectories)
+            .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        string? sysCnf = allFiles.FirstOrDefault(p => string.Equals(Path.GetFileName(p), "SYSTEM.CNF", StringComparison.OrdinalIgnoreCase));
+        if (sysCnf is not null) bootRel = ParseSystemCnfBoot(File.ReadAllText(sysCnf, Encoding.ASCII));
 
         var raw = new List<(string Rel, byte[] Bytes, PsxExeHeader Header)>();
-        foreach (string file in Directory.EnumerateFiles(rootDir, "*", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+        foreach (string file in allFiles)
         {
             long len = new FileInfo(file).Length;
             if (len < PsxHeaderSize + 4 || len > MaxCandidateExeBytes) continue;
@@ -128,14 +145,17 @@ public static class DiscExeLoader
             if (TryParseHeader(bytes, out PsxExeHeader hdr))
                 raw.Add((Path.GetRelativePath(rootDir, file).Replace('\\', '/'), bytes, hdr));
         }
+
+        if (inputRecipe?.Executables is { Count: > 0 })
+            return DiscOverlaySliceResolver.Resolve(inputRecipe, raw, rel => ReadDirectoryContainer(rootDir, allFiles, rel), rootDir);
         return OrderAndBuild(raw, bootRel, serial, rootDir);
     }
 
-    private static List<DiscoveredExe> DiscoverFromDisc(string discPath, string serial)
+    private static List<DiscoveredExe> DiscoverFromDisc(string discPath, string serial, AotRecipeSpec? inputRecipe = null)
     {
         string ext = Path.GetExtension(discPath);
         if (ext.Equals(".iso", StringComparison.OrdinalIgnoreCase) || ext.Equals(".bin", StringComparison.OrdinalIgnoreCase))
-            return ReadIsoExecutables(discPath, serial);
+            return ReadIsoExecutables(discPath, serial, inputRecipe);
 
         string tempDir = Path.Combine(Path.GetTempPath(), $"restation-comp-{Guid.NewGuid():N}");
         try
@@ -144,7 +164,7 @@ public static class DiscExeLoader
             MediaExtractionResult res = MediaContainerExtractor.ExtractOrVerifyAsync(discPath, tempDir, opts).GetAwaiter().GetResult();
             if (!res.Success || string.IsNullOrWhiteSpace(res.PrimaryMediaPath))
                 throw new InvalidDataException($"Failed to inspect disc '{discPath}': {res.DiagnosticMessage}");
-            return ReadIsoExecutables(res.PrimaryMediaPath, serial);
+            return ReadIsoExecutables(res.PrimaryMediaPath, serial, inputRecipe);
         }
         finally
         {
@@ -159,7 +179,7 @@ public static class DiscExeLoader
         }
     }
 
-    private static List<DiscoveredExe> ReadIsoExecutables(string imagePath, string serial)
+    private static List<DiscoveredExe> ReadIsoExecutables(string imagePath, string serial, AotRecipeSpec? inputRecipe = null)
     {
         using var fs = new FileStream(imagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         Span<byte> head = stackalloc byte[32];
@@ -192,6 +212,9 @@ public static class DiscExeLoader
             byte[] bytes = ReadIsoBytes(fs, stride, userOff, f.Lba, f.Len);
             if (TryParseHeader(bytes, out PsxExeHeader hdr)) raw.Add((f.Rel, bytes, hdr));
         }
+
+        if (inputRecipe?.Executables is { Count: > 0 })
+            return DiscOverlaySliceResolver.Resolve(inputRecipe, raw, rel => ReadIsoContainer(fs, stride, userOff, files, rel), imagePath);
         return OrderAndBuild(raw, bootRel, serial, imagePath);
     }
 
@@ -217,13 +240,39 @@ public static class DiscExeLoader
         for (int i = 0; i < raw.Count; i++)
         {
             string name = Path.GetFileName(raw[i].Rel);
-            string baseStem = ToPascalIdentifier(Path.GetFileNameWithoutExtension(name));
-            string folder = $"{baseStem}Exe";
-            if (!usedFolders.Add(folder)) folder = $"{baseStem}_{i}Exe";
-            string cls = folder[..^3] + "Module";
-            result.Add(new DiscoveredExe(i, name, raw[i].Rel, folder, cls, raw[i].Bytes, raw[i].Header));
+            (string folder, string cls) = DiscOverlaySliceResolver.AllocateUniqueNames(Path.GetFileNameWithoutExtension(name), i, usedFolders, preferIndexSuffix: false);
+            string sha = Convert.ToHexString(SHA256.HashData(raw[i].Bytes)).ToLowerInvariant();
+            result.Add(new DiscoveredExe(i, name, raw[i].Rel, folder, cls, raw[i].Bytes, raw[i].Header)
+            {
+                IsOverlay = false,
+                ContentSha256Hex = sha
+            });
         }
         return result;
+    }
+
+    private static byte[]? ReadDirectoryContainer(string rootDir, List<string> allFiles, string containerRel)
+    {
+        string normRel = containerRel.Replace('\\', '/').TrimStart('/');
+        string? hit = allFiles.FirstOrDefault(f => string.Equals(Path.GetRelativePath(rootDir, f).Replace('\\', '/'), normRel, StringComparison.OrdinalIgnoreCase));
+        if (hit is null)
+        {
+            string fileName = Path.GetFileName(normRel);
+            hit = allFiles.FirstOrDefault(f => string.Equals(Path.GetFileName(f), fileName, StringComparison.OrdinalIgnoreCase));
+        }
+        return hit is null ? null : File.ReadAllBytes(hit);
+    }
+
+    private static byte[]? ReadIsoContainer(FileStream fs, int stride, int userOff, List<(string Rel, uint Lba, uint Len)> files, string containerRel)
+    {
+        string normRel = containerRel.Replace('\\', '/').TrimStart('/');
+        int idx = files.FindIndex(f => string.Equals(f.Rel, normRel, StringComparison.OrdinalIgnoreCase));
+        if (idx < 0)
+        {
+            string fileName = Path.GetFileName(normRel);
+            idx = files.FindIndex(f => string.Equals(Path.GetFileName(f.Rel), fileName, StringComparison.OrdinalIgnoreCase));
+        }
+        return idx < 0 ? null : ReadIsoBytes(fs, stride, userOff, files[idx].Lba, files[idx].Len);
     }
 
     private static void WalkIsoDir(FileStream fs, int stride, int userOff, string prefix, uint lba, uint len, List<(string Rel, uint Lba, uint Len)> files)
@@ -301,5 +350,5 @@ public static class DiscExeLoader
         return fs.Read(head) == 8 && head.SequenceEqual(PsxMagic);
     }
 
-    private static uint CanonicalRam(uint addr) => 0x80000000U | (addr & 0x1FFFFFFFU);
+    internal static uint CanonicalRam(uint addr) => 0x80000000U | (addr & 0x1FFFFFFFU);
 }
