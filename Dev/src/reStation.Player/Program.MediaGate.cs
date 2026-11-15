@@ -9,6 +9,7 @@ using Foundation.Retro;
 using reEngine.Core.Manifests;
 using reStation.Contracts;
 using reStation.Core;
+using reStation.Core.Aot;
 using reStation.Core.Cpu;
 using reStation.Core.DiscIngestion;
 using reStation.Core.Input;
@@ -300,5 +301,47 @@ internal static unsafe partial class Program
         settings.LastDiscPath = Path.GetFileName(discPath);
         settings.Save(sandbox.ConfigFilePath);
         return true;
+    }
+
+    private static IRecompGameModule LoadGameModuleWithUiPump(
+        ReStationModuleManifest manifest,
+        string moduleDir,
+        LocalAotLoadOptions aotOptions,
+        HostVideoSurface video,
+        bool runHeadless,
+        out ModuleAssemblyLoader? moduleAlc,
+        out bool quitRequested)
+    {
+        quitRequested = false;
+        if (runHeadless || !video.HasWindow)
+            return ModuleAssemblyLoader.LoadGameModule(manifest, moduleDir, aotOptions, out moduleAlc);
+
+        ModuleAssemblyLoader? loadedAlc = null;
+        Task<IRecompGameModule> loadTask = Task.Run(() =>
+        {
+            IRecompGameModule mod = ModuleAssemblyLoader.LoadGameModule(manifest, moduleDir, aotOptions, out ModuleAssemblyLoader alc);
+            loadedAlc = alc;
+            return mod;
+        });
+
+        var statusView = new FirstRunMediaGateView();
+        byte* ev = stackalloc byte[128];
+        int tick = 0;
+        while (!loadTask.IsCompleted)
+        {
+            while (video.SdlAvailable && Sdl3Native.SDL_PollEvent(ev) != 0)
+            {
+                if (Sdl3Native.EventType(ev) == Sdl3Native.EventQuit)
+                    quitRequested = true;
+            }
+            string dots = new string('.', (tick++ / 12) % 4);
+            statusView.RenderStatus(manifest, "Preparing Native Module", $"Verifying media and local AOT cache{dots}");
+            video.PresentRgba(FirstRunMediaGateView.CanvasWidth, FirstRunMediaGateView.CanvasHeight, statusView.Pixels);
+            Thread.Sleep(25);
+        }
+
+        IRecompGameModule result = loadTask.GetAwaiter().GetResult();
+        moduleAlc = loadedAlc;
+        return result;
     }
 }

@@ -120,6 +120,18 @@ Copy-Item (Join-Path $launcherStage "reStation.exe") (Join-Path $stageDir "reSta
 Remove-Item -LiteralPath $launcherStage -Recurse -Force -ErrorAction SilentlyContinue
 
 Write-Utf8Text (Join-Path $stageApp "version.txt") "$Version"
+$stagedEngineManifest = ([ordered]@{
+    schemaVersion         = 1
+    engineId              = "reStation"
+    appId                 = "restation"
+    displayName           = "reStation"
+    version               = $Version
+    compatibleEngineTrack = "0.2.x"
+    supportedEngineTracks = @("0.2.x", "0.1.x")
+    platformId            = "ps1"
+} | ConvertTo-Json -Depth 4) + "`r`n"
+Write-Utf8Text (Join-Path $stageDir "engine.manifest.json") $stagedEngineManifest
+Write-Utf8Text (Join-Path $stageApp "engine.manifest.json") $stagedEngineManifest
 $rootLicense = Join-Path $root "LICENSE"
 if (-not (Test-Path -LiteralPath $rootLicense)) { throw "Root LICENSE file not found at $rootLicense" }
 Copy-Item -LiteralPath $rootLicense -Destination (Join-Path $stageApp "LICENSE") -Force

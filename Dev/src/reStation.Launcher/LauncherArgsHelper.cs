@@ -10,7 +10,7 @@ namespace reStation.Launcher;
 
 internal static class LauncherArgsHelper
 {
-    internal const string DefaultVersion = "0.2.5";
+    internal const string DefaultVersion = "0.2.6";
     internal const string CanonicalEngineFolder = "v" + DefaultVersion;
 
     internal static readonly string[] SyncWaitFlags =

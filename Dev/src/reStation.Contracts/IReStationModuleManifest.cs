@@ -19,7 +19,7 @@ public static class ReStationEngineInfo
     /// <summary>reEngine side-by-side engine identifier.</summary>
     public const string EngineId = "reStation";
     /// <summary>Current engine SemVer.</summary>
-    public const string Version = "0.2.5";
+    public const string Version = "0.2.6";
     /// <summary>Compatible engine track advertised to reEngine.</summary>
     public const string CompatibleEngineTrack = "0.2.x";
     /// <summary>Foundation.Retro platform identifier.</summary>

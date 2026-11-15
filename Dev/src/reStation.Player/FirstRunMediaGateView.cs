@@ -87,6 +87,22 @@ internal sealed class FirstRunMediaGateView
         return res;
     }
 
+    public void RenderStatus(IReStationModuleManifest? manifest, string headline, string detail)
+    {
+        _canvas.Clear(UiPaint.Background);
+        _canvas.FillRect(0, 0, CanvasWidth, 68, UiPaint.Panel);
+        _canvas.FillRect(0, 66, CanvasWidth, 2, UiPaint.Accent);
+
+        UiPaint.Text(_canvas, 36, 20, $"reStation v{ReStationEngineInfo.Version}", UiPaint.AccentText, 3);
+        string sub = manifest is null ? "PS1 Static Recompilation Engine" : $"{manifest.DisplayName} ({manifest.SerialNumber})";
+        UiPaint.Text(_canvas, CanvasWidth - UiPaint.TextWidth(sub) - 36, 26, sub, UiPaint.Muted);
+
+        UiPaint.BorderRect(_canvas, new UiRect(180, 220, 920, 260), new RgbaColor(0x13, 0x16, 0x1E), UiPaint.Border);
+        UiPaint.TextCentered(_canvas, new UiRect(210, 276, 860, 42), headline, UiPaint.TextPrimary, 3);
+        UiPaint.TextCentered(_canvas, new UiRect(210, 344, 860, 32), Truncate(detail, 76), UiPaint.AccentText);
+        UiPaint.TextCentered(_canvas, new UiRect(210, 392, 860, 28), "First-run local AOT compilation is cached for instant future launches.", UiPaint.Muted);
+    }
+
     private static string Truncate(string s, int max) =>
         string.IsNullOrEmpty(s) ? string.Empty : s.Length <= max ? s : s[..(max - 3)] + "...";
 }

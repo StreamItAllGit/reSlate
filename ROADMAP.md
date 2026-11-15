@@ -1,6 +1,6 @@
 # reStation — Roadmap & Milestones
 
-**Current Active Version:** `0.2.5` *(pre-1.0 `0.2.x` track)*  
+**Current Active Version:** `0.2.6` *(pre-1.0 `0.2.x` track)*  
 **Lifecycle State:** [`active.state`](active.state)  
 **Last Updated:** `2026-11-15`
 
@@ -14,7 +14,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 
 ---
 
-## 2. Active Track (`0.2.5` Active Release $\rightarrow$ Next Minor: `v0.3.0`)
+## 2. Active Track (`0.2.6` Active Release $\rightarrow$ Next Minor: `v0.3.0`)
 - [x] Tier A 6-folder scaffold, `active.state`, `AGENTS.md`, Root Quartet, Manual Shelf, and original `.svg`/`.png`/`.ico` logo bundle (`v0.1.0`).
 - [x] Consume `Foundation` (`v0.3.1` -> `v0.4.0`) and `reEngine` (`v0.1.0` -> `v0.2.0`) SDK binaries (`MediaContainerExtractor`, `HighResFramePacer`, `AudioRingBuffer`, `WavCaptureWriter`, `RgbaPngWriter`, `IVisibleTestHarness`, `Foundation.Installer`, `AotCacheManager`, `IDecompPlatformProvider`).
 - [x] Reusable R3000A CPU, COP0, GTE, MDEC, 2x CD-ROM (`150 sectors/s`), ADSR SPU/XA mixer, `reStation.Compiler`, `.recomp` ABI, `OpenGL 3.3 Core` (`ArrayPool` FIFO queue) <-> `SoftwareCpu` (`SDL_Texture` composite) live frame-boundary swap, `"RST1"` + `"RSTX"` quick-saves, and native ZIP `.recomp` cartridges (`v0.1.0`–`v0.2.0`).
@@ -22,7 +22,8 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 - [x] **User-Scope Suite Installer, Runtime Stability (`RS-07`–`RS-16`) & Multi-Bind Input (`v0.2.0`, `v0.2.1`–`v0.2.2` `PATCH+1`):** Deployed per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.2\` (`--profile Lightweight|Full`, `--reengine-dir`, opt-in `--migrate-legacy`, `AllowAutoStart = false`), fixed mid-stack `F9` unwind, finite joypad `/ACK` + polled timer sync, compact `1060x34` `F3` HUD strip, `4:3` default + `IRecompWidescreenProvider`, `float` mouse deltas, and `Schema A`/`B` 3-slot KBM + `2001..2032` controller bindings (`161/161` baseline tests in `v0.2.0`, `163/163` in `v0.2.1` with `MipsLifter` `.rodata` + `RecompSettings.Clamp()` fixes, and `166/166` passing unit tests under `/warnaserror` in `v0.2.2` with USB HID Numpad `Num/`..`Num.` / `Ins` / `Home` / `End` / `RAlt` labels and widened `800px` `actW = 304 px` Keybinds Modern Grid with `"Gamepad"` header; `@dean` Gate 2 `PASS`, signed installer/SDK packaging + `audit_installer.ps1` `0` findings, and `@inspecter` Sandbox QA `PASS` via [`0.2.2.2026-11-15.-.sandbox-verification.md`](Dev/docs/reports/archive/0.2.2.2026-11-15.-.sandbox-verification.md)).
 - [x] **Runtime/Launcher `--jit-bringup` `ExitCode = 5` Preservation (`v0.2.3` `PATCH+1`):** Added `Program.ResolveLoopExitCode` + `LauncherArgsHelper.SyncWaitFlags` (`167/167` passing `/warnaserror` Release tests); cleared `@dean` Gate 2 `PASS` and packaged via `build_release.ps1 -Version 0.2.3` (`audit_installer.ps1` `0` findings) to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.3\` + `SharedLibs\reStation\v0.2.3\`.
 - [x] **Setup Wizard Auto-Sort & `reEngine.Core` `v0.2.1` Sync (`v0.2.4` `PATCH+1`):** Added `ReStationWizardPathNormalizer` + `InstallerWizardAutoSortTests` (`170/170` passing `/warnaserror` Release tests) so generic parent folder selections sort into `<parent>\reEngine\engines\reStation\v0.2.4\` without altering explicit CLI `--install-dir` paths, syncing `reEngine.Core` `v0.2.1`.
-- [ ] **O(1)-Stack CPU Tail-Jump Trampoline & Keybinds `F3` HUD Strip Clamp (`v0.2.5` `PATCH+1` — In Gate 2 / Packaging):** Added iterative tail-jump trampoline dispatch across `PsxCpu`, `PsxCpu.Scheduling`, and `PsxInterpreter` (`0xC00000FD` stack overflow fix), clamped `UiOverlayPresenter` `Keybinds` HUD strip `maxW = 452` (`<= 466` px), and added `CpuTailJumpTrampolineTests` (`173/173` passing `/warnaserror` Release tests); awaiting `@dean` Gate 2 `PASS`, `build_release.ps1 -Version 0.2.5` packaging, and live verification.
+- [x] **O(1)-Stack CPU Tail-Jump Trampoline & Keybinds `F3` HUD Strip Clamp (`v0.2.5` `PATCH+1`):** Added iterative tail-jump trampoline dispatch across `PsxCpu`, `PsxCpu.Scheduling`, and `PsxInterpreter` (`0xC00000FD` stack overflow fix), clamped `UiOverlayPresenter` `Keybinds` HUD strip `maxW = 452` (`<= 466` px), and added `CpuTailJumpTrampolineTests` (`173/173` passing `/warnaserror` Release tests).
+- [x] **Boot-Crash & Cold-AOT Hotfix (`v0.2.6` `PATCH+1`):** Fixed post-ingestion `data\gamedata` (`\app` fallback) media lookup in `PlayerMediaResolver`, intermediate 2x CD-ROM sector wakeups inside `PsxCpu.Scheduling.TryAdvanceToNextVBlank()`, `VBCSCompiler` pipe isolation (`--disable-build-servers -p:UseSharedCompilation=false -nodeReuse:false`), live SDL splash UI event pumping during first-run AOT compile (`Program.MediaGate.LoadGameModuleWithUiPump`), `aotWithJitFallback` entry fallback (`ModuleAssemblyLoader.Fallback`), and portable `engine.manifest.json` staging (`176/176` passing `/warnaserror` Release tests via `Hotfix026RegressionTests`).
 
 ---
 
@@ -30,7 +31,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 
 ```mermaid
 flowchart LR
-    V01["v0.1.0..0.1.5 (Shipped)\nModular PS1 + Pad/SPU + Overlays"] --> V02["v0.2.0..0.2.5 (Active)\n.decomp + Local AOT + Overlays + Keybinds"]
+    V01["v0.1.0..0.1.5 (Shipped)\nModular PS1 + Pad/SPU + Overlays"] --> V02["v0.2.0..0.2.6 (Active)\n.decomp + Local AOT + Overlays + Keybinds"]
     V02 --> V03["v0.3.0\nVulkan + ParallelCpu + Overrides SDK"]
     V03 --> V04["v0.4.0\nStatic Overlay Promoter + PS1 Essentials"]
     V04 --> V10["v1.0.0 (GOLD win-x64)\nTri-Backend + 2-Title Cert"]

@@ -30,7 +30,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.False(ReStationInstallerTheme.AllowAutoStart);
         Assert.False(reStation.Installer.Program.AllowAutoStart);
         Assert.Equal("lightweight", ReStationInstallerTheme.DefaultInstallProfile);
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reStation\\v0.2.5", ReStationInstallerTheme.UmbrellaSubpath);
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reStation\\v0.2.6", ReStationInstallerTheme.UmbrellaSubpath);
 
         InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
         Assert.False(theme.AllowAutoStart);
@@ -103,13 +103,13 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
     public void LauncherArgsHelper_ResolvesPeerReEngineAndSuiteDirs_AndZeroPiiDefaultPath()
     {
         string canonical = LauncherArgsHelper.ResolveCanonicalDefaultEngineDir();
-        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reStation", "v0.2.5"), canonical, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reStation", "v0.2.6"), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"D:\Programs", canonical, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("%LOCALAPPDATA%", ReStationInstallerTheme.CreateSecondaryPathPicker().Placeholder, StringComparison.Ordinal);
 
         string peerRouter = Path.Combine(_tempRoot, "suiteA", "reEngine");
-        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reStation", "v0.2.5", "app", "reStation.Player.exe");
+        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reStation", "v0.2.6", "app", "reStation.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(peerPlayer)!);
         File.WriteAllText(peerPlayer, string.Empty);
 
@@ -122,7 +122,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.Equal(Path.GetFullPath(peerPlayer), Path.GetFullPath(resolvedPeer));
 
         string portableSuite = Path.Combine(_tempRoot, "portable");
-        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.2.5", "app", "reStation.Player.exe");
+        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.2.6", "app", "reStation.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(portablePlayer)!);
         File.WriteAllText(portablePlayer, string.Empty);
 

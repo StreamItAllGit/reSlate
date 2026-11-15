@@ -110,8 +110,11 @@ public static class ModuleManifestEmitter
             psi.ArgumentList.Add("-c");
             psi.ArgumentList.Add("Release");
             psi.ArgumentList.Add("--nologo");
+            psi.ArgumentList.Add("--disable-build-servers");
             psi.ArgumentList.Add("-o");
             psi.ArgumentList.Add(tempOut);
+            psi.ArgumentList.Add("-p:UseSharedCompilation=false");
+            psi.ArgumentList.Add("-nodeReuse:false");
             psi.ArgumentList.Add($"-p:BaseIntermediateOutputPath={tempObj}");
             psi.ArgumentList.Add($"-p:ReStationLibDir={libDir}");
 

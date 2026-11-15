@@ -71,8 +71,19 @@ public sealed partial class PsxCpu
     {
         if (ShouldUnwind || ExitRequested || InSubTickRender || (TimersAndDma.InterruptMask & 1) == 0)
             return false;
-        TotalCycles = Math.Max(TotalCycles + 64, Gpu.NextVBlankCycle);
-        PollEvents();
+        long targetVBlank = Math.Max(TotalCycles + 64, Gpu.NextVBlankCycle);
+        int guard = 0;
+        while (TotalCycles < targetVBlank && !ShouldUnwind && !ExitRequested && guard++ < 1024)
+        {
+            long nextWake = Math.Clamp(ComputeNextWakeCycle(), TotalCycles + 64, targetVBlank);
+            TotalCycles = nextWake;
+            PollEvents();
+        }
+        if (TotalCycles < targetVBlank && !ShouldUnwind && !ExitRequested)
+        {
+            TotalCycles = targetVBlank;
+            PollEvents();
+        }
         return true;
     }
 

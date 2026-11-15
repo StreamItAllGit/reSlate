@@ -163,9 +163,16 @@ internal static partial class Program
         if (manifest is not null && moduleDir is not null && !string.IsNullOrWhiteSpace(manifest.EntryAssembly))
         {
             LocalAotLoadOptions aotOptions = BuildLocalAotLoadOptions(options, sandbox, settings);
-            gameModule = ModuleAssemblyLoader.LoadGameModule(manifest, moduleDir, aotOptions, out moduleAlc);
+            gameModule = LoadGameModuleWithUiPump(manifest, moduleDir, aotOptions, video, runHeadless, out moduleAlc, out bool quitDuringLoad);
+            if (quitDuringLoad)
+            {
+                GC.KeepAlive(moduleAlc);
+                return 0;
+            }
+            if (!string.IsNullOrWhiteSpace(moduleAlc?.AotFallbackWarning))
+                logger.Warn("AOT", moduleAlc.AotFallbackWarning);
             cpu.WidescreenProvider = gameModule as IRecompWidescreenProvider;
-            logger.Info("MODULE", $"Loaded '{manifest.ModuleId}' tier={moduleAlc.ResolvedExecutionTierMode} localAot={moduleAlc.LoadedFromLocalAotCache} cacheHit={moduleAlc.AotCacheHit} zeroRwx={moduleAlc.ForceZeroRwx} bringup={moduleAlc.JitBringupEnabled}.");
+            logger.Info("MODULE", $"Loaded '{manifest.ModuleId}' tier={moduleAlc!.ResolvedExecutionTierMode} localAot={moduleAlc.LoadedFromLocalAotCache} cacheHit={moduleAlc.AotCacheHit} zeroRwx={moduleAlc.ForceZeroRwx} bringup={moduleAlc.JitBringupEnabled}.");
             gameModule.InitializeAsync(host, CancellationToken.None).GetAwaiter().GetResult();
         }
 

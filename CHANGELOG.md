@@ -4,6 +4,16 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-15
+### Fixed
+- **Post-Ingestion Disc & `gamedata` Media Discovery (`PlayerMediaResolver.cs`):** Added `.chd`, `.7z`, and `.zip` optical/container extensions to `DiscExtensions`, expanded `BuildCandidateRomRoots` to search `data\gamedata` and `data\gamedata\disc` alongside `rom` / `data\rom` (including `\app` parent resolution), and preserved exact SHA-256 verification so second-stage boot after initial disc ingestion finds extracted game files cleanly instead of failing on empty `data\rom\`.
+- **2x CD-ROM Wakeup Preservation During VBlank Sync (`TryAdvanceToNextVBlank` — `PsxCpu.Scheduling.cs`):** Replaced the single leap to `Gpu.NextVBlankCycle` with an iterative wake loop stepping across intermediate `ComputeNextWakeCycle()` events (`PsxCdRom` sector ticks and DMA/timer interrupts) up to the VBlank target so `OPEN.EXE` FMV streaming and CD-ROM state transitions advance during VSync waits.
+- **Cold AOT Pipe Isolation & Live SDL Event Pump (`ModuleManifestEmitter.cs`, `Program.MediaGate.cs`, `ModuleAssemblyLoader.Fallback.cs`):** Passed `--disable-build-servers`, `-p:UseSharedCompilation=false`, and `-nodeReuse:false` to child `dotnet build` runs so `VBCSCompiler` never stalls inherited pipes; added `LoadGameModuleWithUiPump` + `FirstRunMediaGateView.RenderStatus` to pump SDL events during cold local AOT compilation so the splash window stays responsive; and added collectible entry-assembly fallback in `aotWithJitFallback` mode when the external AOT compiler is unavailable while preserving fail-closed errors when verified media is missing.
+- **Portable `engine.manifest.json` Staging (`build_release.ps1`):** Staged `engine.manifest.json` at both track root and `app\` in portable builds alongside `app\version.txt` so child game launchers can strictly validate side-by-side runtime versions.
+
+### Added
+- **`v0.2.6` Regression Suite (`176/176` Passing Under `/warnaserror` — `Hotfix026RegressionTests.cs`):** Added 3 regression tests verifying post-ingestion `data\gamedata` media resolution (both `\app` root and explicit `--data-dir`), intermediate 2x CD-ROM sector wakeups inside `TryAdvanceToNextVBlank`, and `ModuleAssemblyLoader` entry-assembly fallback in `aotWithJitFallback` mode when the external compiler is absent, and updated version pins to `0.2.6`.
+
 ## [0.2.5] - 2026-11-15
 ### Fixed
 - **O(1)-Stack CPU Tail-Jump Trampoline (`PsxCpu.cs`, `PsxCpu.Scheduling.cs`, `PsxInterpreter.cs`):** Replaced synchronous tail-jump recursion in `PsxCpu.JumpIndirect` -> `Call` with an iterative trampoline loop (`TryExecuteCompiledModule` + `PsxInterpreter.ExecuteUntilReturnOrCompiled`), eliminating `0xC00000FD` (`STATUS_STACK_OVERFLOW`) across mutual/indirect tail-jump chains while preserving `ISubTickFrameHook.OnAfterCall`, BIOS vector dispatch (`0xA0`/`0xB0`/`0xC0`), and `RunSlice` unwind isolation without breaking public contracts.

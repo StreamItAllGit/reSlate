@@ -15,7 +15,7 @@ using reStation.Core.Aot;
 
 namespace reStation.Player;
 
-public sealed class ModuleAssemblyLoader : AssemblyLoadContext
+public sealed partial class ModuleAssemblyLoader : AssemblyLoadContext
 {
     /// <summary>Assemblies always resolved from the engine (default) context so interfaces stay identical across the boundary.</summary>
     public static readonly IReadOnlySet<string> SharedAssemblyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -164,18 +164,20 @@ public sealed class ModuleAssemblyLoader : AssemblyLoadContext
             ArchiveContainsSimpleDll(packageArchivePath, entrySimple);
         string? existingDiskEntry = ResolveDiskEntryAssemblyPath(manifest.EntryAssembly, manifestDirectory);
         bool expectsGeneratedEntry = manifest.EntryAssembly.EndsWith(".Generated.dll", StringComparison.OrdinalIgnoreCase);
+        bool canLoadNonGeneratedEntry = !expectsGeneratedEntry && (entryExistsInArchive || existingDiskEntry is not null);
+        string resolvedTier = ResolveTierMode(concreteManifest, aotRecipe, aotOptions);
 
         LocalAotEnsureResult? aotResult = null;
+        string? aotFallbackWarning = null;
         if (aotRecipe is not null &&
-            (expectsGeneratedEntry ||
-             (!entryExistsInArchive && existingDiskEntry is null) ||
+            (!canLoadNonGeneratedEntry ||
              aotOptions?.PreloadRomDir is not null ||
              aotOptions?.DataDir is not null))
         {
-            PlayerLocalAotCompiler compiler = aotCompiler ?? new PlayerLocalAotCompiler();
             ReStationModuleManifest manifestForAot = concreteManifest ?? WrapManifest(manifest, aotRecipe);
-            aotResult = compiler.EnsureCompiledInCacheAsync(
-                manifestForAot, aotRecipe, manifestDirectory, aotOptions, packageArchivePath).GetAwaiter().GetResult();
+            aotResult = TryEnsureOrFallbackAot(
+                manifestForAot, aotRecipe, manifestDirectory, aotOptions, packageArchivePath,
+                resolvedTier, canLoadNonGeneratedEntry, aotCompiler, out aotFallbackWarning);
         }
 
         IReadOnlySet<string>? companionAliases = aotResult is null
@@ -220,9 +222,10 @@ public sealed class ModuleAssemblyLoader : AssemblyLoadContext
         context.CachedGeneratedAssemblyPath = aotResult?.AssemblyPath;
         context.CacheVersionSegment = aotResult?.CacheVersionSegment;
         context.VerifiedRomSha256Hex = aotResult?.RomSha256Hex;
-        context.ResolvedExecutionTierMode = ResolveTierMode(concreteManifest, aotRecipe, aotOptions);
+        context.ResolvedExecutionTierMode = resolvedTier;
         context.ForceZeroRwx = aotOptions?.ForceZeroRwx ?? false;
         context.JitBringupEnabled = aotOptions?.JitBringup ?? false;
+        context.AotFallbackWarning = aotFallbackWarning;
 
         Type type = assembly.GetType(manifest.ModuleTypeName, throwOnError: false)
             ?? throw new TypeLoadException($"Module type '{manifest.ModuleTypeName}' not found in '{entryLabel}'.");

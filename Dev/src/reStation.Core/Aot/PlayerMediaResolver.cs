@@ -30,7 +30,7 @@ public sealed record ResolvedPlayerMedia(
 /// <summary>Reads clean-room AOT recipes and validates local <c>data/rom/</c> media before cache lookup or lifting.</summary>
 public static class PlayerMediaResolver
 {
-    private static readonly string[] DiscExtensions = [".cue", ".bin", ".iso", ".img"];
+    private static readonly string[] DiscExtensions = [".cue", ".bin", ".iso", ".img", ".chd", ".7z", ".zip"];
 
     /// <summary>Loads and validates <see cref="AotRecipeSpec"/> from <paramref name="manifest"/>, ZIP archive, or disk.</summary>
     public static AotRecipeSpec? TryLoadRecipe(
@@ -128,7 +128,7 @@ public static class PlayerMediaResolver
         }
 
         throw new FileNotFoundException(
-            $"No verified PS1 media found in '{ReStationEngineInfo.DefaultPreloadRomDir}' for module '{recipe.ModuleId}'. " +
+            $"No verified PS1 media found in '{ReStationEngineInfo.DefaultPreloadRomDir}' or 'data/gamedata' for module '{recipe.ModuleId}'. " +
             $"Checked: {string.Join("; ", candidateRoots)}.");
     }
 
@@ -144,12 +144,31 @@ public static class PlayerMediaResolver
         }
 
         Add(options?.PreloadRomDir);
-        string mRoot = Path.GetFullPath(manifestDirectory);
+        string mRoot = Path.GetFullPath(manifestDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         Add(Path.Combine(mRoot, "data", "rom"));
         Add(Path.Combine(mRoot, "rom"));
+        Add(Path.Combine(mRoot, "data", "gamedata"));
+        Add(Path.Combine(mRoot, "data", "gamedata", "disc"));
+        Add(Path.Combine(mRoot, "gamedata"));
+
+        if (string.Equals(Path.GetFileName(mRoot), "app", StringComparison.OrdinalIgnoreCase) &&
+            Path.GetDirectoryName(mRoot) is { } appParent)
+        {
+            Add(Path.Combine(appParent, "data", "rom"));
+            Add(Path.Combine(appParent, "data", "gamedata"));
+            Add(Path.Combine(appParent, "data", "gamedata", "disc"));
+        }
+
         if (!string.IsNullOrWhiteSpace(options?.DataDir))
-            Add(Path.Combine(Path.GetFullPath(options.DataDir), "rom"));
+        {
+            string dataRoot = Path.GetFullPath(options.DataDir);
+            Add(Path.Combine(dataRoot, "rom"));
+            Add(Path.Combine(dataRoot, "gamedata"));
+            Add(Path.Combine(dataRoot, "gamedata", "disc"));
+        }
+
         Add(Path.Combine(AppContext.BaseDirectory, "data", "rom"));
+        Add(Path.Combine(AppContext.BaseDirectory, "data", "gamedata"));
         return roots;
     }
 
