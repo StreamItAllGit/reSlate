@@ -7,8 +7,8 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.3",
-  "activeMilestone": "0.2.3",
+  "version": "0.2.4",
+  "activeMilestone": "0.2.4",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-15",
   "lastVersionDate": "2026-11-15",
@@ -22,9 +22,9 @@
     "isGate0ScopePassed": true,
     "isGate1PlanPassed": true,
     "isGate2BuildPassed": true,
-    "isInspecterVerified": false,
+    "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Shipped reStation v0.2.3 PATCH+1 (167/167 passing xUnit tests under /warnaserror, @dean Gate 2 PASS, build_release.ps1 -Version 0.2.3 + audit_installer.ps1 0 findings, SharedLibs\\reStation\\v0.2.3\\ published); downstream child --jit-bringup ExitCode=5 live check pending MeadowValley-Recomp v0.2.0 QA.",
-  "updatedAtUtc": "2026-11-15T20:00:00.000Z"
+  "notes": "Hotfix v0.2.4 PATCH+1: Setup Wizard live folder auto-sorting (ReStationWizardPathNormalizer, generic parent -> <parent>\\reEngine\\engines\\reStation\\v0.2.4, explicit CLI untouched) + reEngine.Core v0.2.1 SDK sync.",
+  "updatedAtUtc": "2026-11-15T20:45:00.000Z"
 }

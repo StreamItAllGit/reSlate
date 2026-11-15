@@ -190,6 +190,48 @@
         <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.UnregisterDecompAssociation">
             <inheritdoc />
         </member>
+        <member name="T:reEngine.Core.Bootstrap.ReEngineBootstrapHelper">
+            <summary>
+            Reusable SDK helper exported via <c>SharedLibs\reEngine</c> so child <c>re*</c> and <c>&lt;Game&gt;Recomp</c>
+            installers can deploy/upgrade <c>reEngine</c> idempotently and install side-by-side platform engines.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(System.String,System.String,System.Boolean)">
+            <summary>
+            Resolves the target <c>reEngine</c> installation root while enforcing fail-closed containment in <c>--test-mode</c>
+            and zero literal host paths in compiled binaries.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultSuiteInstallDir(System.String,System.String,System.Boolean)">
+            <summary>
+            Resolves the canonical suite umbrella directory (<c>%LOCALAPPDATA%\Programs\StreamItAll\reEngine\</c>)
+            while enforcing fail-closed containment in <c>--test-mode</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveToolchainDir(System.String)">
+            <summary>
+            Returns the offline Ghidra + OpenJDK <c>toolchain\</c> sibling directory under <c>suiteInstallDir</c>
+            (falling back to <paramref name="reEngineInstallDir"/>\toolchain for isolated portable/sandbox runs).
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveEnginesRootDir(System.String)">
+            <summary>
+            Returns the side-by-side <c>engines\</c> sibling directory under <c>suiteInstallDir</c>
+            (falling back to <paramref name="reEngineInstallDir"/>\engines for isolated portable/sandbox runs).
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.BuildEngineVersionInstallDir(System.String,System.String,System.String)">
+            <summary>
+            Returns the immutable side-by-side engine folder path:
+            <c>&lt;reEngineInstallDir&gt;\engines\&lt;engineId&gt;\v&lt;version&gt;</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.EnsureReEngineInstalledAsync(System.String,System.String,System.Boolean,System.Boolean,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Ensures <c>reEngine</c> is installed at <paramref name="targetReEngineDir"/> at or above the packaged SDK version,
+            invoking <paramref name="bundledInstallerPath"/> silently via <see cref="T:Foundation.Core.JobObjectGuard"/> when needed.
+            </summary>
+        </member>
         <member name="T:reEngine.Core.Bootstrap.ReEnginePackagingConstants">
             <summary>
             Canonical branding, packaging, and containment constants for <c>reEngine</c>.
@@ -236,48 +278,6 @@
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapResult.#ctor(System.Boolean,System.String,System.String,System.Boolean,System.Boolean,System.String)">
             <summary>
             Outcome of bootstrapping or verifying a <c>reEngine</c> installation root.
-            </summary>
-        </member>
-        <member name="T:reEngine.Core.Bootstrap.ReEngineBootstrapHelper">
-            <summary>
-            Reusable SDK helper exported via <c>SharedLibs\reEngine</c> so child <c>re*</c> and <c>&lt;Game&gt;Recomp</c>
-            installers can deploy/upgrade <c>reEngine</c> idempotently and install side-by-side platform engines.
-            </summary>
-        </member>
-        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(System.String,System.String,System.Boolean)">
-            <summary>
-            Resolves the target <c>reEngine</c> installation root while enforcing fail-closed containment in <c>--test-mode</c>
-            and zero literal host paths in compiled binaries.
-            </summary>
-        </member>
-        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultSuiteInstallDir(System.String,System.String,System.Boolean)">
-            <summary>
-            Resolves the canonical suite umbrella directory (<c>%LOCALAPPDATA%\Programs\StreamItAll\reEngine\</c>)
-            while enforcing fail-closed containment in <c>--test-mode</c>.
-            </summary>
-        </member>
-        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveToolchainDir(System.String)">
-            <summary>
-            Returns the offline Ghidra + OpenJDK <c>toolchain\</c> sibling directory under <c>suiteInstallDir</c>
-            (falling back to <paramref name="reEngineInstallDir"/>\toolchain for isolated portable/sandbox runs).
-            </summary>
-        </member>
-        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveEnginesRootDir(System.String)">
-            <summary>
-            Returns the side-by-side <c>engines\</c> sibling directory under <c>suiteInstallDir</c>
-            (falling back to <paramref name="reEngineInstallDir"/>\engines for isolated portable/sandbox runs).
-            </summary>
-        </member>
-        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.BuildEngineVersionInstallDir(System.String,System.String,System.String)">
-            <summary>
-            Returns the immutable side-by-side engine folder path:
-            <c>&lt;reEngineInstallDir&gt;\engines\&lt;engineId&gt;\v&lt;version&gt;</c>.
-            </summary>
-        </member>
-        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.EnsureReEngineInstalledAsync(System.String,System.String,System.Boolean,System.Boolean,System.String,System.Threading.CancellationToken)">
-            <summary>
-            Ensures <c>reEngine</c> is installed at <paramref name="targetReEngineDir"/> at or above the packaged SDK version,
-            invoking <paramref name="bundledInstallerPath"/> silently via <see cref="T:Foundation.Core.JobObjectGuard"/> when needed.
             </summary>
         </member>
         <member name="T:reEngine.Core.Bootstrap.ReEngineTelemetryFormatter">

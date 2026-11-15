@@ -33,7 +33,7 @@ public sealed class PsxDecompAndSlaTests : IDisposable
         var provider = new PsxDecompPlatformProvider();
         Assert.Equal("ps1", provider.PlatformId);
         Assert.Equal("reStation", provider.EngineId);
-        Assert.Equal("0.2.3", provider.MinimumEngineVersion);
+        Assert.Equal("0.2.4", provider.MinimumEngineVersion);
         Assert.Equal("MIPS:LE:32:R3000A_GTE", provider.SleighLanguageId);
 
         string slaSpec = PsxGteSlaExtension.LoadSlaSpecText();

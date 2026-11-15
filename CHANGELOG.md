@@ -4,6 +4,11 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-11-15
+### Fixed
+- **Setup Wizard Auto-Sort & `reEngine.Core` `v0.2.1` SDK Sync (`ReStationWizardPathNormalizer.cs`, `reStation.Installer`):** Added live Setup Wizard folder auto-sorting so picking a generic parent folder (`Misc`) automatically resolves `--reengine-dir` into `<parent>\reEngine` and `reStation` into `<reEngineDir>\engines\reStation\v0.2.4`, while preserving explicit CLI `--install-dir` paths and companion `<reEngineDir>\engines\` layout rules via `reEngine.Core` `v0.2.1`.
+- **`v0.2.4` Regression Suite (`170/170` Passing Under `/warnaserror` — `InstallerWizardAutoSortTests.cs`):** Added 3 unit and STA WinForms wizard handler tests covering folder auto-sorting and `engines\` suite resolution, and updated version metadata pins to `0.2.4`.
+
 ## [0.2.3] - 2026-11-15
 ### Fixed
 - **Preserve Non-Zero `--jit-bringup` Exit Code (`Program.FrameLoop.cs`, `LauncherArgsHelper.cs` — [`Program.FrameLoop.cs`](Dev/src/reStation.Player/Program.FrameLoop.cs), [`LauncherArgsHelper.cs`](Dev/src/reStation.Launcher/LauncherArgsHelper.cs)):** Added `Program.ResolveLoopExitCode` in `reStation.Player` so non-zero `Environment.ExitCode` values (such as `--jit-bringup` fail-fast `ExitCode = 5`) set before normal frame-loop unwinding are returned cleanly instead of overwritten with `0`, and added `--jit-bringup` to `LauncherArgsHelper.SyncWaitFlags`.

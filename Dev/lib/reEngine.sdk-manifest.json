@@ -2,24 +2,24 @@
     "schemaVersion":  1,
     "appId":  "reengine",
     "displayName":  "reEngine",
-    "sdkVersion":  "0.2.0",
-    "version":  "0.2.0",
-    "updatedAtUtc":  "2026-11-15T09:58:00.325Z",
+    "sdkVersion":  "0.2.1",
+    "version":  "0.2.1",
+    "updatedAtUtc":  "2026-11-15T20:34:25.818Z",
     "artifacts":  [
                       {
                           "fileName":  "reEngine.Core.dll",
                           "fileSizeBytes":  134144,
-                          "sha256Hex":  "b63b13c5864f6a2f0b6e128274747f7c14bff9e0ff6bd96aea32c2f9e7699e41"
+                          "sha256Hex":  "fc765686791080985656cf692bef93f8961a1836c69feec0fd82aabd7fcbed05"
                       },
                       {
                           "fileName":  "reEngine.Core.xml",
                           "fileSizeBytes":  49959,
-                          "sha256Hex":  "1d19cc9eac1f8ce5970643dd2ec1a53eb17d176392d14bf1c5840e22ec2290e2"
+                          "sha256Hex":  "71437b2d34529fc7442e6abd9f3812ea3772d973f12d339e674433711920c1a8"
                       },
                       {
                           "fileName":  "reEngine.Core.deps.json",
                           "fileSizeBytes":  1211,
-                          "sha256Hex":  "54288c44a4cb48bdfa1c4426b99c2193f1a01c65f76a5514e89363d7e88d6682"
+                          "sha256Hex":  "3bdba17c6cd1c4f8ae30f4a08bc074bd0cb897ceeddf1ec7a9decc1c01551d31"
                       },
                       {
                           "fileName":  "LICENSE",
@@ -27,9 +27,9 @@
                           "sha256Hex":  "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
                       },
                       {
-                          "fileName":  "reEngine-Setup-v0.2.0-win-x64.exe",
-                          "fileSizeBytes":  72535632,
-                          "sha256Hex":  "793a86c7eaba5c4cf134856212233c4f383c02b0bf3f537d781daf282aeedbaa"
+                          "fileName":  "reEngine-Setup-v0.2.1-win-x64.exe",
+                          "fileSizeBytes":  72539216,
+                          "sha256Hex":  "e03b3b960a0ede9f3c47e1f9ae42513c649740d3129bce10365b884500c45c6e"
                       }
                   ]
 }

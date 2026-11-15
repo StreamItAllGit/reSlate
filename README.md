@@ -1,14 +1,14 @@
-# reStation (`v0.2.3`)
+# reStation (`v0.2.4`)
 
-- **Active Version:** `v0.2.3` (`2026-11-15`, pre-1.0 `0.2.x` track)
+- **Active Version:** `v0.2.4` (`2026-11-15`, pre-1.0 `0.2.x` track)
 - **Lifecycle State:** `active` ([`active.state`](active.state))
-- **Group / Scope:** `Personal/reStation` (`Engine Tier A`, `reEngine v0.2.0`, `Foundation v0.4.0`)
+- **Group / Scope:** `Personal/reStation` (`Engine Tier A`, `reEngine v0.2.1`, `Foundation v0.4.0`)
 - **Logo Assets:** [`Dev\assets\reStation.svg`](Dev/assets/reStation.svg) | [`Dev\assets\reStation.png`](Dev/assets/reStation.png) | [`Dev\assets\reStation.ico`](Dev/assets/reStation.ico)
 
 ---
 
 ## 1. What It Is & Core Goal
-`reStation` is a clean-room **PlayStation 1 (`PS1`) Static Recompilation Engine, `.decomp` Lifter, Player-PC Local AOT Compiler, Opt-In Shared-IR/RyuJIT Diagnostic Translator & Modular BYO-Media Player**—**not** a generic compatibility emulator. Routed via `reEngine` (`v0.2.0`) and installed per-user without admin elevation under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.3\` (`--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`), `reStation` separates authoring from runtime cleanly:
+`reStation` is a clean-room **PlayStation 1 (`PS1`) Static Recompilation Engine, `.decomp` Lifter, Player-PC Local AOT Compiler, Opt-In Shared-IR/RyuJIT Diagnostic Translator & Modular BYO-Media Player**—**not** a generic compatibility emulator. Routed via `reEngine` (`v0.2.1`) and installed per-user without admin elevation under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.4\` (`--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`), `reStation` separates authoring from runtime cleanly:
 
 - **Offline Clean-Room Authoring (`reStation.Decomp`):** Implements `IDecompPlatformProvider` (`platformId: "ps1"`) under `MPL-2.0` with an original PS-X EXE + overlay Ghidra loader, R3000A + GTE COP2 `.slaspec`, C/asset normalizer, `D4` LP32 parity verifier, and `D5` MIPS byte-match verifier—emitting deterministic `aot-recipe.json` packages with zero retail media or precompiled `*.Generated.dll` blobs.
 - **Player-PC Local AOT Cache (`<dataDir>\cache\`):** On first launch with verified `data\rom\` media (`PlayerMediaResolver` + `AotCacheManager`, supporting both standard PS-X EXEs and `<container>#<slice>` overlays ordered by `aot-recipe.json`), `PlayerLocalAotCompiler` synthesizes `<Game>.Generated.dll` matching `generatedCacheAssemblyName` locally on the player's machine and loads it via a collectible `ModuleAssemblyLoader` (`isCollectible: true`, `0`-byte unload leak), with `--jit-bringup` / `--force-zero-rwx` Shared-IR/RyuJIT/Threaded-IR available as an opt-in diagnostic fallback tier (`ExitCode = 5` non-VBlank spin watchdog).
@@ -24,7 +24,7 @@
 reStation.exe --module .\modules\kings-field\module.recomp.json --disc "D:\Roms\PS1\Kings Field (USA).chd"
 reStation.exe --test-mode --headless --frames 240 --data-dir .\Sandbox\data --log-dir .\Sandbox\logs
 reStation.exe --test-mode --visible-test --data-dir .\Sandbox\data --log-dir .\Sandbox\logs
-reStation-Setup-v0.2.3-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine"
+reStation-Setup-v0.2.4-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine"
 ```
 
 | CLI Flag | Purpose |
@@ -37,7 +37,7 @@ reStation-Setup-v0.2.3-win-x64.exe --profile Lightweight --reengine-dir "%LOCALA
 | `--reengine-dir` / `--migrate-legacy` | Override the user `reEngine` suite root or opt-in migrate preserved `data\rom\` & `settings.json` from `v0.1.x`. |
 | `--jit-bringup` / `--force-zero-rwx` | Opt-in Tier 3 CoreCLR RyuJIT bring-up profiler (`bringup.profile.json`, `ExitCode = 5`) or zero-RWX `ThreadedIrBackend` diagnostic mode (`--execution-tier`). |
 | `--input-script <spec.json>` | Execute deterministic keyboard, mouse, `F1` drawer, screenshot, and RAM-assertion scripts. |
-| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until exit (`--wait` / `--jit-bringup`), or print `reStation v0.2.3` (`--version`). |
+| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until exit (`--wait` / `--jit-bringup`), or print `reStation v0.2.4` (`--version`). |
 | `--data-dir` / `--config` / `--log-dir` | Redirect writable runtime data (`cache\`, `saves\`, `memcards\`, `settings.json`), `Dev\logs\` (`RS-06`), or fail-closed `Sandbox\` (`--test-mode`). |
 | `--headless` / `--visible-test` | Automated batch mode (`--headless`) or foreground topmost OpenGL 3.3 live verification (`--visible-test`). |
 
@@ -46,7 +46,7 @@ reStation-Setup-v0.2.3-win-x64.exe --profile Lightweight --reengine-dir "%LOCALA
 ---
 
 ## 3. Architecture At a Glance
-- **Application Archetype:** Shared Platform Recompilation Engine (`Tier A`, consuming `Foundation v0.4.0` & `reEngine.Core v0.2.0`; `SupportedEngineTracks: ["0.2.x", "0.1.x"]`).
+- **Application Archetype:** Shared Platform Recompilation Engine (`Tier A`, consuming `Foundation v0.4.0` & `reEngine.Core v0.2.1`; `SupportedEngineTracks: ["0.2.x", "0.1.x"]`).
 - **4-Tier Execution Stack (Built Toward `v1.0.0`):** **(1)** Native C# Hooks (`IGameFramePatch`, `ISubTickFrameHook`, `INativeGameActionHook`, `IRecompWidescreenProvider`) & Clean-Room BIOS/GTE/GP0/SPU/SIO0 HLE $\rightarrow$ **(2)** Player-PC Local `<dataDir>\cache\` AOT (`PlayerLocalAotCompiler` + collectible `ModuleAssemblyLoader`, keeping `.recomp` archives free of `*.Generated.dll`) $\rightarrow$ **(3)** Opt-In Shared MIPS$\rightarrow$IR CoreCLR RyuJIT (`DynamicMethod`) + `4 KB`/`64B` epoch invalidation + `--jit-bringup` / Zero-RWX `ThreadedIrBackend` (`v0.2.0`) $\rightarrow$ **(4)** `[WARN]`-logged `PsxInterpreter` (with mid-stack `ResumeFromSnapshot`) & `SoftwareCpu` oracle.
 - **Graphics Contract (`v0.2.0` $\rightarrow$ `v1.0.0` Tri-Backend Law):** Pluggable `IPsxRenderBackend` supporting live frame-boundary hot-swap (`OpenGL 3.3 Core` <-> `SoftwareCpu` with VRAM/PGXP preservation and automatic Software fallback banner); `v0.3.0` adds hardware `Vulkan` and deterministic `ParallelCpu` so `v1.0.0` ships all 3 mandatory production backends.
 - **Core PS1 Title Essentials & Lean UI Boundary (`v0.4.0` $\rightarrow$ `v1.0.0`):** `reEngine` owns the multi-title Library Shelf and Engine Manager, while `reStation.Player` stays a lean single-session host (`FirstRunMediaGateView`, 4:3 default framing, `F3` `1060x34` HUD strip, `F1` `SlideOverSettingsDrawer` with `Video`/`Audio`/`Controls`/`Keybinds`, scrollable 5-column `800px` `Keybinds` multi-bind grid with Numpad/Nav labels). By `v0.4.0`, `reStation` adds Port 1+2 DualShock (`0x42–0x4D`) + rumble, unified `.mcr` Slot 1+2, multi-track `.cue`/`.chd` Redbook CD-DA, and `.m3u` `ShellOpen` lid-swap.

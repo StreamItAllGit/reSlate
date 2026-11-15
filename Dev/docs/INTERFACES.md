@@ -1,7 +1,7 @@
-# reStation v0.2.3 — Interfaces, Public Contracts & Schemas
+# reStation v0.2.4 — Interfaces, Public Contracts & Schemas
 
-- **Version:** `v0.2.3` (`SupportedEngineTracks: ["0.2.x", "0.1.x"]`)
-- **Pinned Upstream Dependencies:** `Foundation v0.4.0` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`) & `reEngine v0.2.0` (`reEngine.Core`)
+- **Version:** `v0.2.4` (`SupportedEngineTracks: ["0.2.x", "0.1.x"]`)
+- **Pinned Upstream Dependencies:** `Foundation v0.4.0` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`) & `reEngine v0.2.1` (`reEngine.Core`)
 
 ---
 
@@ -32,7 +32,7 @@
 - `AotRecipeExecutableSpec`: `BootExePath`, `Sha256`, `LoadAddress`, `EntryAddress`, `GlobalPointer`, `TextSizeBytes`, `SleighLanguageId`.
 
 #### Manifest, CPU, Host & GPU Contracts
-- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "restation"`, `EngineId = "reStation"`, `Version = "0.2.3"`, `CompatibleEngineTrack = "0.2.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.2.x", "0.1.x"]`.
+- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "restation"`, `EngineId = "reStation"`, `Version = "0.2.4"`, `CompatibleEngineTrack = "0.2.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.2.x", "0.1.x"]`.
 - `IReStationModuleManifest : IRecompModuleManifest` (`ReStationModuleManifest`): `SerialNumber`, `EntryAssembly`, `DefaultBootExecutable`, `ModuleTypeName`, `EngineVersion`, `CompatibleEngineTrack`, `PreloadRomDir`, `SaveStateFixtures`, `SupportedEngineTracks`, `ExecutionTierMode`, `AotRecipe`, `AotRecipeSpec`, `LoadFromFile(string manifestPath)`, `SaveToFile(string manifestPath)`, `Validate(string sourceLabel)`.
 - `IRecompModule` / `IOverlayRecompModule : IRecompModule` (`ExeId`, `ExeName`, `TextStart`, `TextEnd`, `TryExecuteFunction(IReStationCpu, uint pc)`, plus overlay `LoadRamAddress`, `ContentSizeBytes`, `ContentSha256Hex`).
 - `IReStationCpu` / `IReStationCpuEx`: Register/bus/GTE/MDEC accessors plus `UnwindTargetPc`, `SkipPolygonRasterization`, `BeginSubTickFrame()`, `bool HasCompiledEntry(uint canonPc)`, `void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false)`, `bool TryAdvanceToNextVBlank()`.
@@ -90,10 +90,10 @@
 ## 4. File Contracts & Manifests
 - **`aot-recipe.json`:** `schemaVersion` (`1`), `platformId` (`"ps1"`), `moduleId`, `discSerial`, `executionTierMode`, `sleighSpecId` (`"MIPS:LE:32:R3000A_GTE"`), `targetArchitecture` (`"R3000A"`), `littleEndian` (`true`), `primaryBootExecutable`, `executables[]`, `entryAddresses[]`, `cleanRoomArtifacts[]`, `generatedCacheAssemblyName`.
 - **`module.recomp.json`:** Supports `supportedEngineTracks: ["0.2.x", "0.1.x"]`, `executionTierMode`, `aotRecipe` (`"aot-recipe.json"`), and zero bundled `*.Generated.dll` entries inside clean-room `.recomp` archives.
-- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` advertising `0.2.3` + `supportedEngineTracks: ["0.2.x", "0.1.x"]`.
+- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` advertising `0.2.4` + `supportedEngineTracks: ["0.2.x", "0.1.x"]`.
 - **Save Format:** Binary `QuickSaveManager` `"RST1"` (`SchemaVersion = 1`) + additive `"RSTX"` trailer blocks.
 
 ---
 
 ## 5. Versioning & Compatibility Notes
-- **Backward Compatibility:** `v0.2.0` introduced additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor` keeping scalar overload, `SupportedEngineTracks: ["0.2.x", "0.1.x"]`) so existing pinned `0.1.x` `.recomp` packages continue executing cleanly alongside clean-room local AOT modules; `v0.2.1`, `v0.2.2`, and `v0.2.3` are strictly non-breaking `PATCH+1` releases on the `0.2.x` track (`v0.2.1`: `MipsLifter` `.rodata` dynamic-switch label fix + `RecompSettings.Clamp()` consumer identity preservation; `v0.2.2`: recipe-ordered `<container>#<slice>` overlay lifting via `DiscOverlaySliceResolver` + `PlayerMediaResolver.TryFindContainerSliceOffset`, `generatedCacheAssemblyName` PE assembly parity, `ModuleAssemblyLoader.CompanionAssembly` preload + collectible `Unloading` cleanup + `AotRecipeSpec` attachment, and Numpad/Nav labels + widened Keybinds Modern Grid; `v0.2.3`: `Program.ResolveLoopExitCode` preserves `Environment.ExitCode = 5` on `--jit-bringup` spin watchdog exit and `LauncherArgsHelper.SyncWaitFlags` waits synchronously on `--jit-bringup`).
+- **Backward Compatibility:** `v0.2.0` introduced additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor` keeping scalar overload, `SupportedEngineTracks: ["0.2.x", "0.1.x"]`) so existing pinned `0.1.x` `.recomp` packages continue executing cleanly alongside clean-room local AOT modules; `v0.2.1`, `v0.2.2`, `v0.2.3`, and `v0.2.4` are strictly non-breaking `PATCH+1` releases on the `0.2.x` track (`v0.2.1`: `MipsLifter` `.rodata` dynamic-switch label fix + `RecompSettings.Clamp()` consumer identity preservation; `v0.2.2`: recipe-ordered `<container>#<slice>` overlay lifting via `DiscOverlaySliceResolver` + `PlayerMediaResolver.TryFindContainerSliceOffset`, `generatedCacheAssemblyName` PE assembly parity, `ModuleAssemblyLoader.CompanionAssembly` preload + collectible `Unloading` cleanup + `AotRecipeSpec` attachment, and Numpad/Nav labels + widened Keybinds Modern Grid; `v0.2.3`: `Program.ResolveLoopExitCode` preserves `Environment.ExitCode = 5` on `--jit-bringup` spin watchdog exit and `LauncherArgsHelper.SyncWaitFlags` waits synchronously on `--jit-bringup`; `v0.2.4`: Setup Wizard live folder auto-sorting via `ReStationWizardPathNormalizer` + `reEngine.Core` `v0.2.1` sync).
