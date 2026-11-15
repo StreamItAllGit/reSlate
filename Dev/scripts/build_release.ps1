@@ -1,14 +1,13 @@
 #Requires -Version 5.1
 # @module: Dev/scripts/build_release.ps1
-# @purpose: Build, test, sign, stage Builds\, package Installers\, emit 6-file Releases\, SharedLibs SDK, and source Archive.
-# @depends-on: Dev/version.txt, Dev/scripts/sanitize_release_docs.ps1, Dev/src/reStation.slnx, Dev/assets/bootstrap/reEngine-Setup-v0.1.3-win-x64.exe, audit_installer.ps1
-# @exports: Canonical release pipeline (v0.1.0+)
+# @purpose: Build, test, sign, stage Builds\, package slim Installers\, emit 6-file Releases\, SharedLibs SDK, and source Archive.
+# @depends-on: Dev/version.txt, Dev/scripts/sanitize_release_docs.ps1, Dev/src/reStation.slnx, audit_installer.ps1
+# @exports: Canonical release pipeline (v0.2.0+)
 
 [CmdletBinding()]
 param(
     [string]$Version = "",
     [string]$CertThumbprint = "A5414BDD36F7F113C7B2356F189B7A43F69C35E6",
-    [string]$BootstrapExe = "",
     [switch]$SkipSourceArchive,
     [switch]$SkipTests
 )
@@ -22,23 +21,6 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $devDir = Join-Path $root "Dev"
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = (Read-Utf8Text (Join-Path $devDir "version.txt")).Trim()
-}
-
-if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
-    $bootstrapDir = Join-Path $devDir "assets\bootstrap"
-    $candidates = @(
-        (Join-Path $bootstrapDir ("reEngine-Setup-v{0}-win-x64.exe" -f $Version)),
-        (Join-Path $bootstrapDir "reEngine-Setup-v0.1.3-win-x64.exe")
-    )
-    $BootstrapExe = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if ([string]::IsNullOrWhiteSpace($BootstrapExe)) {
-        $fallback = Get-ChildItem $bootstrapDir -Filter "reEngine-Setup-*.exe" -File -ErrorAction SilentlyContinue |
-            Sort-Object Name -Descending | Select-Object -First 1
-        if ($fallback) { $BootstrapExe = $fallback.FullName }
-    }
-}
-if (-not (Test-Path -LiteralPath $BootstrapExe)) {
-    throw "reEngine bootstrap installer not found: $BootstrapExe"
 }
 
 $sevenZip = Join-Path $devDir "assets\native\7z.exe"
@@ -72,9 +54,7 @@ $codeFiles = @(
 )
 foreach ($f in $codeFiles) {
     $lineCount = (Get-Content -LiteralPath $f.FullName | Measure-Object -Line).Lines
-    if ($lineCount -gt 400) {
-        $locViolations += "$($f.FullName) ($lineCount lines)"
-    }
+    if ($lineCount -gt 400) { $locViolations += "$($f.FullName) ($lineCount lines)" }
 }
 if ($locViolations.Count -gt 0) {
     throw "LOC ceiling (> 400) violated:`n$($locViolations -join "`n")"
@@ -97,15 +77,20 @@ $stageApp = Join-Path $stageDir "app"
 if (Test-Path -LiteralPath $stageDir) { Remove-Item -LiteralPath $stageDir -Recurse -Force }
 New-Item -ItemType Directory -Force $stageApp | Out-Null
 
-& dotnet publish (Join-Path $devDir "src\reStation.Player\reStation.Player.csproj") `
-    -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false `
-    -p:DebugType=none -p:DebugSymbols=false -o $stageApp /warnaserror
-if ($LASTEXITCODE -ne 0) { throw "dotnet publish reStation.Player failed ($LASTEXITCODE)" }
+foreach ($projRel in @("src\reStation.Player\reStation.Player.csproj", "src\reStation.Compiler\reStation.Compiler.csproj")) {
+    & dotnet publish (Join-Path $devDir $projRel) `
+        -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false `
+        -p:DebugType=none -p:DebugSymbols=false -o $stageApp /warnaserror
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish $projRel failed ($LASTEXITCODE)" }
+}
 
-& dotnet publish (Join-Path $devDir "src\reStation.Compiler\reStation.Compiler.csproj") `
-    -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false `
-    -p:DebugType=none -p:DebugSymbols=false -o $stageApp /warnaserror
-if ($LASTEXITCODE -ne 0) { throw "dotnet publish reStation.Compiler failed ($LASTEXITCODE)" }
+$decompOut = Join-Path $devDir "src\reStation.Decomp\bin\Release\net8.0"
+$decompDll = Join-Path $decompOut "reStation.Decomp.dll"
+if (-not (Test-Path -LiteralPath $decompDll)) { throw "Required reStation.Decomp.dll missing at $decompDll" }
+Copy-Item -LiteralPath $decompDll -Destination (Join-Path $stageApp "reStation.Decomp.dll") -Force
+Get-ChildItem $decompOut -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("ref", "refint") } | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $stageApp $_.Name) -Recurse -Force
+}
 
 $sdlRoot = Join-Path $stageApp "SDL3.dll"
 $sdlNative = Join-Path $stageApp "runtimes\win-x64\native\SDL3.dll"
@@ -138,16 +123,22 @@ Write-Utf8Text (Join-Path $stageApp "version.txt") "$Version"
 $rootLicense = Join-Path $root "LICENSE"
 if (-not (Test-Path -LiteralPath $rootLicense)) { throw "Root LICENSE file not found at $rootLicense" }
 Copy-Item -LiteralPath $rootLicense -Destination (Join-Path $stageApp "LICENSE") -Force
+
+$settingsExample = Join-Path $devDir "data\settings.example.json"
+if (Test-Path -LiteralPath $settingsExample) {
+    Copy-Item -LiteralPath $settingsExample -Destination (Join-Path $stageDir "settings.example.json") -Force
+}
+
 Get-ChildItem $stageDir -Include *.pdb, *.xml -Recurse -File | Remove-Item -Force
 Prune-VersionDirectories -ParentDir $buildsRoot -KeepCount 2 -KeepVersionName "v$Version"
 
 $runtimeAgents = (@'
 # Runtime Context: reStation (v__VER__)
 
-- **Launcher:** `reStation.exe` (routes to `app\reStation.Player.exe`)
-- **Compiler:** `app\reStation.Compiler.exe` (PS1 ELF -> static C#/.NET 8 `.recomp` compiler)
-- **Preload Media:** Provided by child `.recomp` game modules (`data\rom\`), not inside the engine dir.
-- **Data & Logs:** `data\settings.json` and `logs\` unless overridden by `--data-dir`, `--config`, `--log-dir`
+- **Install Root:** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v__VER__\` (`reStation.exe` -> `app\reStation.Player.exe`)
+- **Compiler & `.decomp`:** `app\reStation.Compiler.exe` + `app\reStation.Decomp.dll` (`<dataDir>\cache\` AOT primary; `--jit-bringup` optional fallback)
+- **Preload Media:** Supplied by child `.recomp` game modules (`data\rom\`), never bundled inside the engine directory.
+- **Data & Logs:** `data\settings.json` (`settings.example.json` reference) and `logs\` unless overridden by `--data-dir`, `--config`, `--log-dir`.
 - **Daemon Policy:** Zero background daemons; `AllowAutoStart = false`.
 '@).Replace('__VER__', $Version)
 Write-Utf8Text (Join-Path $stageDir "AGENTS.md") ($runtimeAgents + "`r`n")
@@ -179,7 +170,7 @@ if ($badFiles.Count -gt 0) {
     throw "Forbidden staging file(s) detected: $($badFiles.FullName -join ', ')"
 }
 
-Write-Host "[4/7] Building, signing & auditing single-EXE installer..."
+Write-Host "[4/7] Building, signing & auditing slim single-EXE installer..."
 $workTemp = Join-Path $env:TEMP ("restation_pkg_" + $Version)
 if (Test-Path -LiteralPath $workTemp) { Remove-Item -LiteralPath $workTemp -Recurse -Force }
 New-Item -ItemType Directory -Force $workTemp | Out-Null
@@ -193,7 +184,7 @@ $instOut = Join-Path $workTemp "installer_out"
     -p:Version="$Version" `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true `
     -p:DebugType=none -p:DebugSymbols=false `
-    -p:InstallerPayloadZip="$payloadZip" -p:ReEngineBootstrapExe="$BootstrapExe" `
+    -p:InstallerPayloadZip="$payloadZip" `
     -o $instOut /warnaserror
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish reStation.Installer failed ($LASTEXITCODE)" }
 
@@ -215,20 +206,20 @@ Copy-Item -LiteralPath $installerPath -Destination (Join-Path $centralInstallers
 $releaseNotes = (@'
 # reStation - Release v__VER__
 
-Reusable clean-room PS1 static recompilation engine, MIPS R3000A + GTE lifter, OpenGL 3.3 / CPU render backends, and modular BYO-media player (`AllowAutoStart = false`).
+Clean-room MPL-2.0 PS1 static recompilation engine (`reStation.Decomp` + local AOT cache), MIPS R3000A + GTE lifter, OpenGL 3.3 / Software render backends, and modular BYO-media player (`AllowAutoStart = false`).
 
 ## Highlights
-- Side-by-side `reEngine` track deployment with automatic embedded `reEngine` bootstrap, base-directory `--uninstall` resolution, and fail-closed sandbox containment.
-- Clean portable packaging (`app\LICENSE` MPL-2.0 bundled, zero engine `data\rom\` placeholder, sanitized UTF-8 release notes and docs).
-- Cycle-accurate MIPS R3000A CPU, GTE with PGXP precision tracking, MDEC 15/24-bit decode, SPU 24-voice ADSR + XA-ADPCM, and CD-ROM timing.
-- Non-single-file win-x64 Player with SDL3 + OpenGL 3.3 / Software parity, save states, key bindings, and `.recomp` compiler CLI.
+- Installs per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v__VER__\` with `--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy` cleanup (zero nested `reEngine-Setup` bloat).
+- Clean-room PS1 `.decomp` provider (`reStation.Decomp`) and player-PC `<dataDir>\cache\` AOT compiler with optional `--jit-bringup` / `--force-zero-rwx` diagnostic fallback.
+- Live OpenGL 3.3 / Software hot-swap, default 4:3 framing with widescreen hook support, compact HUD strip, mid-stack quick-load, and simultaneous 3-slot keyboard/mouse + controller bindings.
+- Clean portable packaging (`app\LICENSE` MPL-2.0 bundled, `settings.example.json`, zero engine `data\rom\` placeholder, sanitized UTF-8 release docs).
 '@).Replace('__VER__', $Version)
 $sanitizedReleaseNotes = Sanitize-MarkdownForEndUser $releaseNotes
 $instReleaseNotesPath = Join-Path $installersDir "RELEASE_NOTES.md"
 Write-Utf8Text $instReleaseNotesPath $sanitizedReleaseNotes
 Assert-EndUserMarkdownClean $instReleaseNotesPath
 
-$auditScript = Join-Path $env:USERPROFILE ".gemini\config\skills\release-packaging\scripts\audit_installer.ps1"
+$auditScript = Join-Path $env:USERPROFILE ".gemini\config\skills\dev\scripts\audit_installer.ps1"
 if (-not (Test-Path -LiteralPath $auditScript)) { throw "audit_installer.ps1 not found at $auditScript" }
 & powershell -NoProfile -ExecutionPolicy Bypass -File $auditScript -InstallerPath $installersDir -StagingDir $stageDir -ExpectedVersion $Version
 if ($LASTEXITCODE -ne 0) { throw "audit_installer.ps1 failed ($LASTEXITCODE)" }
@@ -278,7 +269,6 @@ foreach ($archPath in @((Join-Path $releasesDir "v$Version.7z"), (Join-Path $rel
 }
 Invoke-7z @("a", "-t7z", "-mx=9", "-mmt=on", (Join-Path $releasesDir "v$Version.7z"), (Join-Path $relVerDir "*"))
 Invoke-7z @("a", "-t7z", "-mx=9", "-mmt=on", (Join-Path $releasesDir "Latest.7z"), (Join-Path $relLatestDir "*"))
-
 Prune-VersionDirectories -ParentDir $releasesDir -KeepCount 2 -KeepVersionName "v$Version"
 
 Write-Host "[6/7] Publishing SharedLibs\reStation\v$Version and Latest..."
@@ -296,14 +286,21 @@ foreach ($sdkDir in @((Join-Path $sharedRoot "v$Version"), (Join-Path $sharedRoo
         @{ Dir = $contractsOut; Name = "reStation.Contracts.xml" },
         @{ Dir = $contractsOut; Name = "reStation.Contracts.deps.json" },
         @{ Dir = $coreOut; Name = "reStation.Core.dll" },
-        @{ Dir = $coreOut; Name = "reStation.Core.xml" },
         @{ Dir = $coreOut; Name = "reStation.Core.deps.json" },
+        @{ Dir = $decompOut; Name = "reStation.Decomp.dll" },
+        @{ Dir = $decompOut; Name = "reStation.Decomp.xml" },
+        @{ Dir = $decompOut; Name = "reStation.Decomp.deps.json" },
+        @{ Dir = $stageApp; Name = "reStation.Player.exe" },
+        @{ Dir = $stageApp; Name = "reStation.Player.dll" },
+        @{ Dir = $stageApp; Name = "reStation.Player.deps.json" },
+        @{ Dir = $stageApp; Name = "reStation.Player.runtimeconfig.json" },
         @{ Dir = $stageApp; Name = "reStation.Compiler.exe" },
         @{ Dir = $stageApp; Name = "reStation.Compiler.dll" },
         @{ Dir = $stageApp; Name = "reStation.Compiler.deps.json" },
         @{ Dir = $stageApp; Name = "reStation.Compiler.runtimeconfig.json" },
         @{ Dir = $stageApp; Name = "Foundation.Core.dll" },
-        @{ Dir = $stageApp; Name = "Foundation.Retro.dll" }
+        @{ Dir = $stageApp; Name = "Foundation.Retro.dll" },
+        @{ Dir = $stageApp; Name = "reEngine.Core.dll" }
     )) {
         $src = Join-Path $pair.Dir $pair.Name
         if (Test-Path -LiteralPath $src) {
@@ -326,32 +323,23 @@ foreach ($sdkDir in @((Join-Path $sharedRoot "v$Version"), (Join-Path $sharedRoo
         appId                 = "restation"
         displayName           = "reStation"
         version               = $Version
-        compatibleEngineTrack = "0.1.x"
-        supportedEngineTracks = @("0.1.x")
+        compatibleEngineTrack = "0.2.x"
+        supportedEngineTracks = @("0.2.x", "0.1.x")
         platformId            = "ps1"
         updatedAtUtc          = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
     } | ConvertTo-Json -Depth 4
-    [System.IO.File]::WriteAllText((Join-Path $sdkDir "engine.manifest.json"), $engineManifestJson + "`r`n", [System.Text.UTF8Encoding]::new($false))
+    Write-Utf8Text (Join-Path $sdkDir "engine.manifest.json") ($engineManifestJson + "`r`n")
     $copiedNames.Add("engine.manifest.json")
 
     $artifacts = $copiedNames | ForEach-Object {
         $p = Join-Path $sdkDir $_
-        [ordered]@{
-            fileName      = $_
-            fileSizeBytes = (Get-Item -LiteralPath $p).Length
-            sha256Hex     = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()
-        }
+        [ordered]@{ fileName = $_; fileSizeBytes = (Get-Item -LiteralPath $p).Length; sha256Hex = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     $manifestJson = [ordered]@{
-        schemaVersion = 1
-        appId         = "restation"
-        displayName   = "reStation"
-        sdkVersion    = $Version
-        version       = $Version
-        updatedAtUtc  = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-        artifacts     = $artifacts
+        schemaVersion = 1; appId = "restation"; displayName = "reStation"; sdkVersion = $Version; version = $Version
+        updatedAtUtc = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"); artifacts = $artifacts
     } | ConvertTo-Json -Depth 5
-    [System.IO.File]::WriteAllText((Join-Path $sdkDir "sdk-manifest.json"), $manifestJson + "`r`n", [System.Text.UTF8Encoding]::new($false))
+    Write-Utf8Text (Join-Path $sdkDir "sdk-manifest.json") ($manifestJson + "`r`n")
 }
 
 if (-not $SkipSourceArchive) {
@@ -362,12 +350,8 @@ if (-not $SkipSourceArchive) {
     if (Test-Path -LiteralPath $srcArchive) { Remove-Item -LiteralPath $srcArchive -Force }
     Push-Location $root
     try {
-        Invoke-7z @(
-            "a", "-t7z", "-mx=9",
-            "-xr!bin", "-xr!obj", "-xr!*.user", "-x!Dev\assets\bootstrap\*.exe",
-            $srcArchive,
-            "Dev", "README.md", "FEATURES.md", "ROADMAP.md", "CHANGELOG.md", "AGENTS.md", "LICENSE", "active.state"
-        )
+        Invoke-7z @("a", "-t7z", "-mx=9", "-xr!bin", "-xr!obj", "-xr!*.user", "-x!Dev\assets\bootstrap\*.exe",
+            $srcArchive, "Dev", "README.md", "FEATURES.md", "ROADMAP.md", "CHANGELOG.md", "AGENTS.md", "LICENSE", "active.state")
     } finally {
         Pop-Location
     }

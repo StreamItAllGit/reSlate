@@ -7,16 +7,16 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.1.5",
-  "activeMilestone": "0.1.5",
+  "version": "0.2.0",
+  "activeMilestone": "0.2.0",
   "goalMajorVersion": "1.0.0",
-  "stateChangedDate": "2026-11-14",
-  "lastVersionDate": "2026-11-14",
+  "stateChangedDate": "2026-11-15",
+  "lastVersionDate": "2026-11-15",
   "productionSubpath": null,
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 5,
+  "completedTaskCount": 7,
   "openReportCount": 0,
   "gates": {
     "isGate0ScopePassed": true,
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Verified & released v0.1.5 (138/138 tests, 0 warnings, @dean Gate 2 PASS, audit_installer 0 findings, @inspecter Sandbox + topmost --visible-test PASS, @tessa Quartet/Manual Shelf/Notion synced, D:\\Projects\\SharedLibs\\reStation\\v0.1.5\\ published without touching D:\\Programs\\): PsxJoypadPort digital non-0x42 NACK, separated 4-arg B0:0x12 InitPAD + RSTX v1 compat, PsxSpu unity defaults + SPUCNT/CD/Main Vol gating, PsxCpu.Break exe/ra logging, and FunctionChunkEmitter IOverlayRecompModule support.",
-  "updatedAtUtc": "2026-11-14T19:44:10.000Z"
+  "notes": "Shipped v0.2.0 cleanly (Gate 2 PASS, 161/161 tests under /warnaserror, 0 warnings/skipped, max 375 lines/file, Sandbox PASS): clean-room MPL-2.0 reStation.Decomp (PS1 D0-D5 + R3000A_GTE .slaspec), player-PC <dataDir>\\cache\\ AOT + collectible ModuleAssemblyLoader + opt-in Tier 3 IR/Jit fallback, %LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine\\engines\\reStation\\v0.2.0\\ 4-pillar installer (--profile Lightweight|Full, --reengine-dir, opt-in --migrate-legacy), T7 runtime fixes (RS-07..RS-16 + Standard 09 Sec 8 multi-bind & Schema B controller modes), RS-06 Dev\\logs\\ support, pre-scrub Archive\\pre-scrub-v0.2.0.7z + git-filter-repo history scrub, Quartet/Manual Shelf/GitHub Release v0.2.0 synced.",
+  "updatedAtUtc": "2026-11-15T12:00:00.000Z"
 }

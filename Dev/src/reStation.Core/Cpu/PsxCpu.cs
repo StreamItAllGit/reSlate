@@ -42,7 +42,11 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         Pgxp = new PgxpTracker { IsEnabled = settings.IsPgxpEnabled };
         Bus = new PsxMemoryBus(this) { IsSubTickRenderGuard = () => InSubTickRender };
         Gte = new PsxGte(settings, Pgxp);
-        Gpu = new PsxGpu(settings, Pgxp, renderBackend);
+        Gpu = new PsxGpu(settings, Pgxp, renderBackend)
+        {
+            WidescreenSupportChecker = () =>
+                (WidescreenProvider ?? (FramePatch as IRecompWidescreenProvider))?.IsActiveTrueWidescreenSupported(this) ?? true
+        };
         Spu = new PsxSpu(settings);
         Mdec = new PsxMdec();
         CdRom = new PsxCdRom(this);
@@ -90,6 +94,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     public PsxBiosHle Bios { get; }
     public DiscManifest? Disc { get; private set; }
     public IGameFramePatch? FramePatch { get; set; }
+    public IRecompWidescreenProvider? WidescreenProvider { get; set; }
     /// <summary>Invoked on every emulated VBlank edge (host presents/paces/polls input here).</summary>
     public Action<PsxCpu>? OnVBlankFrame { get; set; }
     /// <summary>Quick-load slot requested by the host (-1 = none); lifted code unwinds when set.</summary>
@@ -158,7 +163,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         if (R[31] == 0) R[31] = IReStationCpu.ReturnSentinelPc;
         ShouldUnwind = false;
         Pc = pc;
-        if (R[31] != IReStationCpu.ReturnSentinelPc && !HasCompiledEntry(pc))
+        if (R[31] != IReStationCpu.ReturnSentinelPc)
             PsxInterpreter.ResumeFromSnapshot(this);
         else
             Call(pc);

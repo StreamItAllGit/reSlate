@@ -1,6 +1,6 @@
 #Requires -Version 5.1
 # @module: Dev/scripts/sanitize_release_docs.ps1
-# @purpose: UTF-8 end-user Markdown sanitization, leak detection, and Builds/Releases version pruning.
+# @purpose: UTF-8 end-user Markdown sanitization, PII/internal-leak detection, and Builds/Releases version pruning.
 # @depends-on: System.IO, System.Text.UTF8Encoding
 # @exports: Read-Utf8Text, Write-Utf8Text, Sanitize-MarkdownForEndUser, Assert-EndUserMarkdownClean, Prune-VersionDirectories
 
@@ -27,37 +27,64 @@ function Repair-Utf8Mojibake([string]$Text) {
     return $fixed
 }
 
-$script:InternalLeakRegex = @(
-    'file:///'
-    '@(?:pland|inspecter|dean|devv|tessa|nora|milo|simon|julian|coordinator)\b'
-    '\bStandards?\s+\d+'
-    '_DevBible'
-    'task_graph\.json'
-    'audit_(?:installer|dossier)\.ps1'
-    'Dev[\\/](?:src|tests|docs|scripts|lib|assets|version\.txt|app\.manifest\.json)'
-    'Sandbox[\\/]'
-    'SharedLibs[\\/]'
-    'Foundation[\\/]Dev'
-    '--test-mode'
-    '--visible-test'
-    '[CD]:[\\/](?:Projects|Users)[\\/]'
-) -join '|'
+function Get-InternalLeakPattern {
+    $parts = [System.Collections.Generic.List[string]]@(
+        'file:///',
+        '@(?:pland|inspecter|dean|devv|tessa|nora|milo|simon|julian|holly|rowan|coordinator|monitor|everyone)[a-z0-9-]*',
+        '\bStandards?\s+\d+',
+        '_DevBible',
+        '\bDev Bible\b',
+        'task_graph\.json',
+        'audit_(?:installer|dossier)\.ps1',
+        'Dev[\\/](?:src|tests|docs|scripts|lib|assets|version\.txt|app\.manifest\.json)',
+        'Sandbox[\\/]',
+        'SharedLibs[\\/]',
+        'Foundation[\\/]Dev',
+        '--test-mode',
+        '--visible-test',
+        '[CD]:[\\/](?:Projects|Users|Programs)[\\/]',
+        'collection://[0-9a-f-]+',
+        '\b4[0-9a-f]{7}-5a45-[0-9a-f-]{14,}\b'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($env:USERNAME) -and $env:USERNAME.Length -gt 2) {
+        $parts.Add('\b' + [regex]::Escape($env:USERNAME) + '\b')
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:COMPUTERNAME) -and $env:COMPUTERNAME.Length -gt 2) {
+        $parts.Add('\b' + [regex]::Escape($env:COMPUTERNAME) + '\b')
+    }
+    return '(?i)' + ($parts -join '|')
+}
+
+$script:InternalLeakRegex = Get-InternalLeakPattern
 
 function Sanitize-MarkdownForEndUser([string]$Text) {
     $clean = Repair-Utf8Mojibake $Text
+    $sectionSign = [string][char]0x00A7
+    $enDash = [string][char]0x2013
+    $handleBacktick = '`@(?:pland|inspecter|dean|devv|tessa|nora|milo|simon|julian|holly|rowan|coordinator|monitor|everyone)[a-z0-9-]*`'
+    $handleBare = '@(?:pland|inspecter|dean|devv|tessa|nora|milo|simon|julian|holly|rowan|coordinator|monitor|everyone)[a-z0-9-]*'
+    $stdBacktick = "(?i)``(?:per\s+)?\bStandards?\s+\d+(?:\s*(?:$enDash|-)\s*\d+)?(?:\s*$sectionSign[\d.]+)?``"
+    $stdBare = "(?i)(?:per\s+)?\bStandards?\s+\d+(?:\s*(?:$enDash|-)\s*\d+)?(?:\s*$sectionSign[\d.]+)?"
+
     $lines = $clean -split "\r?\n"
     $filtered = foreach ($line in $lines) {
         $l = [regex]::Replace($line, '\[([^\]]+)\]\(file:///[^)]+\)', '$1')
         $l = [regex]::Replace($l, '\(\s*file:///[^)]+\s*\)', '')
-        $l = [regex]::Replace($l, '`file:///[^`]*`', 'local-link')
+        $l = [regex]::Replace($l, '`file:///[^`]*`', '')
         $l = [regex]::Replace($l, 'file:///[^\s\)\]`"]+', '')
         if ($l -match '^\s*[-*]\s+\*\*(?:Entry Points|Verification Tests|Extension Point[^*]*|Tests):\*\*') {
             continue
         }
+        $l = [regex]::Replace($l, $handleBacktick, '')
+        $l = [regex]::Replace($l, $handleBare, '')
+        $l = [regex]::Replace($l, $stdBacktick, '')
+        $l = [regex]::Replace($l, $stdBare, '')
+        $l = [regex]::Replace($l, '\s*\(\s*\)', '')
+        $l = [regex]::Replace($l, '(?<=\S) {2,}', ' ')
         if ($l -match $script:InternalLeakRegex) {
             continue
         }
-        $l
+        $l.TrimEnd()
     }
     $joined = ($filtered -join "`r`n")
     $joined = [regex]::Replace($joined, "(\r?\n){3,}", "`r`n`r`n")

@@ -15,17 +15,22 @@ namespace reStation.Player;
 internal sealed class UiOverlayPresenter
 {
     public const int OverlayWidth = 1280, OverlayHeight = 720;
+    public const int HudStripWidth = 1060, HudStripHeight = 34, HudStripDstX = 14, HudStripDstY = 12;
 
     private static readonly Core.Input.BindableAction[] AllBindableActions = Enum.GetValues<Core.Input.BindableAction>();
 
     private readonly PixelOverlayCanvas _uiCanvas = new(OverlayWidth, OverlayHeight);
+    private readonly PixelOverlayCanvas _drawerCacheCanvas = new(OverlayWidth, OverlayHeight);
+    private readonly PixelOverlayCanvas _hudStripCanvas = new(HudStripWidth, HudStripHeight);
     private readonly byte[] _compositeBuf = new byte[OverlayWidth * OverlayHeight * 4];
     private bool _dirty = true;
     private long _lastHudUpdateTicks;
 
     private bool _lastOpen, _lastLoggingActive, _lastFpsEnabled, _lastVsync, _lastWidescreen, _lastPgxp, _lastFullscreen, _lastGlobalRules, _lastFastLoad;
-    private int _lastTab = -1, _lastScale;
+    private int _lastTab = -1, _lastScale, _lastScrollOffset, _lastSlotIndex;
     private string _lastBackend = string.Empty, _lastDiscInfo = string.Empty, _lastHud = string.Empty;
+    private string _lastDpadMode = string.Empty, _lastIsoMode = string.Empty;
+    private string? _lastVideoWarning;
     private FrameRateMode _lastMode;
     private int _lastTargetFps;
     private ControlMode _lastControlMode;
@@ -35,7 +40,13 @@ internal sealed class UiOverlayPresenter
     private Core.Input.BindableAction? _lastListening;
     private string? _lastListeningModern;
 
+    public bool IsCompactHudStripActive { get; private set; }
     public ReadOnlySpan<byte> UiPixels => _uiCanvas.Buffer;
+    public ReadOnlySpan<byte> ActiveOverlayPixels => IsCompactHudStripActive ? _hudStripCanvas.Buffer : _uiCanvas.Buffer;
+    public int ActiveOverlayWidth => IsCompactHudStripActive ? HudStripWidth : OverlayWidth;
+    public int ActiveOverlayHeight => IsCompactHudStripActive ? HudStripHeight : OverlayHeight;
+    public int ActiveOverlayDstX => IsCompactHudStripActive ? HudStripDstX : 0;
+    public int ActiveOverlayDstY => IsCompactHudStripActive ? HudStripDstY : 0;
     public ReadOnlySpan<byte> CompositePixels => _compositeBuf;
 
     public void MarkDirty() => _dirty = true;
@@ -60,6 +71,9 @@ internal sealed class UiOverlayPresenter
             || _lastTab != drawer.ActiveTab
             || _lastListening != drawer.KeybindsTab.ListeningAction
             || !string.Equals(_lastListeningModern, drawer.KeybindsTab.ListeningModernActionId, StringComparison.Ordinal)
+            || _lastSlotIndex != drawer.KeybindsTab.ListeningSlotIndex
+            || _lastScrollOffset != drawer.KeybindsTab.ScrollRowOffset
+            || !string.Equals(_lastVideoWarning, drawer.VideoWarningBanner, StringComparison.Ordinal)
             || !string.Equals(_lastDiscInfo, discInfo, StringComparison.Ordinal)
             || _lastLoggingActive != loggingActive
             || _lastFpsEnabled != settings.IsFpsOverlayEnabled
@@ -74,6 +88,8 @@ internal sealed class UiOverlayPresenter
             || _lastGlobalRules != settings.UseGlobalFormatRules
             || _lastFastLoad != settings.ShouldFastLoadData
             || _lastControlMode != settings.ControlMode
+            || !string.Equals(_lastDpadMode, settings.ControllerDpadMode, StringComparison.Ordinal)
+            || !string.Equals(_lastIsoMode, settings.IsometricMoveMode, StringComparison.Ordinal)
             || _lastProfileMode != settings.InputProfileMode
             || _lastBindingsDigest != bindingsDigest
             || Math.Abs(_lastSens - settings.MouseSensitivity) > 0.001
@@ -82,23 +98,36 @@ internal sealed class UiOverlayPresenter
         if (!structuralChanged)
         {
             if (!hudTextChanged) return false;
-            if (!drawer.IsOpen && _lastHudUpdateTicks != 0 &&
-                (Stopwatch.GetTimestamp() - _lastHudUpdateTicks) < (Stopwatch.Frequency / 4L))
-            {
+            if (_lastHudUpdateTicks != 0 && (Stopwatch.GetTimestamp() - _lastHudUpdateTicks) < (Stopwatch.Frequency / 4L))
                 return false;
-            }
         }
 
-        _uiCanvas.Clear(UiPaint.Transparent);
-        drawer.RenderOverlay(_uiCanvas, settings, manifest, discInfo, loggingActive);
-        if (settings.IsFpsOverlayEnabled)
+        IsCompactHudStripActive = !drawer.IsOpen && settings.IsFpsOverlayEnabled;
+        if (IsCompactHudStripActive)
         {
-            int maxW = drawer.IsOpen ? 652 : 1060;
-            int boxW = Math.Clamp(UiPaint.TextWidth(hudText) + 24, 240, maxW);
-            var box = new UiRect(14, 12, boxW, 34);
-            UiPaint.BorderRect(_uiCanvas, box, UiPaint.HudFill, UiPaint.Accent);
-            string fit = hudText.Length * 12 > boxW - 20 ? hudText[..Math.Max(1, (boxW - 24) / 12)] : hudText;
-            UiPaint.Text(_uiCanvas, box.X + 12, box.Y + 10, fit, UiPaint.AccentText);
+            _hudStripCanvas.Clear(UiPaint.Transparent);
+            DrawHudBox(_hudStripCanvas, 0, 0, HudStripWidth, hudText);
+            if (structuralChanged)
+            {
+                _drawerCacheCanvas.Clear(UiPaint.Transparent);
+                drawer.RenderOverlay(_drawerCacheCanvas, settings, manifest, discInfo, loggingActive);
+            }
+            Buffer.BlockCopy(_drawerCacheCanvas.Buffer, 0, _uiCanvas.Buffer, 0, _uiCanvas.Buffer.Length);
+            CopyStripIntoCanvas(_hudStripCanvas, _uiCanvas, HudStripDstX, HudStripDstY);
+        }
+        else
+        {
+            if (structuralChanged)
+            {
+                _drawerCacheCanvas.Clear(UiPaint.Transparent);
+                drawer.RenderOverlay(_drawerCacheCanvas, settings, manifest, discInfo, loggingActive);
+            }
+            Buffer.BlockCopy(_drawerCacheCanvas.Buffer, 0, _uiCanvas.Buffer, 0, _uiCanvas.Buffer.Length);
+            if (settings.IsFpsOverlayEnabled)
+            {
+                int maxW = drawer.IsOpen ? (drawer.ActiveTab == 2 ? 492 : 652) : HudStripWidth;
+                DrawHudBox(_uiCanvas, HudStripDstX, HudStripDstY, maxW, hudText);
+            }
         }
 
         _dirty = false;
@@ -106,6 +135,9 @@ internal sealed class UiOverlayPresenter
         _lastTab = drawer.ActiveTab;
         _lastListening = drawer.KeybindsTab.ListeningAction;
         _lastListeningModern = drawer.KeybindsTab.ListeningModernActionId;
+        _lastSlotIndex = drawer.KeybindsTab.ListeningSlotIndex;
+        _lastScrollOffset = drawer.KeybindsTab.ScrollRowOffset;
+        _lastVideoWarning = drawer.VideoWarningBanner;
         _lastDiscInfo = discInfo;
         _lastLoggingActive = loggingActive;
         _lastFpsEnabled = settings.IsFpsOverlayEnabled;
@@ -121,12 +153,30 @@ internal sealed class UiOverlayPresenter
         _lastGlobalRules = settings.UseGlobalFormatRules;
         _lastFastLoad = settings.ShouldFastLoadData;
         _lastControlMode = settings.ControlMode;
+        _lastDpadMode = settings.ControllerDpadMode;
+        _lastIsoMode = settings.IsometricMoveMode;
         _lastProfileMode = settings.InputProfileMode;
         _lastBindingsDigest = bindingsDigest;
         _lastSens = settings.MouseSensitivity;
         _lastVolume = settings.MasterVolume;
         _lastHudUpdateTicks = Stopwatch.GetTimestamp();
         return true;
+    }
+
+    private static void DrawHudBox(PixelOverlayCanvas canvas, int x, int y, int maxW, string hudText)
+    {
+        int boxW = Math.Clamp(UiPaint.TextWidth(hudText) + 24, 240, maxW);
+        var box = new UiRect(x, y, boxW, HudStripHeight);
+        UiPaint.BorderRect(canvas, box, UiPaint.HudFill, UiPaint.Accent);
+        string fit = hudText.Length * 12 > boxW - 20 ? hudText[..Math.Max(1, (boxW - 24) / 12)] : hudText;
+        UiPaint.Text(canvas, box.X + 12, box.Y + 10, fit, UiPaint.AccentText);
+    }
+
+    private static void CopyStripIntoCanvas(PixelOverlayCanvas strip, PixelOverlayCanvas target, int dstX, int dstY)
+    {
+        int rowBytes = strip.Width * 4;
+        for (int r = 0; r < strip.Height; r++)
+            Buffer.BlockCopy(strip.Buffer, r * rowBytes, target.Buffer, ((dstY + r) * target.Width + dstX) * 4, rowBytes);
     }
 
     private static int ComputeBindingsDigest(SlideOverSettingsDrawer drawer, RecompSettings s)
@@ -143,13 +193,19 @@ internal sealed class UiOverlayPresenter
         if (drawer.ModuleProfile is not null)
         {
             foreach (GameActionDescriptor d in drawer.ModuleProfile.ModernActions)
-                hc.Add(s.GetModernActionBinding(d));
+            {
+                foreach (int code in s.GetModernActionBindings(d)) hc.Add(code);
+                foreach (int code in s.GetModernControllerBindings(d)) hc.Add(code);
+            }
         }
         return hc.ToHashCode();
     }
 
     /// <summary>Composites the game RGBA image (4:3 or 16:9) with the transparent UI canvas into <see cref="CompositePixels"/>.</summary>
-    public void Composite(ReadOnlySpan<byte> gameRgba, int gw, int gh, RecompSettings settings)
+    public void Composite(ReadOnlySpan<byte> gameRgba, int gw, int gh, RecompSettings settings) =>
+        Composite(gameRgba, gw, gh, settings, settings.IsWidescreen16By9);
+
+    public void Composite(ReadOnlySpan<byte> gameRgba, int gw, int gh, RecompSettings settings, bool effectiveWidescreen)
     {
         for (int i = 0; i < _compositeBuf.Length; i += 4)
         {
@@ -161,7 +217,7 @@ internal sealed class UiOverlayPresenter
 
         if (gw > 0 && gh > 0 && gameRgba.Length >= gw * gh * 4)
         {
-            SdlFRect dst = ComputeGameDstRect(OverlayWidth, OverlayHeight, settings.IsWidescreen16By9);
+            SdlFRect dst = ComputeGameDstRect(OverlayWidth, OverlayHeight, effectiveWidescreen);
             int dx0 = Math.Clamp((int)MathF.Round(dst.X), 0, OverlayWidth);
             int dy0 = Math.Clamp((int)MathF.Round(dst.Y), 0, OverlayHeight);
             int dw = Math.Max(1, Math.Min(OverlayWidth - dx0, (int)MathF.Round(dst.W)));
@@ -206,6 +262,13 @@ internal sealed class UiOverlayPresenter
 
     public void SaveCompositePng(string path) =>
         RgbaPngWriter.WritePng(path, OverlayWidth, OverlayHeight, _compositeBuf);
+
+    public static SdlFRect ComputeGameDstRect(int winW, int winH, RecompSettings settings, IReStationCpu? cpu, IRecompWidescreenProvider? widescreenProvider)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        bool wide = settings.IsWidescreen16By9 && (widescreenProvider is null || cpu is null || widescreenProvider.IsActiveTrueWidescreenSupported(cpu));
+        return ComputeGameDstRect(winW, winH, wide);
+    }
 
     public static SdlFRect ComputeGameDstRect(int winW, int winH, bool widescreen16By9)
     {

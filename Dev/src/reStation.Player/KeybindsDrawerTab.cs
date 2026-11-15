@@ -1,5 +1,5 @@
 // @module: reStation.Player.KeybindsDrawerTab
-// @purpose: Interactive 3-tier rebind grid (Global 1:1, Game 1:1, Module Modern PC) inside F1 drawer supporting keyboard scancodes and mouse buttons.
+// @purpose: Interactive 3-tier rebind UI (Global 1:1, Game 1:1, 5-column scrollable Module Modern PC) inside F1 drawer supporting keyboard, mouse/wheel, and gamepad.
 // @depends-on: Foundation.Core, reStation.Contracts, reStation.Core, reStation.Core.Input
 // @exports: KeybindsDrawerTab
 // @owner: devv-player-ui (T6)
@@ -11,9 +11,11 @@ using reStation.Core.Input;
 
 namespace reStation.Player;
 
-/// <summary>Renders the Keybinds tab (Global 1:1, Game 1:1, Modern PC) and captures the next pressed key or mouse button.</summary>
-internal sealed class KeybindsDrawerTab
+/// <summary>Renders the Keybinds tab (Global 1:1, Game 1:1, 5-col scrollable Modern PC) and handles disambiguated input capture.</summary>
+internal sealed partial class KeybindsDrawerTab
 {
+    public const int VisibleModernRows = 11;
+
     private static readonly BindableAction[] Actions =
     {
         BindableAction.DPadUp, BindableAction.DPadDown,
@@ -28,14 +30,26 @@ internal sealed class KeybindsDrawerTab
 
     public BindableAction? ListeningAction { get; set; }
     public string? ListeningModernActionId { get; set; }
+    public int ListeningSlotIndex { get; set; }
     public string? ListeningLabel { get; set; }
+    public int ScrollRowOffset { get; set; }
     public bool IsListening => ListeningAction.HasValue || !string.IsNullOrWhiteSpace(ListeningModernActionId);
 
     public void ClearListening()
     {
         ListeningAction = null;
         ListeningModernActionId = null;
+        ListeningSlotIndex = 0;
         ListeningLabel = null;
+    }
+
+    public bool ScrollBy(int deltaRows, int totalActions)
+    {
+        int maxOffset = Math.Max(0, totalActions - VisibleModernRows);
+        int next = Math.Clamp(ScrollRowOffset + deltaRows, 0, maxOffset);
+        if (next == ScrollRowOffset) return false;
+        ScrollRowOffset = next;
+        return true;
     }
 
     public void Render(
@@ -47,7 +61,7 @@ internal sealed class KeybindsDrawerTab
         GlobalControllerProfile globalProfile,
         string globalProfilePath,
         IModuleInputProfileProvider? moduleProfile,
-        List<(UiRect Rect, Action<RecompSettings> OnClick, DrawerAction Action)> hitBoxes)
+        List<DrawerHitBox> hitBoxes)
     {
         RenderTierSelector(canvas, x, y, w, settings, hitBoxes);
 
@@ -59,20 +73,25 @@ internal sealed class KeybindsDrawerTab
         };
 
         int maxChars = Math.Max(12, (w - 20) / (UiPaint.GlyphAdvance * UiPaint.TextScale));
+        string slotName = ListeningSlotIndex switch { 0 => "1st", 1 => "2nd", 2 => "3rd", _ => "Controller" };
         string prompt = IsListening
-            ? $"Bind '{ListeningLabel}': Key/Mouse (Esc)"
-            : $"{tierTitle} | Click row + Key/Mouse";
+            ? (!string.IsNullOrWhiteSpace(ListeningModernActionId) && ListeningSlotIndex == 3
+                ? $"Bind '{FitText(ListeningLabel ?? string.Empty, 18)}' [Ctrl]: Pad Btn (Esc/Del)"
+                : $"Bind '{FitText(ListeningLabel ?? string.Empty, 18)}' [{slotName}]: Input (Esc cancel)")
+            : settings.InputProfileMode == InputProfileMode.PerGameModern && moduleProfile is not null
+                ? $"{FitText(tierTitle, 24)} | LClick:Bind RClick:Clr Wheel"
+                : $"{FitText(tierTitle, 20)} | LClick row + Input (Esc)";
         RgbaColor pFill = IsListening ? new RgbaColor(0x28, 0x22, 0x14) : new RgbaColor(0x12, 0x16, 0x20);
         RgbaColor pBorder = IsListening ? new RgbaColor(0xE2, 0xAE, 0x4A) : UiPaint.Border;
         UiPaint.BorderRect(canvas, new UiRect(x, y + 38, w, 30), pFill, pBorder);
         UiPaint.Text(canvas, x + 10, y + 46, FitText(prompt, maxChars), IsListening ? UiPaint.Warn : UiPaint.Muted);
 
-        const int cols = 2, colGap = 12, rowH = 40, rowGap = 5;
-        int colW = (w - colGap) / cols;
         int gridY = y + 74;
-        int rowCount = RenderBindingGrid(canvas, x, gridY, cols, colW, colGap, rowH, rowGap, settings, globalProfile, moduleProfile, hitBoxes);
+        int resetY = settings.InputProfileMode == InputProfileMode.PerGameModern && moduleProfile is not null
+            ? RenderModernTable(canvas, x, gridY, w, settings, moduleProfile, hitBoxes)
+            : RenderClassicGrid(canvas, x, gridY, w, settings, globalProfile, hitBoxes);
 
-        var resetBtn = new UiRect(x, gridY + rowCount * (rowH + rowGap) + 6, w, 38);
+        var resetBtn = new UiRect(x, resetY, w, 36);
         string resetLabel = settings.InputProfileMode switch
         {
             InputProfileMode.GlobalController => "Reset Global 1:1 Defaults",
@@ -80,7 +99,7 @@ internal sealed class KeybindsDrawerTab
             _ => "Reset Game 1:1 Defaults"
         };
         UiPaint.Pill(canvas, resetBtn, resetLabel, active: false);
-        hitBoxes.Add((resetBtn, st =>
+        hitBoxes.Add(new DrawerHitBox(resetBtn, st =>
         {
             if (st.InputProfileMode == InputProfileMode.GlobalController)
             {
@@ -106,7 +125,7 @@ internal sealed class KeybindsDrawerTab
         int y,
         int w,
         RecompSettings settings,
-        List<(UiRect Rect, Action<RecompSettings> OnClick, DrawerAction Action)> hitBoxes)
+        List<DrawerHitBox> hitBoxes)
     {
         int pw = (w - 12) / 3;
         var tiers = new (InputProfileMode Mode, string Label)[]
@@ -120,7 +139,7 @@ internal sealed class KeybindsDrawerTab
             var tier = tiers[i];
             var rect = new UiRect(x + i * (pw + 6), y, pw, 32);
             UiPaint.Pill(canvas, rect, tier.Label, settings.InputProfileMode == tier.Mode);
-            hitBoxes.Add((rect, st =>
+            hitBoxes.Add(new DrawerHitBox(rect, st =>
             {
                 st.InputProfileMode = tier.Mode;
                 ClearListening();
@@ -128,47 +147,17 @@ internal sealed class KeybindsDrawerTab
         }
     }
 
-    private int RenderBindingGrid(
+    private int RenderClassicGrid(
         PixelOverlayCanvas canvas,
         int x,
         int gridY,
-        int cols,
-        int colW,
-        int colGap,
-        int rowH,
-        int rowGap,
+        int w,
         RecompSettings settings,
         GlobalControllerProfile globalProfile,
-        IModuleInputProfileProvider? moduleProfile,
-        List<(UiRect Rect, Action<RecompSettings> OnClick, DrawerAction Action)> hitBoxes)
+        List<DrawerHitBox> hitBoxes)
     {
-        if (settings.InputProfileMode == InputProfileMode.PerGameModern && moduleProfile is not null)
-        {
-            int count = Math.Min(16, moduleProfile.ModernActions.Count);
-            for (int i = 0; i < count; i++)
-            {
-                GameActionDescriptor desc = moduleProfile.ModernActions[i];
-                int cx = x + (i % cols) * (colW + colGap);
-                int cy = gridY + (i / cols) * (rowH + rowGap);
-                var cell = new UiRect(cx, cy, colW, rowH);
-                bool active = string.Equals(ListeningModernActionId, desc.ActionId, StringComparison.OrdinalIgnoreCase);
-
-                UiPaint.BorderRect(canvas, cell, active ? new RgbaColor(0x24, 0x20, 0x14) : UiPaint.Panel, active ? UiPaint.Warn : UiPaint.Border);
-                UiPaint.Text(canvas, cx + 10, cy + 13, FitText(desc.Label, 13), UiPaint.TextPrimary);
-
-                string keyText = active ? "..." : FormatScancode(settings.GetModernActionBinding(desc));
-                var badge = new UiRect(cx + colW - 104, cy + 5, 96, 30);
-                UiPaint.Pill(canvas, badge, keyText, active);
-                hitBoxes.Add((cell, _ =>
-                {
-                    ListeningAction = null;
-                    ListeningModernActionId = desc.ActionId;
-                    ListeningLabel = desc.Label;
-                }, DrawerAction.MarkDirty));
-            }
-            return Math.Max(1, (count + cols - 1) / cols);
-        }
-
+        const int cols = 2, colGap = 12, rowH = 40, rowGap = 5;
+        int colW = (w - colGap) / cols;
         KeyBindingsConfig kb = settings.InputProfileMode == InputProfileMode.GlobalController
             ? globalProfile.KeyBindings
             : (settings.KeyBindings ?? new KeyBindingsConfig());
@@ -182,19 +171,21 @@ internal sealed class KeybindsDrawerTab
             string label = KeyBindingsConfig.GetActionLabel(action);
 
             UiPaint.BorderRect(canvas, cell, active ? new RgbaColor(0x24, 0x20, 0x14) : UiPaint.Panel, active ? UiPaint.Warn : UiPaint.Border);
-            UiPaint.Text(canvas, cx + 10, cy + 13, FitText(label, 13), UiPaint.TextPrimary);
+            UiPaint.Text(canvas, cx + 10, cy + 13, FitText(label, 14), UiPaint.TextPrimary);
 
             string keyText = active ? "..." : FormatScancode(kb.GetScancode(action));
             var badge = new UiRect(cx + colW - 104, cy + 5, 96, 30);
             UiPaint.Pill(canvas, badge, keyText, active);
-            hitBoxes.Add((cell, _ =>
+            hitBoxes.Add(new DrawerHitBox(cell, _ =>
             {
                 ListeningModernActionId = null;
                 ListeningAction = action;
+                ListeningSlotIndex = 0;
                 ListeningLabel = label;
             }, DrawerAction.MarkDirty));
         }
-        return (Actions.Length + cols - 1) / cols;
+        int rows = (Actions.Length + cols - 1) / cols;
+        return gridY + (rows * (rowH + rowGap)) + 6;
     }
 
     public bool TryHandleKeyCapture(
@@ -208,7 +199,23 @@ internal sealed class KeybindsDrawerTab
         if (!IsListening) return false;
         if (scancode == Sdl3Native.ScEsc) { ClearListening(); return true; }
         if (scancode == Sdl3Native.ScF1) return false;
-        return TryCommitCapturedBinding(scancode, settings, configPath, globalProfile, globalProfilePath, moduleProfile);
+        if ((scancode == Sdl3Native.ScDelete || scancode == Sdl3Native.ScBackspace)
+            && !string.IsNullOrWhiteSpace(ListeningModernActionId)
+            && ListeningSlotIndex is >= 1 and <= 3
+            && moduleProfile is not null)
+        {
+            GameActionDescriptor? desc = FindAction(moduleProfile, ListeningModernActionId);
+            if (desc is not null)
+            {
+                settings.ClearModernActionSlot(desc, ListeningSlotIndex);
+                settings.Save(configPath);
+            }
+            ClearListening();
+            return true;
+        }
+        if (!string.IsNullOrWhiteSpace(ListeningModernActionId) && ListeningSlotIndex == 3)
+            return true;
+        return TryCommitKbmBinding(scancode, settings, configPath, globalProfile, globalProfilePath, moduleProfile);
     }
 
     public bool TryHandleMouseCapture(
@@ -220,10 +227,32 @@ internal sealed class KeybindsDrawerTab
         IModuleInputProfileProvider? moduleProfile)
     {
         if (!IsListening) return false;
-        return TryCommitCapturedBinding(bindingCode, settings, configPath, globalProfile, globalProfilePath, moduleProfile);
+        if (!string.IsNullOrWhiteSpace(ListeningModernActionId) && ListeningSlotIndex == 3)
+            return true;
+        return TryCommitKbmBinding(bindingCode, settings, configPath, globalProfile, globalProfilePath, moduleProfile);
     }
 
-    private bool TryCommitCapturedBinding(
+    public bool TryHandleGamepadCapture(
+        int gamepadCode,
+        RecompSettings settings,
+        string configPath,
+        IModuleInputProfileProvider? moduleProfile)
+    {
+        if (!IsListening || string.IsNullOrWhiteSpace(ListeningModernActionId) || ListeningSlotIndex != 3 || moduleProfile is null)
+            return false;
+        int norm = KeyBindingsConfig.NormalizeControllerCode(gamepadCode, 0);
+        if (norm == 0) return true;
+        GameActionDescriptor? desc = FindAction(moduleProfile, ListeningModernActionId);
+        if (desc is not null)
+        {
+            settings.SetModernControllerSlot(desc, norm);
+            settings.Save(configPath);
+        }
+        ClearListening();
+        return true;
+    }
+
+    private bool TryCommitKbmBinding(
         int bindingCode,
         RecompSettings settings,
         string configPath,
@@ -236,7 +265,9 @@ internal sealed class KeybindsDrawerTab
 
         if (!string.IsNullOrWhiteSpace(ListeningModernActionId) && moduleProfile is not null)
         {
-            settings.SetModernActionBinding(ListeningModernActionId, normalized);
+            GameActionDescriptor? desc = FindAction(moduleProfile, ListeningModernActionId);
+            if (desc is not null) settings.SetModernActionSlot(desc, ListeningSlotIndex, normalized);
+            else settings.SetModernActionBinding(ListeningModernActionId, normalized);
             settings.Save(configPath);
         }
         else if (ListeningAction.HasValue && settings.InputProfileMode == InputProfileMode.GlobalController)
@@ -254,7 +285,14 @@ internal sealed class KeybindsDrawerTab
         return true;
     }
 
-    /// <summary>Human-readable label for any SDL3 USB HID scancode or mouse binding code.</summary>
+    private static GameActionDescriptor? FindAction(IModuleInputProfileProvider moduleProfile, string actionId)
+    {
+        foreach (GameActionDescriptor d in moduleProfile.ModernActions)
+            if (string.Equals(d.ActionId, actionId, StringComparison.OrdinalIgnoreCase)) return d;
+        return null;
+    }
+
+    /// <summary>Human-readable label for any SDL3 USB HID scancode, mouse/wheel code, or gamepad binding code.</summary>
     public static string FormatScancode(int scancode) => KeyBindingsConfig.FormatBindingLabel(scancode);
 
     private static string FitText(string text, int maxChars) =>

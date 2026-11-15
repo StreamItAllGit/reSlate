@@ -41,7 +41,7 @@ public sealed partial class PsxGpu
         FinalizeFrameOriginBounds();
         int ox = preferLastDrawnOrigin && HasLastDrawnOrigin ? LastDrawnX : DisplayX;
         int oy = preferLastDrawnOrigin && HasLastDrawnOrigin ? LastDrawnY : DisplayY;
-        Backend.EndFrameAndPresent(ox, oy, DisplayWidth, DisplayHeight, Is24BitDisplay, Settings.IsWidescreen16By9);
+        Backend.EndFrameAndPresent(ox, oy, DisplayWidth, DisplayHeight, Is24BitDisplay, EffectiveWidescreen);
         Pgxp.ClearFrame();
         FrameDrawOps = 0;
         _hasFrameBounds = _setFromFillThisFrame = false;

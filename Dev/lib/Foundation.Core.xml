@@ -171,6 +171,13 @@
             Fail-closed containment guard ensuring a candidate path resolves strictly inside an allowed root directory.
             </summary>
         </member>
+        <member name="M:Foundation.Core.SandboxEnvironment.ResolveSiblingSandboxRoot(System.String)">
+            <summary>
+            Resolves the shared <c>Sandbox\</c> ancestor directory when <paramref name="dataDir"/> sits inside
+            a canonical <c>Sandbox\{app,data,logs,installed}</c> tree, returning <see langword="null"/> for host
+            or non-sandbox paths so callers fail closed.
+            </summary>
+        </member>
         <member name="T:Foundation.Core.SqliteWalPool">
             <summary>
             Standardized SQLite connection factory enforcing WAL mode, busy_timeout = 15000, Cache = Default (non-blocking WAL MVCC snapshot isolation),

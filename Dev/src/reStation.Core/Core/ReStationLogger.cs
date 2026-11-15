@@ -110,8 +110,28 @@ public sealed class ReStationLogger : IDisposable
     private static string FormatLine(string level, string category, string message) =>
         $"{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ} [v{ReStationEngineInfo.Version}] [PID:{Environment.ProcessId}/T:{Environment.CurrentManagedThreadId:D2}] [{level}] [{category}] {message}";
 
-    private static string StripHeartbeatPrefix(string line) =>
+    public static string StripHeartbeatPrefix(string line) =>
         line.StartsWith("[HEARTBEAT] ", StringComparison.Ordinal) ? line["[HEARTBEAT] ".Length..] : line;
+
+    /// <summary>Resolves <c>Dev\logs\</c> when running inside a source <c>Dev\</c> checkout; returns <see langword="null"/> in deployed builds (RS-06).</summary>
+    public static string? TryResolveDevLogsDirectory(string? startDirectory = null)
+    {
+        string cursor = Path.GetFullPath(string.IsNullOrWhiteSpace(startDirectory) ? AppContext.BaseDirectory : startDirectory);
+        for (int depth = 0; depth < 8 && !string.IsNullOrWhiteSpace(cursor); depth++)
+        {
+            string directDev = Path.Combine(cursor, "Dev");
+            if (File.Exists(Path.Combine(directDev, "version.txt")) && Directory.Exists(Path.Combine(directDev, "src")))
+                return Path.Combine(directDev, "logs");
+
+            if (string.Equals(Path.GetFileName(cursor), "Dev", StringComparison.OrdinalIgnoreCase) &&
+                File.Exists(Path.Combine(cursor, "version.txt")) &&
+                Directory.Exists(Path.Combine(cursor, "src")))
+                return Path.Combine(cursor, "logs");
+
+            cursor = Path.GetDirectoryName(cursor) ?? string.Empty;
+        }
+        return null;
+    }
 
     public void Dispose()
     {

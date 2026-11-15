@@ -10,6 +10,7 @@ using Foundation.Retro;
 using reEngine.Core.Manifests;
 using reStation.Contracts;
 using reStation.Core;
+using reStation.Core.Aot;
 using reStation.Core.Cpu;
 using reStation.Core.DiscIngestion;
 
@@ -161,13 +162,42 @@ internal static partial class Program
         ModuleAssemblyLoader? moduleAlc = null;
         if (manifest is not null && moduleDir is not null && !string.IsNullOrWhiteSpace(manifest.EntryAssembly))
         {
-            gameModule = ModuleAssemblyLoader.LoadGameModule(manifest, moduleDir, out moduleAlc);
+            LocalAotLoadOptions aotOptions = BuildLocalAotLoadOptions(options, sandbox, settings);
+            gameModule = ModuleAssemblyLoader.LoadGameModule(manifest, moduleDir, aotOptions, out moduleAlc);
+            cpu.WidescreenProvider = gameModule as IRecompWidescreenProvider;
+            logger.Info("MODULE", $"Loaded '{manifest.ModuleId}' tier={moduleAlc.ResolvedExecutionTierMode} localAot={moduleAlc.LoadedFromLocalAotCache} cacheHit={moduleAlc.AotCacheHit} zeroRwx={moduleAlc.ForceZeroRwx} bringup={moduleAlc.JitBringupEnabled}.");
             gameModule.InitializeAsync(host, CancellationToken.None).GetAwaiter().GetResult();
         }
 
         int loopExit = RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, sandbox, settings, pacer, logger);
         GC.KeepAlive(moduleAlc);
         return loopExit;
+    }
+
+    private static LocalAotLoadOptions BuildLocalAotLoadOptions(
+        CliOptions options, SandboxEnvironment sandbox, RecompSettings settings)
+    {
+        string? preloadDir = null;
+        if (!string.IsNullOrWhiteSpace(options.PreloadMediaPath))
+        {
+            string fullPreload = Path.GetFullPath(options.PreloadMediaPath);
+            preloadDir = Directory.Exists(fullPreload) ? fullPreload : Path.GetDirectoryName(fullPreload);
+        }
+        string? tierOverride = options.JitBringup
+            ? ReStationExecutionTierModes.JitBringup
+            : !string.Equals(settings.ExecutionTierMode, ReStationExecutionTierModes.Default, StringComparison.OrdinalIgnoreCase)
+                ? settings.ExecutionTierMode
+                : null;
+        string? profilePath = string.IsNullOrWhiteSpace(options.ProfilePath)
+            ? null
+            : Path.GetFullPath(options.ProfilePath);
+        return new LocalAotLoadOptions(
+            DataDir: sandbox.DataDirectory,
+            PreloadRomDir: preloadDir,
+            JitBringup: options.JitBringup,
+            ForceZeroRwx: options.ForceZeroRwx,
+            ExecutionTierModeOverride: tierOverride,
+            BringupProfilePath: profilePath);
     }
 
     internal static string? ResolveMediaCandidate(CliOptions options, ReStationModuleManifest? manifest, string? moduleDir, DiscManifest? existingDisc)
@@ -183,7 +213,7 @@ internal static partial class Program
     {
         if (!sandbox.TestMode) return;
         string boundary = CliOptions.ResolveSandboxBoundary(sandbox);
-        foreach (string? raw in new[] { options.DiscPath, options.PreloadMediaPath, options.FixturePath, options.DumpScreenshotPath, options.InputScriptPath })
+        foreach (string? raw in new[] { options.DiscPath, options.PreloadMediaPath, options.FixturePath, options.DumpScreenshotPath, options.InputScriptPath, options.ProfilePath })
         {
             if (!string.IsNullOrWhiteSpace(raw))
                 _ = SandboxEnvironment.AssertPathContained(Path.GetFullPath(raw), boundary);

@@ -27,17 +27,24 @@ internal enum DrawerAction
     ChangeModule
 }
 
+internal readonly record struct DrawerHitBox(
+    UiRect Rect,
+    Action<RecompSettings> OnClick,
+    DrawerAction Action,
+    Action<RecompSettings>? OnRightClick = null);
+
 /// <summary>Right-docked 5-tab settings drawer toggled by F1 or the top-right Settings pill.</summary>
 internal sealed class SlideOverSettingsDrawer
 {
     private static readonly string[] TabLabels = { "Video", "Controls", "Keybinds", "System", "Disc" };
-    private readonly List<(UiRect Rect, Action<RecompSettings> OnClick, DrawerAction Action)> _hitBoxes = new();
+    private readonly List<DrawerHitBox> _hitBoxes = new();
     private GlobalControllerProfile _globalProfile = new();
     private string _globalProfilePath = string.Empty;
     private IModuleInputProfileProvider? _moduleProfile;
 
     public bool IsOpen { get; set; }
     public int ActiveTab { get; set; }
+    public string? VideoWarningBanner { get; set; }
     public KeybindsDrawerTab KeybindsTab { get; } = new();
     public GlobalControllerProfile GlobalProfile => _globalProfile;
     public IModuleInputProfileProvider? ModuleProfile => _moduleProfile;
@@ -62,7 +69,7 @@ internal sealed class SlideOverSettingsDrawer
         int w = canvas.Width, h = canvas.Height;
         var topPill = new UiRect(Math.Max(4, w - 188), 12, Math.Min(174, w - 8), 34);
         UiPaint.Pill(canvas, topPill, IsOpen ? "Close (F1)" : "Settings (F1)", IsOpen);
-        _hitBoxes.Add((topPill, _ =>
+        _hitBoxes.Add(new DrawerHitBox(topPill, _ =>
         {
             IsOpen = !IsOpen;
             if (!IsOpen) KeybindsTab.ClearListening();
@@ -70,14 +77,14 @@ internal sealed class SlideOverSettingsDrawer
         if (!IsOpen) return;
 
         canvas.FillRect(0, 0, w, h, UiPaint.Scrim);
-        int dw = Math.Min(w, 600);
+        int dw = ActiveTab == 2 ? Math.Min(w, 760) : Math.Min(w, 600);
         int dx = w - dw;
         UiPaint.BorderRect(canvas, new UiRect(dx, 0, dw, h), new RgbaColor(0x14, 0x18, 0x22), UiPaint.Accent);
         UiPaint.Text(canvas, dx + 20, 18, "Settings", UiPaint.AccentText, 3);
 
         var closeBtn = new UiRect(w - 114, 14, 96, 32);
         UiPaint.Pill(canvas, closeBtn, "Close", active: false);
-        _hitBoxes.Add((closeBtn, _ =>
+        _hitBoxes.Add(new DrawerHitBox(closeBtn, _ =>
         {
             IsOpen = false;
             KeybindsTab.ClearListening();
@@ -89,7 +96,7 @@ internal sealed class SlideOverSettingsDrawer
             int idx = t;
             var tr = new UiRect(dx + 18 + (t * (tabW + 6)), 60, tabW, 34);
             UiPaint.Pill(canvas, tr, TabLabels[t], ActiveTab == t);
-            _hitBoxes.Add((tr, _ =>
+            _hitBoxes.Add(new DrawerHitBox(tr, _ =>
             {
                 ActiveTab = idx;
                 if (idx != 2) KeybindsTab.ClearListening();
@@ -113,12 +120,31 @@ internal sealed class SlideOverSettingsDrawer
     public bool TryHandleMouseCapture(int bindingCode, RecompSettings settings, string configPath) =>
         IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleMouseCapture(bindingCode, settings, configPath, _globalProfile, _globalProfilePath, _moduleProfile);
 
-    public DrawerAction HandleClick(int px, int py, RecompSettings settings, string configPath)
+    public bool TryHandleGamepadCapture(int gamepadCode, RecompSettings settings, string configPath) =>
+        IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleGamepadCapture(gamepadCode, settings, configPath, _moduleProfile);
+
+    public bool TryScrollKeybinds(int deltaRows)
+    {
+        if (!IsOpen || ActiveTab != 2 || KeybindsTab.IsListening) return false;
+        return KeybindsTab.ScrollBy(deltaRows, _moduleProfile?.ModernActions.Count ?? 0);
+    }
+
+    public DrawerAction HandleClick(int px, int py, RecompSettings settings, string configPath) =>
+        HandleClick(px, py, settings, configPath, isRightClick: false);
+
+    public DrawerAction HandleClick(int px, int py, RecompSettings settings, string configPath, bool isRightClick)
     {
         for (int i = _hitBoxes.Count - 1; i >= 0; i--)
         {
-            var hb = _hitBoxes[i];
+            DrawerHitBox hb = _hitBoxes[i];
             if (!hb.Rect.Contains(px, py)) continue;
+            if (isRightClick)
+            {
+                if (hb.OnRightClick is null) continue;
+                hb.OnRightClick(settings);
+                settings.Save(configPath);
+                return hb.Action;
+            }
             hb.OnClick(settings);
             settings.Save(configPath);
             return hb.Action;
@@ -134,8 +160,8 @@ internal sealed class SlideOverSettingsDrawer
         var swPill = new UiRect(x + bw + 8, y + 20, bw, 32);
         UiPaint.Pill(c, glPill, "OpenGL 3.3", string.Equals(s.BackendId, PsxRenderBackendIds.OpenGl, StringComparison.Ordinal));
         UiPaint.Pill(c, swPill, "Software CPU", string.Equals(s.BackendId, PsxRenderBackendIds.Software, StringComparison.Ordinal));
-        _hitBoxes.Add((glPill, st => st.BackendId = PsxRenderBackendIds.OpenGl, DrawerAction.ToggleBackend));
-        _hitBoxes.Add((swPill, st => st.BackendId = PsxRenderBackendIds.Software, DrawerAction.ToggleBackend));
+        _hitBoxes.Add(new DrawerHitBox(glPill, st => st.BackendId = PsxRenderBackendIds.OpenGl, DrawerAction.ToggleBackend));
+        _hitBoxes.Add(new DrawerHitBox(swPill, st => st.BackendId = PsxRenderBackendIds.Software, DrawerAction.ToggleBackend));
 
         UiPaint.Text(c, x, y + 62, "Render Scale", UiPaint.Muted);
         int pw = (w - 18) / 4;
@@ -144,7 +170,7 @@ internal sealed class SlideOverSettingsDrawer
             int sc = RecompSettings.AllowedResolutionScales[i];
             var r = new UiRect(x + (i * (pw + 6)), y + 82, pw, 32);
             UiPaint.Pill(c, r, $"{sc}x", s.ResolutionScale == sc);
-            _hitBoxes.Add((r, st => st.ResolutionScale = sc, DrawerAction.MarkDirty));
+            _hitBoxes.Add(new DrawerHitBox(r, st => st.ResolutionScale = sc, DrawerAction.MarkDirty));
         }
 
         UiPaint.Text(c, x, y + 124, "Framerate Mode", UiPaint.Muted);
@@ -152,8 +178,8 @@ internal sealed class SlideOverSettingsDrawer
         var enhPill = new UiRect(x + bw + 8, y + 144, bw, 32);
         UiPaint.Pill(c, origPill, "Original (60/30)", s.FrameRateMode == FrameRateMode.Original);
         UiPaint.Pill(c, enhPill, "Enhanced FPS", s.FrameRateMode == FrameRateMode.Enhanced);
-        _hitBoxes.Add((origPill, st => st.FrameRateMode = FrameRateMode.Original, DrawerAction.MarkDirty));
-        _hitBoxes.Add((enhPill, st => st.FrameRateMode = FrameRateMode.Enhanced, DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(origPill, st => st.FrameRateMode = FrameRateMode.Original, DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(enhPill, st => st.FrameRateMode = FrameRateMode.Enhanced, DrawerAction.MarkDirty));
 
         UiPaint.Text(c, x, y + 186, "Target FPS", UiPaint.Muted);
         int[] targets = { 30, 60, 120, 144, 240, 0 };
@@ -164,7 +190,7 @@ internal sealed class SlideOverSettingsDrawer
             var tr = new UiRect(x + (i * (tw + 6)), y + 206, tw, 32);
             bool selected = s.FrameRateMode == FrameRateMode.Enhanced && s.TargetFps == tf;
             UiPaint.Pill(c, tr, tf == 0 ? "Max" : tf.ToString(), selected);
-            _hitBoxes.Add((tr, st => { st.FrameRateMode = FrameRateMode.Enhanced; st.TargetFps = tf; }, DrawerAction.MarkDirty));
+            _hitBoxes.Add(new DrawerHitBox(tr, st => { st.FrameRateMode = FrameRateMode.Enhanced; st.TargetFps = tf; }, DrawerAction.MarkDirty));
         }
 
         AddToggle(c, new UiRect(x, y + 250, w, 38), "VSync", s.IsVsyncEnabled, st => st.IsVsyncEnabled = !st.IsVsyncEnabled, DrawerAction.ToggleVsync);
@@ -172,19 +198,53 @@ internal sealed class SlideOverSettingsDrawer
         AddToggle(c, new UiRect(x, y + 338, w, 38), "PGXP Precision", s.IsPgxpEnabled, st => st.IsPgxpEnabled = !st.IsPgxpEnabled, DrawerAction.MarkDirty);
         AddToggle(c, new UiRect(x, y + 382, w, 38), "Fullscreen", s.IsFullscreen, st => st.IsFullscreen = !st.IsFullscreen, DrawerAction.ToggleFullscreen);
         AddToggle(c, new UiRect(x, y + 426, w, 38), "FPS Overlay (F3)", s.IsFpsOverlayEnabled, st => st.IsFpsOverlayEnabled = !st.IsFpsOverlayEnabled, DrawerAction.ToggleFpsOverlay);
+
+        if (!string.IsNullOrWhiteSpace(VideoWarningBanner))
+        {
+            var warnRect = new UiRect(x, y + 472, w, 34);
+            UiPaint.BorderRect(c, warnRect, new RgbaColor(0x36, 0x1E, 0x16), UiPaint.Warn);
+            int maxChars = Math.Max(8, (w - 20) / 12);
+            string msg = VideoWarningBanner.Length <= maxChars ? VideoWarningBanner : VideoWarningBanner[..maxChars];
+            UiPaint.Text(c, x + 10, y + 482, msg, UiPaint.Warn);
+        }
     }
 
     private void RenderControlsTab(PixelOverlayCanvas c, int x, int y, int w, RecompSettings s)
     {
-        AddToggle(c, new UiRect(x, y, w, 46), "Modern WASD + Mouse", s.ControlMode == ControlMode.ModernWasdMouse,
+        AddToggle(c, new UiRect(x, y, w, 42), "Modern WASD + Mouse", s.ControlMode == ControlMode.ModernWasdMouse,
             st => st.ControlMode = st.ControlMode == ControlMode.ModernWasdMouse ? ControlMode.ClassicTank : ControlMode.ModernWasdMouse,
             DrawerAction.MarkDirty);
 
-        var minus = new UiRect(x, y + 62, 68, 38);
-        var plus = new UiRect(x + w - 68, y + 62, 68, 38);
+        var minus = new UiRect(x, y + 50, 68, 36);
+        var plus = new UiRect(x + w - 68, y + 50, 68, 36);
         UiPaint.Stepper(c, minus, plus, x + 92, $"Mouse Sens {s.MouseSensitivity:F1}");
-        _hitBoxes.Add((minus, st => st.MouseSensitivity = Math.Max(0.2, Math.Round(st.MouseSensitivity - 0.2, 1)), DrawerAction.MarkDirty));
-        _hitBoxes.Add((plus, st => st.MouseSensitivity = Math.Min(4.0, Math.Round(st.MouseSensitivity + 0.2, 1)), DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(minus, st => st.MouseSensitivity = Math.Max(0.2, Math.Round(st.MouseSensitivity - 0.2, 1)), DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(plus, st => st.MouseSensitivity = Math.Min(4.0, Math.Round(st.MouseSensitivity + 0.2, 1)), DrawerAction.MarkDirty));
+
+        UiPaint.Text(c, x, y + 96, "Controller D-Pad Mode", UiPaint.Muted);
+        int dw = (w - 12) / 3;
+        var dpadModes = new (string Id, string Label)[]
+        {
+            (NativeInputModeIds.ControllerDpadQuickActions, "Quick Slots"),
+            (NativeInputModeIds.ControllerDpadWalkStickRun, "PadWalk/Run"),
+            (NativeInputModeIds.ControllerStickWalkDpadRun, "StkWalk/Run")
+        };
+        for (int i = 0; i < dpadModes.Length; i++)
+        {
+            var mode = dpadModes[i];
+            var r = new UiRect(x + i * (dw + 6), y + 116, dw, 32);
+            UiPaint.Pill(c, r, mode.Label, string.Equals(s.ControllerDpadMode, mode.Id, StringComparison.OrdinalIgnoreCase));
+            _hitBoxes.Add(new DrawerHitBox(r, st => st.ControllerDpadMode = mode.Id, DrawerAction.MarkDirty));
+        }
+
+        UiPaint.Text(c, x, y + 158, "Isometric Move Projection", UiPaint.Muted);
+        int iw = (w - 8) / 2;
+        var cropPill = new UiRect(x, y + 178, iw, 32);
+        var screenPill = new UiRect(x + iw + 8, y + 178, iw, 32);
+        UiPaint.Pill(c, cropPill, "Crop Grid (45deg)", string.Equals(s.IsometricMoveMode, NativeInputModeIds.IsometricMoveCropGrid, StringComparison.OrdinalIgnoreCase));
+        UiPaint.Pill(c, screenPill, "Screen Space", string.Equals(s.IsometricMoveMode, NativeInputModeIds.IsometricMoveScreenSpace, StringComparison.OrdinalIgnoreCase));
+        _hitBoxes.Add(new DrawerHitBox(cropPill, st => st.IsometricMoveMode = NativeInputModeIds.IsometricMoveCropGrid, DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(screenPill, st => st.IsometricMoveMode = NativeInputModeIds.IsometricMoveScreenSpace, DrawerAction.MarkDirty));
 
         string tierLabel = s.InputProfileMode switch
         {
@@ -192,19 +252,17 @@ internal sealed class SlideOverSettingsDrawer
             InputProfileMode.PerGameController => "Game 1:1 PS1",
             _ => _moduleProfile is not null ? _moduleProfile.ProfileDisplayName : "Game 1:1 Fallback"
         };
-        UiPaint.Text(c, x, y + 114, $"Active Tier: {tierLabel}", UiPaint.AccentText);
+        UiPaint.Text(c, x, y + 224, $"Active Tier: {tierLabel}", UiPaint.AccentText);
 
         KeyBindingsConfig kb = s.InputProfileMode == InputProfileMode.GlobalController ? _globalProfile.KeyBindings : (s.KeyBindings ?? new KeyBindingsConfig());
         string move = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadUp))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadLeft))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadDown))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadRight))} D-Pad";
-        string acts = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Cross))} Cross  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Circle))} Circle  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Square))} Square  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Triangle))} Tri";
-        string sys = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Start))} Start  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Select))} Select  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.QuickSave))} Save  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.QuickLoad))} Load";
-        UiPaint.Text(c, x, y + 144, move, UiPaint.Muted);
-        UiPaint.Text(c, x, y + 172, acts, UiPaint.Muted);
-        UiPaint.Text(c, x, y + 200, sys, UiPaint.Muted);
+        string acts = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Cross))} Cross  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Circle))} Circle  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Square))} Square";
+        UiPaint.Text(c, x, y + 252, move, UiPaint.Muted);
+        UiPaint.Text(c, x, y + 280, acts, UiPaint.Muted);
 
-        var customBtn = new UiRect(x, y + 242, w, 44);
+        var customBtn = new UiRect(x, y + 320, w, 42);
         UiPaint.Pill(c, customBtn, "Customize Keybinds (3 Tiers)...", active: false);
-        _hitBoxes.Add((customBtn, _ => ActiveTab = 2, DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(customBtn, _ => ActiveTab = 2, DrawerAction.MarkDirty));
     }
 
     private void RenderSystemTab(PixelOverlayCanvas c, int x, int y, int w, RecompSettings s, bool loggingActive)
@@ -217,8 +275,8 @@ internal sealed class SlideOverSettingsDrawer
         var minus = new UiRect(x, y + 114, 68, 38);
         var plus = new UiRect(x + w - 68, y + 114, 68, 38);
         UiPaint.Stepper(c, minus, plus, x + 92, $"Master Volume {(int)Math.Round(s.MasterVolume * 100)}%");
-        _hitBoxes.Add((minus, st => st.MasterVolume = Math.Max(0.0, Math.Round(st.MasterVolume - 0.1, 2)), DrawerAction.MarkDirty));
-        _hitBoxes.Add((plus, st => st.MasterVolume = Math.Min(1.0, Math.Round(st.MasterVolume + 0.1, 2)), DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(minus, st => st.MasterVolume = Math.Max(0.0, Math.Round(st.MasterVolume - 0.1, 2)), DrawerAction.MarkDirty));
+        _hitBoxes.Add(new DrawerHitBox(plus, st => st.MasterVolume = Math.Min(1.0, Math.Round(st.MasterVolume + 0.1, 2)), DrawerAction.MarkDirty));
 
         AddToggle(c, new UiRect(x, y + 168, w, 44), "Runtime Logging", s.ShouldEnableRuntimeLogs,
             st => st.ShouldEnableRuntimeLogs = !st.ShouldEnableRuntimeLogs, DrawerAction.ToggleRuntimeLogging);
@@ -230,8 +288,8 @@ internal sealed class SlideOverSettingsDrawer
         var ql = new UiRect(x, y + 314, w, 44);
         UiPaint.Pill(c, qs, "Quick Save (F5)", active: false);
         UiPaint.Pill(c, ql, "Quick Load (F9)", active: false);
-        _hitBoxes.Add((qs, _ => { }, DrawerAction.QuickSave));
-        _hitBoxes.Add((ql, _ => { }, DrawerAction.QuickLoad));
+        _hitBoxes.Add(new DrawerHitBox(qs, _ => { }, DrawerAction.QuickSave));
+        _hitBoxes.Add(new DrawerHitBox(ql, _ => { }, DrawerAction.QuickLoad));
     }
 
     private void RenderDiscTab(PixelOverlayCanvas c, int x, int y, int w, IReStationModuleManifest? manifest, string discInfo)
@@ -245,13 +303,13 @@ internal sealed class SlideOverSettingsDrawer
         var loadMod = new UiRect(x, y + 168, w, 44);
         UiPaint.Pill(c, swap, "Change Disc Image...", active: false);
         UiPaint.Pill(c, loadMod, "Load .recomp Module...", active: false);
-        _hitBoxes.Add((swap, _ => { }, DrawerAction.ChangeDisc));
-        _hitBoxes.Add((loadMod, _ => { }, DrawerAction.ChangeModule));
+        _hitBoxes.Add(new DrawerHitBox(swap, _ => { }, DrawerAction.ChangeDisc));
+        _hitBoxes.Add(new DrawerHitBox(loadMod, _ => { }, DrawerAction.ChangeModule));
     }
 
     private void AddToggle(PixelOverlayCanvas c, UiRect r, string label, bool on, Action<RecompSettings> onClick, DrawerAction action)
     {
         UiPaint.ToggleRow(c, r, label, on);
-        _hitBoxes.Add((r, onClick, action));
+        _hitBoxes.Add(new DrawerHitBox(r, onClick, action));
     }
 }

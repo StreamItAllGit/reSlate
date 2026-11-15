@@ -4,6 +4,8 @@
 // @exports: OpenGl33RenderBackend (partial)
 // @owner: devv-core
 
+using System.Buffers;
+
 namespace reStation.Core.Gpu;
 
 public sealed unsafe partial class OpenGl33RenderBackend
@@ -52,10 +54,25 @@ public sealed unsafe partial class OpenGl33RenderBackend
 
     private void EnqueueUploadVramRect(int x, int y, int w, int h, ReadOnlySpan<ushort> pixels15)
     {
-        ushort[] copy = pixels15.ToArray();
+        if (pixels15.IsEmpty) return;
+        ushort[] rented = ArrayPool<ushort>.Shared.Rent(pixels15.Length);
+        pixels15.CopyTo(rented);
+        int nx = x & 1023, ny = y & 511;
+        bool fullVram = nx == 0 && ny == 0 && w >= PsxGpu.VramWidth && h >= PsxGpu.VramHeight;
         lock (_queueLock)
         {
-            _queuedOps.Add(new QueuedGpuOp { Kind = QueuedOpKind.UploadVramRect, A = x, B = y, C = w, D = h, Pixels = copy });
+            for (int i = _queuedOps.Count - 1; i >= 0; i--)
+            {
+                QueuedGpuOp prev = _queuedOps[i];
+                if (prev.Kind is not (QueuedOpKind.UploadVramRect or QueuedOpKind.SetTextureWindow)) break;
+                if (prev.Kind != QueuedOpKind.UploadVramRect) continue;
+                bool sameRect = (prev.A & 1023) == nx && (prev.B & 511) == ny && prev.C == w && prev.D == h && prev.E <= pixels15.Length;
+                if (!fullVram && !sameRect) continue;
+                if (prev.Pixels is not null) ArrayPool<ushort>.Shared.Return(prev.Pixels);
+                _queuedOps.RemoveAt(i);
+                if (!fullVram) break;
+            }
+            _queuedOps.Add(new QueuedGpuOp { Kind = QueuedOpKind.UploadVramRect, A = x, B = y, C = w, D = h, E = pixels15.Length, Pixels = rented });
         }
     }
 
@@ -127,35 +144,52 @@ public sealed unsafe partial class OpenGl33RenderBackend
             batch = _queuedOps.ToArray();
             _queuedOps.Clear();
         }
-        foreach (QueuedGpuOp op in batch)
+        try
         {
-            switch (op.Kind)
+            foreach (QueuedGpuOp op in batch)
             {
-                case QueuedOpKind.SetTextureWindow:
-                    ApplyTextureWindow(op.A, op.B, op.C, op.D);
-                    break;
-                case QueuedOpKind.UploadVramRect:
-                    ExecuteUploadVramRectCore(op.A, op.B, op.C, op.D, op.Pixels ?? []);
-                    break;
-                case QueuedOpKind.CopyVramRect:
-                    ExecuteCopyVramRectCore(op.A, op.B, op.C, op.D, op.E, op.F);
-                    break;
-                case QueuedOpKind.FillDisplayRect:
-                    ExecuteFillDisplayRectCore(op.A, op.B, op.C, op.D, op.RawU32);
-                    break;
-                case QueuedOpKind.SubmitPolygon:
-                    EnsureVramFboSize();
-                    EmitDecodedPolygon(op.DrawState, op.V0, op.V1, op.V2, op.V3, op.A, op.B, op.C, op.D, op.E);
-                    break;
-                case QueuedOpKind.SubmitLine:
-                    EnsureVramFboSize();
-                    EmitDecodedLine(op.DrawState, op.V0, op.V1, op.B, op.C, op.D, op.E);
-                    break;
-                case QueuedOpKind.SubmitRect:
-                    EnsureVramFboSize();
-                    EmitDecodedRect(op.DrawState, op.Rect, op.B, op.C, op.D, op.E);
-                    break;
+                switch (op.Kind)
+                {
+                    case QueuedOpKind.SetTextureWindow:
+                        ApplyTextureWindow(op.A, op.B, op.C, op.D);
+                        break;
+                    case QueuedOpKind.UploadVramRect:
+                        ExecuteUploadVramRectCore(op.A, op.B, op.C, op.D, op.Pixels is null ? ReadOnlySpan<ushort>.Empty : op.Pixels.AsSpan(0, op.E));
+                        break;
+                    case QueuedOpKind.CopyVramRect:
+                        ExecuteCopyVramRectCore(op.A, op.B, op.C, op.D, op.E, op.F);
+                        break;
+                    case QueuedOpKind.FillDisplayRect:
+                        ExecuteFillDisplayRectCore(op.A, op.B, op.C, op.D, op.RawU32);
+                        break;
+                    case QueuedOpKind.SubmitPolygon:
+                        EnsureVramFboSize();
+                        EmitDecodedPolygon(op.DrawState, op.V0, op.V1, op.V2, op.V3, op.A, op.B, op.C, op.D, op.E);
+                        break;
+                    case QueuedOpKind.SubmitLine:
+                        EnsureVramFboSize();
+                        EmitDecodedLine(op.DrawState, op.V0, op.V1, op.B, op.C, op.D, op.E);
+                        break;
+                    case QueuedOpKind.SubmitRect:
+                        EnsureVramFboSize();
+                        EmitDecodedRect(op.DrawState, op.Rect, op.B, op.C, op.D, op.E);
+                        break;
+                }
             }
         }
+        finally
+        {
+            foreach (QueuedGpuOp op in batch)
+                if (op.Pixels is not null)
+                    ArrayPool<ushort>.Shared.Return(op.Pixels);
+        }
+    }
+
+    private void ClearQueuedOpsAndReturnBuffersLocked()
+    {
+        foreach (QueuedGpuOp op in _queuedOps)
+            if (op.Pixels is not null)
+                ArrayPool<ushort>.Shared.Return(op.Pixels);
+        _queuedOps.Clear();
     }
 }

@@ -120,6 +120,7 @@ public sealed class PsxTimersAndDma
 
     public uint ReadTimerReg(uint p)
     {
+        TickTo(_cpu.TotalCycles);
         int id = (int)((p - 0x1F801100U) >> 4);
         if (id is < 0 or > 2) return 0;
         switch (p & 0xFU)
@@ -136,6 +137,7 @@ public sealed class PsxTimersAndDma
 
     public void WriteTimerReg(uint p, uint val)
     {
+        TickTo(_cpu.TotalCycles);
         int id = (int)((p - 0x1F801100U) >> 4);
         if (id is < 0 or > 2) return;
         switch (p & 0xFU)

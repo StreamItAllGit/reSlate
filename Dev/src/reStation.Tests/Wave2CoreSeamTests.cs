@@ -118,7 +118,9 @@ public sealed class Wave2CoreSeamTests
         cpu.TotalCycles = 100; cpu.SubTickDeadlineCycle = 400; cpu.RunSlice(0x80020000U, inSubTickRender: true);
         Assert.False(nestedRan); Assert.False(cpu.InSubTickRender); Assert.Equal(0L, cpu.SubTickDeadlineCycle);
         Assert.Equal(0x00000800U, cpu.Bus.CacheControl); Assert.Equal(0U, cpu.TimersAndDma.InterruptMask);
-        Assert.Equal(0U, cpu.TimersAndDma.ReadTimerReg(0x1F801100U));
+        uint t0 = cpu.TimersAndDma.ReadTimerReg(0x1F801100U);
+        Assert.Equal(500U, t0);
+        Assert.NotEqual(0x7777U, t0);
         Assert.Equal(0x07654821U, cpu.TimersAndDma.ReadDmaReg(0x1F8010F0U));
         Assert.Equal(0xCAFEBABEU, cpu.Bus.Read32(0x80010100U)); Assert.Equal(0x11223344U, cpu.Bus.Read32(0x1F800020U));
         Assert.False(cpu.Gpu.DisplayDisabled);

@@ -74,7 +74,9 @@ public sealed partial class PsxCpu
     {
         uint canonPc = 0x80000000U | (pc & 0x1FFFFFFFU);
         IRecompModule? mod = ResolveModule(canonPc);
-        return mod is not null && canonPc >= mod.TextStart && canonPc < mod.TextEnd;
+        if (mod is null) return false;
+        if (mod is reStation.Core.Aot.IRecompCompiledEntryLookup lookup) return lookup.ContainsCompiledEntry(canonPc);
+        return canonPc >= mod.TextStart && canonPc < mod.TextEnd;
     }
 
     internal IRecompModule? ResolveModule(uint canonPc)

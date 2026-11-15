@@ -1,50 +1,50 @@
 {
   "schemaVersion": 1,
   "sdkId": "Foundation",
-  "version": "0.3.1",
-  "uiVersion": "0.2.0",
-  "publishedAtUtc": "2026-11-13T12:10:50Z",
-  "fileCount": 63,
+  "version": "0.4.0",
+  "uiVersion": "0.4.0",
+  "publishedAtUtc": "2026-11-15T09:17:49Z",
+  "fileCount": 51,
   "files": [
     {
       "relativePath": "Foundation.Core.deps.json",
       "sizeBytes": 8523,
-      "sha256": "b649827212aecd361a008460df06f78c4baa23d657d81327a00e52fbb312c8e0"
+      "sha256": "99dfd388c2aaaf061553beb37f7141ab11472facc802eec3124abd7c875eb19f"
     },
     {
       "relativePath": "Foundation.Core.dll",
-      "sizeBytes": 101888,
-      "sha256": "d0a0999acc21c2dcbed23fb831d717f15e1acbfc2eb3bec2402230a715fb0bf2"
+      "sizeBytes": 103424,
+      "sha256": "d5e1c43e4d0d1a225077ea6252b7ac72cbe16bd118fc73c15521a8219beb212b"
     },
     {
       "relativePath": "Foundation.Core.xml",
-      "sizeBytes": 11507,
-      "sha256": "e3be89d15ff0e3a627ac90ad2224f3d63e7569ad9b30c0c8b848b55623f8ba90"
+      "sizeBytes": 11960,
+      "sha256": "dfc5519e74da0d8aceef75613853d2313019f5af51374c6977af703af61dc7cb"
     },
     {
       "relativePath": "Foundation.Installer.deps.json",
       "sizeBytes": 8218,
-      "sha256": "47927848a8c6d0725eb929021545da71196ca02ca09780f152c609c2824b0ffc"
+      "sha256": "3b1b3a3bdd16d5aa0fac5dac107d4e1e6b3ad922063ede5525ccef27f6551193"
     },
     {
       "relativePath": "Foundation.Installer.dll",
-      "sizeBytes": 108032,
-      "sha256": "7a4dc5f3bd37e3b3a076cf1c2d7fc495987b0a1640ae1fabf8a1016725fd3924"
+      "sizeBytes": 136704,
+      "sha256": "dc47227df12ec63156fa06c4f6ae841095fecdce9fa9c977308c24e20d3306f1"
     },
     {
       "relativePath": "Foundation.Installer.xml",
-      "sizeBytes": 5669,
-      "sha256": "1ec73e813bd6dcb1569f67c5f32d2b2d57cb3b76e3c9569657328da1aac212e0"
+      "sizeBytes": 8668,
+      "sha256": "1469ff2f6b6a883f9157818f6222da129690c36d79ed5a59b67cbc786ef6d338"
     },
     {
       "relativePath": "Foundation.Launcher.deps.json",
       "sizeBytes": 449,
-      "sha256": "701a782c9d0bc0774a6da2cfdc57d3e10ce78f870061f05b9eb2fd78b6a55258"
+      "sha256": "f77c2385a42f8a2629956b724ebd2fbda87c4f8d8a36190e26873528e21a4bbb"
     },
     {
       "relativePath": "Foundation.Launcher.dll",
-      "sizeBytes": 6656,
-      "sha256": "fd567dfbdc92fcb9ff32a5c5b7acbef7de4d2871deea2ce069e82b3608984082"
+      "sizeBytes": 9728,
+      "sha256": "ebbd51f888d5b5138e806b7966f1e49ae9c2363cf10ee6c9178ec646cd1b1b30"
     },
     {
       "relativePath": "Foundation.Launcher.xml",
@@ -54,27 +54,27 @@
     {
       "relativePath": "Foundation.Retro.deps.json",
       "sizeBytes": 8925,
-      "sha256": "40bb792760c269be9d9225741fd96db82671c86f517021768b3db39321ca76cc"
+      "sha256": "7f014444149345d27027af7cd10285194bac7cf3317be2bcb57787ebf50106c5"
     },
     {
       "relativePath": "Foundation.Retro.dll",
-      "sizeBytes": 152064,
-      "sha256": "df0753ac1cfea224f06bbf8edc552240e28e4c736f915b87a1d13be3e3984b2d"
+      "sizeBytes": 155136,
+      "sha256": "409a3b3b3325899720a93d27576eb1f86e09ed26446bdb3df325ba16b54ad4fe"
     },
     {
       "relativePath": "Foundation.Retro.xml",
-      "sizeBytes": 6032,
-      "sha256": "972cb8f2b4d1901916c0ae535b88a86015b569c47c430ee230515dd2d739fdd2"
+      "sizeBytes": 7875,
+      "sha256": "e009959334291157cdc66efd190883f8d26ee1e59916e71cda3fdefb94c210fa"
     },
     {
       "relativePath": "Foundation.Server.deps.json",
       "sizeBytes": 8928,
-      "sha256": "6ca6115c3e630b9ffcefa70ad267c6a38ebe7ba1a5f81ed853916acf784b4153"
+      "sha256": "43c5dcbc726ad6a660e7ed29ad4aca0dc905675399d479ca6a3788426a78bc14"
     },
     {
       "relativePath": "Foundation.Server.dll",
       "sizeBytes": 21504,
-      "sha256": "8d81e0065f143c0d9a367a85abf8b3e36212b6c2fc313644472324c2b24a1bb3"
+      "sha256": "a5d3170cce20b388ab4da0a9803d250253e6be303c162dfd81b8b48acb9b1774"
     },
     {
       "relativePath": "Foundation.Server.xml",
@@ -84,12 +84,12 @@
     {
       "relativePath": "Foundation.Sidecars.deps.json",
       "sizeBytes": 9376,
-      "sha256": "a51ef07912ec35ffafdd029301787688c1d8e9c42da11b4454cf7b4e63a8c587"
+      "sha256": "2762f8375ee8140b77f1c170b7cda54293b25487bb9eab2377997690beb06d58"
     },
     {
       "relativePath": "Foundation.Sidecars.dll",
-      "sizeBytes": 53760,
-      "sha256": "ef5bf1e6dfcb22d44a88e0db5f8c07795e6ce847e6a5d7741c06c16c3d2572ed"
+      "sizeBytes": 59392,
+      "sha256": "2995966a5235f512e99df65cca8b8024067d9cdac5881891d40b692f696a10be"
     },
     {
       "relativePath": "Foundation.Sidecars.xml",
@@ -99,12 +99,12 @@
     {
       "relativePath": "Foundation.UI.deps.json",
       "sizeBytes": 8197,
-      "sha256": "5bf6f3240ad1cd7eda159031ec8e05a7c76c441ea4b304d0f086f831232c73b3"
+      "sha256": "d1f3ebd7afde9d09a8881c1a9e49f1a0210bb6cf534b4c3824b2585612733f9b"
     },
     {
       "relativePath": "Foundation.UI.dll",
       "sizeBytes": 17408,
-      "sha256": "b364456f536f16c974d7b782df4aaa306fc69514f7abed66237c786a2a55e8b8"
+      "sha256": "56813a6a993f97da60f91cf7928a06de9e418bc93694f36d15fcec03e55db96d"
     },
     {
       "relativePath": "Foundation.UI.xml",
@@ -144,12 +144,17 @@
     {
       "relativePath": "foundation_core/pyproject.toml",
       "sizeBytes": 368,
-      "sha256": "a87b51a5ff7ea8d264c934051801d45f7d0f52febcdddede80c810b65526f1a2"
+      "sha256": "9eca649c6272efb92aad76104eb79f1a2d813fa29ad6240f10256d9cded40e9c"
     },
     {
       "relativePath": "foundation_core/settings.py",
       "sizeBytes": 3028,
       "sha256": "f5978813f0529e785777cd436cc10b11d48f6444eb5d4befd8d536075ca9d0de"
+    },
+    {
+      "relativePath": "LICENSE",
+      "sizeBytes": 1068,
+      "sha256": "278d2ec1c7112547362de458f1bf95b623a60a5e43038dd3dfb16d769c6968c5"
     },
     {
       "relativePath": "tools/build_release_universal.py",
@@ -158,13 +163,13 @@
     },
     {
       "relativePath": "tools/notion_task_helper.py",
-      "sizeBytes": 2131,
-      "sha256": "d6054abbbaa14deeb8b10584696d6599f98aac1f8f2920fb50f351d72002bbda"
+      "sizeBytes": 3005,
+      "sha256": "99826854236e944992a2c48107de771df3d2837e9913a7ed46aaaf8fd732febb"
     },
     {
       "relativePath": "tools/sync_foundation_sdk.py",
-      "sizeBytes": 7871,
-      "sha256": "45897e60876ec9519a5c123a6bbc8c15618ace8edb9efcac7488fb397b346429"
+      "sizeBytes": 9679,
+      "sha256": "fcafee37b23ddd637386de413074f90fb97f9ac958111f1ff6f383dd05e28d14"
     },
     {
       "relativePath": "tools/verify_sandbox_universal.py",
@@ -254,72 +259,7 @@
     {
       "relativePath": "WebAssets/package.json",
       "sizeBytes": 446,
-      "sha256": "2d957314608c137e2e2a64b94a7e32621fd4719e820443e60139cd549d9b129a"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/CoexistenceWarningBanner.tsx",
-      "sizeBytes": 4757,
-      "sha256": "745ce5b760b48dd1659184bf0c6bd8f45e7f0d47e387d23638a0310f4e70b56d"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/GlobalTerminalDrawer.tsx",
-      "sizeBytes": 15385,
-      "sha256": "ceb1bf6e7bb57238df2ca4e5f9c6f9682bbe02ca0579a39a4b8cee05413c9aa9"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/HybridPathPicker.tsx",
-      "sizeBytes": 7780,
-      "sha256": "c1b1dffc6ecef468e38585768c7dc0ff1924534068484e5f247590f598a9ecda"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/ModalDialog.tsx",
-      "sizeBytes": 4273,
-      "sha256": "a239e5dad7b9263f266acbc85964d9b22c4f35ecbaf0215f2226169868063586"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/ResponsiveTable.tsx",
-      "sizeBytes": 1241,
-      "sha256": "09e29a437738f1ff82595fdc14ef5cddc6b4f8cfcf78a7a0626c1d6b768f6bbf"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/SchemaSettingsRenderer.tsx",
-      "sizeBytes": 5381,
-      "sha256": "934db24f5ac9d45bb5cd879008fcdaf3488d88c96203affb919239702ee5af72"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/SidebarNavRail.tsx",
-      "sizeBytes": 4529,
-      "sha256": "eb46390723d233423c447020ebd643f3320c241698a5bd670fd245f28dfe4d39"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/StyledTooltip.tsx",
-      "sizeBytes": 3635,
-      "sha256": "ee386d5ba4c03f4bdd2893da8c7ad23145db44f642c6edbcfcbab65017b5b04c"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/terminalDrawerCore.ts",
-      "sizeBytes": 6439,
-      "sha256": "2c31d8da88703969119fb99ae6b156d2c819b84905f2647a54210991e2385973"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/TerminalToolbarAndFilters.tsx",
-      "sizeBytes": 11218,
-      "sha256": "dad284d6c9dc9c750419ec057df96516fb12cbbf675424936f7cedacfac5f799"
-    },
-    {
-      "relativePath": "WebAssets/Web/components/UniversalDataTable.tsx",
-      "sizeBytes": 7825,
-      "sha256": "0289ce3a374adae2b5cc337c209eeac130a0aff2ed5878d3def3a0788140b76b"
-    },
-    {
-      "relativePath": "WebAssets/Web/index.ts",
-      "sizeBytes": 2405,
-      "sha256": "28f04a713c3531b019e8569facb4f6c143c12a7f3ed6cb087dab1048180739c6"
-    },
-    {
-      "relativePath": "WebAssets/Web/package.json",
-      "sizeBytes": 446,
-      "sha256": "2d957314608c137e2e2a64b94a7e32621fd4719e820443e60139cd549d9b129a"
+      "sha256": "a4b1381f33b47509ca3867f0bf6e934fe98f05e2c26e9cda3e88cd0d3a84a6ff"
     }
   ]
 }

@@ -15,6 +15,31 @@
             Preserves user data\ and logs\ during upgrades and supports full headless --test-mode sandbox verification.
             </summary>
         </member>
+        <member name="T:Foundation.Installer.InstallerProfileKind">
+            <summary>
+            Supported installer bundle footprint profiles (Standard 18: installProfile).
+            </summary>
+        </member>
+        <member name="T:Foundation.Installer.InstallerProfileOption">
+            <summary>
+            Selectable installation profile option presented in the setup wizard (e.g., Lightweight vs Full).
+            </summary>
+        </member>
+        <member name="M:Foundation.Installer.InstallerProfileOption.#ctor(System.String,Foundation.Installer.InstallerProfileKind,System.String,System.String,System.Boolean)">
+            <summary>
+            Selectable installation profile option presented in the setup wizard (e.g., Lightweight vs Full).
+            </summary>
+        </member>
+        <member name="T:Foundation.Installer.SecondaryPathPickerOptions">
+            <summary>
+            Optional secondary directory picker configuration for companion roots (e.g., --reengine-dir or --suite-dir).
+            </summary>
+        </member>
+        <member name="M:Foundation.Installer.SecondaryPathPickerOptions.#ctor(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Optional secondary directory picker configuration for companion roots (e.g., --reengine-dir or --suite-dir).
+            </summary>
+        </member>
         <member name="T:Foundation.Installer.InstallerCustomToggle">
             <summary>
             Optional per-app checkbox toggle displayed on the setup wizard surface (e.g., "Register with Mother Suite", "Create Desktop Shortcut").
@@ -75,6 +100,27 @@
         </member>
         <member name="P:Foundation.Installer.InstallerThemeOptions.CustomToggles">
             <summary>Customizable optional toggles presented to the user before installation starts.</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.StudioName">
+            <summary>Studio umbrella folder under %LOCALAPPDATA%\Programs\ (defaults to "StreamItAll").</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.SuiteName">
+            <summary>Optional suite folder nested under StudioName (e.g., "Mother" or "reEngine").</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.UmbrellaSubpath">
+            <summary>Optional explicit umbrella subpath relative to %LOCALAPPDATA%\Programs\ (Standard 18: umbrellaSubpath).</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.AvailableProfiles">
+            <summary>Available installation profiles presented to the user (e.g., Lightweight vs Full).</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.DefaultProfileId">
+            <summary>Default installation profile identifier (Standard 18: installProfile, defaults to "lightweight").</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.SecondaryPathPicker">
+            <summary>Optional secondary directory picker (e.g., --reengine-dir or --suite-dir).</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.AllowLegacyMigration">
+            <summary>Whether the wizard offers opt-in migration from legacy flat &lt;PROGRAMS_ROOT&gt;\ installations.</summary>
         </member>
         <member name="T:Foundation.Installer.InstallerWizardControls">
             <summary>

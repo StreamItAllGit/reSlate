@@ -100,13 +100,6 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     }
 
     public RecompFrameStats GetFrameStats() => GetTelemetry().ToFrameStats();
-    /// <summary>Records the module's presentation target (the VBlank loop itself stays hardware-paced at 60 Hz).</summary>
-    public void SetTargetFps(double targetFps, bool unlock = false)
-    {
-        double fps = double.IsFinite(targetFps) && targetFps > 0 ? targetFps : 60.0;
-        Options = Options with { TargetFps = fps, UnlockFps = unlock };
-        _logger.Info("HOST", $"Module requested presentation targetFps={fps:F0} unlock={unlock}.");
-    }
 
     public void RegisterModule(IRecompModule module) => _cpu.RegisterModule(module);
     public void SetFramePatch(IGameFramePatch? patch) { _cpu.FramePatch = patch; _subTickHook = patch as ISubTickFrameHook; }
@@ -245,55 +238,15 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         if (FramesRun == before) RunFrame();
     }
 
-    /// <summary>Saves a quick-save slot atomically using <see cref="QuickSaveManager.SaveToFileWithTrailer"/>.</summary>
-    public void SaveQuickSlot(int slot) =>
-        QuickSaveManager.SaveToFileWithTrailer(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), ModuleManifest.ModuleId, QuickSaveTrailer.CaptureDefaultChunks(_cpu), _logger);
-
-    /// <summary>Requests a quick-load at the next frame boundary (unwinds lifted code when booted).</summary>
-    public bool RequestQuickLoad(int slot)
-    {
-        if (_emuThread is not null && !_emuFinished) { _cpu.PendingQuickLoadSlot = slot; _cpu.ShouldUnwind = true; return true; }
-        return LoadQuickSlot(slot);
-    }
-
-    private bool LoadQuickSlot(int slot)
-    {
-        try { return QuickSaveManager.LoadFromFile(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), _logger).Success; }
-        catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
-        {
-            _logger.Warn("SAVE", $"Quick-load slot {slot} invalid ({ex.GetType().Name}: {ex.Message}).");
-            return false;
-        }
-    }
-
-    private void EmulationThreadMain()
-    {
-        try
-        {
-            _resumeEmu.WaitOne();
-            if (_disposing) return;
-            _cpu.DispatchFunction(_entryPc);
-            while (!_disposing && !_cpu.ExitRequested && _cpu.PendingQuickLoadSlot >= 0)
-            {
-                int slot = _cpu.PendingQuickLoadSlot;
-                _cpu.PendingQuickLoadSlot = -1;
-                _cpu.ShouldUnwind = false;
-                if (!LoadQuickSlot(slot)) { _logger.Warn("SAVE", $"Quick-load slot {slot} unavailable."); break; }
-                _logger.Info("SAVE", $"Quick-loaded slot {slot}; resuming at pc=0x{_cpu.Pc:X8}.");
-                _cpu.DispatchFunction(_cpu.Pc);
-            }
-            _logger.Info("EMU", $"Emulation thread finished frames={_cpu.FrameCount} exitRequested={_cpu.ExitRequested}.");
-        }
-        catch (Exception ex) { _emuFault = ex; }
-        finally { _emuFinished = true; _hostActionDone.Set(); _frameReached.Set(); }
-    }
-
     private void OnVBlank(PsxCpu cpu)
     {
         if (!ReferenceEquals(Thread.CurrentThread, _emuThread)) return; // idle hardware tick on the host thread
+        FlushPendingQuickActionsAtVBlank(cpu);
+        if (cpu.ShouldUnwind || cpu.ExitRequested) return;
         _frameReached.Set();
         _resumeEmu.WaitOne();
         if (_disposing) cpu.RequestExit();
+        else FlushPendingQuickActionsAtVBlank(cpu);
     }
 
     /// <summary>Stores per-frame host timings consumed by telemetry, HUD, and heartbeats.</summary>

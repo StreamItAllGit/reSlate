@@ -75,9 +75,12 @@ public sealed unsafe partial class OpenGl33RenderBackend
     }
 
     public void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, bool uploadPixels)
+        => RenderUiOverlay(rgbaPixels, width, height, 0, 0, Math.Max(1, width), Math.Max(1, height), uploadPixels);
+
+    public void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, int dstX, int dstY, int canvasW, int canvasH, bool uploadPixels)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (width <= 0 || height <= 0 || rgbaPixels.Length < width * height * 4) return;
+        if (width <= 0 || height <= 0 || canvasW <= 0 || canvasH <= 0 || rgbaPixels.Length < width * height * 4) return;
         InitGlIfNeeded();
         if (_overlayTex == 0 || _overlayW != width || _overlayH != height)
         {
@@ -95,7 +98,11 @@ public sealed unsafe partial class OpenGl33RenderBackend
             fixed (byte* p = rgbaPixels)
                 Gl.TexSubImage2D(GlConst.Texture2D, 0, 0, 0, width, height, GlConst.Rgba, GlConst.UnsignedByte, p);
         }
-        DrawBlitQuad(0, SurfaceWidth, SurfaceHeight, 3, _overlayTex, -1f, -1f, 2f, 2f, 0f, 1f, 1f, -1f, 0, 0, width, height, alphaBlend: true);
+        float ndcX = -1f + (2f * (dstX / (float)canvasW));
+        float ndcW = 2f * (width / (float)canvasW);
+        float ndcY = 1f - (2f * ((dstY + height) / (float)canvasH));
+        float ndcH = 2f * (height / (float)canvasH);
+        DrawBlitQuad(0, SurfaceWidth, SurfaceHeight, 3, _overlayTex, ndcX, ndcY, ndcW, ndcH, 0f, 1f, 1f, -1f, 0, 0, width, height, alphaBlend: true);
     }
 
     private void BlitDisplayToScreen(bool fullWindow, bool widescreen16By9)

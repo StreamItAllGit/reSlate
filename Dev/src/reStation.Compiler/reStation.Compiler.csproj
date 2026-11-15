@@ -20,6 +20,9 @@
     <Reference Include="Foundation.Retro">
       <HintPath>$(ReStationLibDir)Foundation.Retro.dll</HintPath>
     </Reference>
+    <Reference Include="reEngine.Core">
+      <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

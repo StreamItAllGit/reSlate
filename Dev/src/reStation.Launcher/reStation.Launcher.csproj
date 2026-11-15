@@ -20,7 +20,7 @@
       <Private>false</Private>
     </Reference>
     <EmbeddedResource Include="$(ReStationLibDir)Foundation.Launcher.dll" LogicalName="Foundation.Launcher.dll" />
-    <EmbeddedResource Include="..\..\lib\Foundation.Core.dll" LogicalName="Foundation.Core.dll" />
+    <EmbeddedResource Include="$(ReStationLibDir)Foundation.Core.dll" LogicalName="Foundation.Core.dll" />
   </ItemGroup>
 
 </Project>

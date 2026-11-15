@@ -11,13 +11,16 @@ using reStation.Core.Gpu;
 namespace reStation.Player;
 
 /// <summary>Video output: GL window (default), SDL software renderer fallback, or pure offscreen (no SDL / headless).</summary>
-internal sealed unsafe class HostVideoSurface : IDisposable
+internal sealed unsafe partial class HostVideoSurface : IDisposable
 {
     public const int DefaultWidth = 1280, DefaultHeight = 720;
     public const int NativeWidth = 320, NativeHeight = 240;
 
     private IntPtr _texture;
-    private int _texW, _texH, _surfW, _surfH, _surfScale;
+    private IntPtr _uiTexture;
+    private int _texW, _texH, _uiTexW, _uiTexH, _surfW, _surfH, _surfScale;
+    private string _title = "reStation";
+    private bool _alwaysOnTop;
     private bool _disposed;
 
     private HostVideoSurface(IPsxRenderBackend backend) => Backend = backend;
@@ -77,6 +80,8 @@ internal sealed unsafe class HostVideoSurface : IDisposable
         {
             if (TryCreateGlSurface(title, baseFlags, settings, logger, out HostVideoSurface? glSurface, out string glError) && glSurface is not null)
             {
+                glSurface._title = title;
+                glSurface._alwaysOnTop = alwaysOnTop && !headless;
                 glSurface.FinishWindow(foreground, alwaysOnTop && !headless, logger);
                 return glSurface;
             }
@@ -84,7 +89,7 @@ internal sealed unsafe class HostVideoSurface : IDisposable
             logger.Warn("GL_FALLBACK", $"stage=GL33Core reason=\"{glError}\" forced=software renderer=SDL_CreateRenderer");
         }
 
-        var surface = new HostVideoSurface(new SoftwareCpuRenderBackend()) { SdlAvailable = true, FallbackReason = fallback };
+        var surface = new HostVideoSurface(new SoftwareCpuRenderBackend()) { SdlAvailable = true, FallbackReason = fallback, _title = title, _alwaysOnTop = alwaysOnTop && !headless };
         surface.Window = Sdl3Native.CreateWindowUtf8(title, DefaultWidth, DefaultHeight, baseFlags);
         if (surface.Window != IntPtr.Zero)
         {
@@ -169,6 +174,56 @@ internal sealed unsafe class HostVideoSurface : IDisposable
         _ = Sdl3Native.SDL_RenderPresent(Renderer);
     }
 
+    /// <summary>Software GPU layer compositing: uploads game RGBA once + streaming blend UI texture only when dirty.</summary>
+    public void PresentLayeredSoftware(
+        int gameW, int gameH, ReadOnlySpan<byte> gameRgba, bool effectiveWidescreen,
+        bool hasOverlay, int uiW, int uiH, ReadOnlySpan<byte> uiRgba, int uiDstX, int uiDstY, bool uiUpload)
+    {
+        if (_disposed || Renderer == IntPtr.Zero) return;
+        (int winW, int winH) = GetWindowSize();
+        _ = Sdl3Native.SDL_SetRenderDrawColor(Renderer, 0x0E, 0x0E, 0x10, 0xFF);
+        _ = Sdl3Native.SDL_RenderClear(Renderer);
+
+        if (gameW > 0 && gameH > 0 && gameRgba.Length >= gameW * gameH * 4)
+        {
+            if (_texture == IntPtr.Zero || _texW != gameW || _texH != gameH)
+            {
+                if (_texture != IntPtr.Zero) Sdl3Native.SDL_DestroyTexture(_texture);
+                _texture = Sdl3Native.SDL_CreateTexture(Renderer, Sdl3Native.PixelFormatAbgr8888, Sdl3Native.TextureAccessStreaming, gameW, gameH);
+                _ = Sdl3Native.SDL_SetTextureScaleMode(_texture, Sdl3Native.ScaleModeLinear);
+                _ = Sdl3Native.SDL_SetTextureBlendMode(_texture, Sdl3Native.BlendModeNone);
+                _texW = gameW; _texH = gameH;
+            }
+            if (_texture != IntPtr.Zero)
+            {
+                fixed (byte* gp = gameRgba) _ = Sdl3Native.SDL_UpdateTexture(_texture, IntPtr.Zero, gp, gameW * 4);
+                SdlFRect gameDst = UiOverlayPresenter.ComputeGameDstRect(winW, winH, effectiveWidescreen);
+                _ = Sdl3Native.SDL_RenderTexture(Renderer, _texture, null, &gameDst);
+            }
+        }
+
+        if (hasOverlay && uiW > 0 && uiH > 0 && uiRgba.Length >= uiW * uiH * 4)
+        {
+            if (_uiTexture == IntPtr.Zero || _uiTexW != uiW || _uiTexH != uiH)
+            {
+                if (_uiTexture != IntPtr.Zero) Sdl3Native.SDL_DestroyTexture(_uiTexture);
+                _uiTexture = Sdl3Native.SDL_CreateTexture(Renderer, Sdl3Native.PixelFormatAbgr8888, Sdl3Native.TextureAccessStreaming, uiW, uiH);
+                _ = Sdl3Native.SDL_SetTextureScaleMode(_uiTexture, Sdl3Native.ScaleModeLinear);
+                _ = Sdl3Native.SDL_SetTextureBlendMode(_uiTexture, Sdl3Native.BlendModeBlend);
+                _uiTexW = uiW; _uiTexH = uiH;
+                uiUpload = true;
+            }
+            if (_uiTexture != IntPtr.Zero)
+            {
+                if (uiUpload) { fixed (byte* up = uiRgba) _ = Sdl3Native.SDL_UpdateTexture(_uiTexture, IntPtr.Zero, up, uiW * 4); }
+                float sx = winW / (float)UiOverlayPresenter.OverlayWidth, sy = winH / (float)UiOverlayPresenter.OverlayHeight;
+                var uiDst = new SdlFRect { X = uiDstX * sx, Y = uiDstY * sy, W = uiW * sx, H = uiH * sy };
+                _ = Sdl3Native.SDL_RenderTexture(Renderer, _uiTexture, null, &uiDst);
+            }
+        }
+        _ = Sdl3Native.SDL_RenderPresent(Renderer);
+    }
+
     /// <summary>GL fast path: the backend already resolved the frame in EndFrameAndPresent; only swap.</summary>
     public void SwapGlOnly()
     {
@@ -227,11 +282,12 @@ internal sealed unsafe class HostVideoSurface : IDisposable
         if (_disposed) return;
         _disposed = true;
         if (_texture != IntPtr.Zero) Sdl3Native.SDL_DestroyTexture(_texture);
+        if (_uiTexture != IntPtr.Zero) Sdl3Native.SDL_DestroyTexture(_uiTexture);
         if (Renderer != IntPtr.Zero) Sdl3Native.SDL_DestroyRenderer(Renderer);
         Backend.Dispose(); // GL backend frees GPU objects while its context is still current.
         if (GlContext != IntPtr.Zero) _ = Sdl3Native.SDL_GL_DestroyContext(GlContext);
         if (Window != IntPtr.Zero) Sdl3Native.SDL_DestroyWindow(Window);
         if (SdlAvailable) Sdl3Native.SDL_Quit();
-        _texture = Renderer = GlContext = Window = IntPtr.Zero;
+        _texture = _uiTexture = Renderer = GlContext = Window = IntPtr.Zero;
     }
 }

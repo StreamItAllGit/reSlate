@@ -67,7 +67,8 @@ public static class ExeScanHelpers
     internal static (List<GeneratedFnSpec> Functions, HashSet<uint> RdataTargets) DiscoverFunctions(
         DiscoveredExe exe,
         Func<uint, uint> readWord,
-        string? functionsJsonPath)
+        string? functionsJsonPath,
+        IReadOnlyCollection<uint>? extraSeedEntries = null)
     {
         uint textAddr = exe.Header.TextAddr;
         uint textEnd = exe.Header.TextEnd;
@@ -78,6 +79,18 @@ public static class ExeScanHelpers
 
         bool autoDiscovered = rawList.Count == 0;
         if (autoDiscovered) SeedAutomaticFunctions(exe.Header, readWord, rawList);
+
+        if (extraSeedEntries is { Count: > 0 })
+        {
+            var existing = new HashSet<uint>(rawList.Select(r => r.Addr));
+            foreach (uint rawSeed in extraSeedEntries)
+            {
+                uint seed = 0x80000000U | (rawSeed & 0x1FFFFFFFU);
+                if (seed >= textAddr && seed < textEnd && (seed & 3U) == 0U && existing.Add(seed))
+                    rawList.Add((seed, 4U));
+            }
+            rawList = rawList.OrderBy(r => r.Addr).ToList();
+        }
 
         uint codeEnd = DiscoverAdditionalEntries(rawList, rdataTargets, readWord, textAddr, textEnd, autoDiscovered);
         var funcs = new List<GeneratedFnSpec>(rawList.Count);

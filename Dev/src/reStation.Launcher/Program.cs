@@ -1,34 +1,38 @@
 // @module: reStation.Launcher.Program
-// @purpose: Clean-root reStation.exe launcher forwarding CLI/GUI to app\reStation.Player.exe via embedded Foundation.Launcher & Foundation.Core JobObjectGuard.
-// @depends-on: System.Diagnostics, System.Reflection, System.Runtime.CompilerServices, System.Runtime.InteropServices, Foundation.Launcher, Foundation.Core
+// @purpose: Minimal single-file clean-root launcher resolving app\reStation.Player.exe (or %LOCALAPPDATA% canonical track), AllowAutoStart = false, caller CWD preservation, and sync CLI forwarding.
+// @depends-on: System, System.ComponentModel, System.Diagnostics, System.IO, System.Reflection, System.Runtime.CompilerServices, System.Runtime.InteropServices, System.Threading, Foundation.Core, Foundation.Launcher
 // @exports: Program
-// @owner: devv-pkg (Wave 2 Slice 3)
 
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Foundation.Core;
 using Foundation.Launcher;
 
 namespace reStation.Launcher;
 
 internal static class Program
 {
+    public const bool AllowAutoStart = false;
     private const int AttachParentProcess = -1;
-    private static readonly string PlayerRelativePath = Path.Combine("app", "reStation.Player.exe");
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int dwProcessId);
 
     static Program()
     {
         AppDomain.CurrentDomain.AssemblyResolve += static (_, e) =>
         {
             string? shortName = new AssemblyName(e.Name).Name;
-            string? resourceName = string.Equals(shortName, "Foundation.Launcher", StringComparison.OrdinalIgnoreCase)
-                ? "Foundation.Launcher.dll"
-                : string.Equals(shortName, "Foundation.Core", StringComparison.OrdinalIgnoreCase)
-                    ? "Foundation.Core.dll"
-                    : null;
+            string? resourceName = shortName switch
+            {
+                "Foundation.Launcher" => "Foundation.Launcher.dll",
+                "Foundation.Core" => "Foundation.Core.dll",
+                _ => null
+            };
             if (resourceName is null) return null;
-
             using Stream? stream = typeof(Program).Assembly.GetManifestResourceStream(resourceName);
             if (stream is null) return null;
             using var ms = new MemoryStream();
@@ -37,81 +41,110 @@ internal static class Program
         };
     }
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool AttachConsole(int dwProcessId);
-
     [STAThread]
     private static int Main(string[] args) => RunLauncher(args ?? Array.Empty<string>());
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static int RunLauncher(string[] args)
     {
+        string rootDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         string[] resolvedArgs = LauncherArgsHelper.ResolveRelativePathArgs(args, Environment.CurrentDirectory);
-        return LauncherArgsHelper.RequiresSyncWait(args)
-            ? RunAndWait(resolvedArgs)
-            : RootLauncherHost.Run(PlayerRelativePath, "reStation", resolvedArgs);
-    }
+        string[] forwardedArgs = LauncherArgsHelper.SanitizeAndPrepareForwardArgs(
+            resolvedArgs, out string? reEngineDir, out string? suiteDir);
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static int RunAndWait(string[] args)
-    {
-        string playerExe = RootLauncherHost.ResolveTargetExecutable(AppContext.BaseDirectory, PlayerRelativePath, Environment.ProcessPath);
-        bool redirOut = Console.IsOutputRedirected;
-        bool redirErr = Console.IsErrorRedirected;
-        if (!redirOut && !redirErr)
+        string candidateExe = LauncherArgsHelper.ResolveTargetPlayerExecutable(rootDir, reEngineDir, suiteDir);
+        string playerDir = Path.GetDirectoryName(candidateExe) ?? rootDir;
+        string installRoot = string.Equals(Path.GetFileName(playerDir), "app", StringComparison.OrdinalIgnoreCase)
+            ? (Path.GetDirectoryName(playerDir) ?? rootDir)
+            : playerDir;
+        string playerExe = RootLauncherHost.ResolveTargetExecutable(
+            installRoot,
+            Path.Combine("app", "reStation.Player.exe"),
+            Environment.ProcessPath);
+        if (!File.Exists(playerExe) && File.Exists(candidateExe))
         {
-            try
-            {
-                _ = AttachConsole(AttachParentProcess);
-            }
-            catch (DllNotFoundException ex)
-            {
-                string warn = $"[WARN] [LAUNCHER] AttachConsole unavailable: {ex.Message}";
-                Trace.WriteLine(warn);
-                Console.Error.WriteLine(warn);
-            }
+            playerExe = candidateExe;
         }
 
         if (!File.Exists(playerExe))
         {
-            Console.Error.WriteLine($"reStation application binary not found at '{playerExe}'.");
-            Console.Error.Flush();
+            Console.Error.WriteLine($"reStation player binary not found at '{playerExe}'.");
             return 1;
         }
 
+        bool syncWait = LauncherArgsHelper.RequiresSyncWait(forwardedArgs);
+        return syncWait
+            ? RunAndWait(playerExe, forwardedArgs)
+            : LaunchDetached(playerExe, forwardedArgs);
+    }
+
+    private static int LaunchDetached(string playerExe, string[] args)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = playerExe,
+            WorkingDirectory = Environment.CurrentDirectory,
+            UseShellExecute = false
+        };
+        foreach (string a in args) psi.ArgumentList.Add(a);
+        using Process? proc = Process.Start(psi);
+        return proc is null ? 1 : 0;
+    }
+
+    private static int RunAndWait(string playerExe, string[] args)
+    {
+        if (OperatingSystem.IsWindows() && !Console.IsOutputRedirected && !Console.IsErrorRedirected)
+        {
+            _ = AttachConsole(AttachParentProcess);
+        }
+
+        bool redirOut = Console.IsOutputRedirected;
+        bool redirErr = Console.IsErrorRedirected;
         var psi = new ProcessStartInfo
         {
             FileName = playerExe,
             WorkingDirectory = Environment.CurrentDirectory,
             UseShellExecute = false,
+            CreateNoWindow = !redirOut && !redirErr,
             RedirectStandardOutput = redirOut,
             RedirectStandardError = redirErr
         };
-        foreach (string arg in args) psi.ArgumentList.Add(arg);
+        foreach (string a in args) psi.ArgumentList.Add(a);
 
         using Process? proc = Process.Start(psi);
         if (proc is null)
         {
             Console.Error.WriteLine($"Failed to start '{playerExe}'.");
-            Console.Error.Flush();
             return 1;
         }
 
-        IDisposable? jobGuard = null;
+        JobObjectGuard? jobGuard = null;
+        int cancelled = 0;
+        ConsoleCancelEventHandler onCancel = (_, e) =>
+        {
+            e.Cancel = true;
+            Interlocked.Exchange(ref cancelled, 1);
+            try { if (!proc.HasExited) proc.Kill(entireProcessTree: true); }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException)
+            {
+                Trace.WriteLine($"Launcher cancel skip: {ex.Message}");
+            }
+        };
+        Console.CancelKeyPress += onCancel;
         try
         {
             jobGuard = LauncherArgsHelper.AttachJobGuard(proc);
-            Task? outTask = redirOut ? proc.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput()) : null;
-            Task? errTask = redirErr ? proc.StandardError.BaseStream.CopyToAsync(Console.OpenStandardError()) : null;
+            if (jobGuard is null) Console.Error.WriteLine("[WARN] [LAUNCHER] JobObject kill-on-close guard unavailable.");
+            if (redirOut) proc.OutputDataReceived += (_, ev) => { if (ev.Data is not null) Console.Out.WriteLine(ev.Data); };
+            if (redirErr) proc.ErrorDataReceived += (_, ev) => { if (ev.Data is not null) Console.Error.WriteLine(ev.Data); };
+            if (redirOut) proc.BeginOutputReadLine();
+            if (redirErr) proc.BeginErrorReadLine();
             proc.WaitForExit();
-            if (outTask is not null) outTask.GetAwaiter().GetResult();
-            if (errTask is not null) errTask.GetAwaiter().GetResult();
-            Console.Out.Flush();
-            Console.Error.Flush();
-            return proc.ExitCode;
+            return Volatile.Read(ref cancelled) == 1 ? 130 : proc.ExitCode;
         }
         finally
         {
+            Console.CancelKeyPress -= onCancel;
             jobGuard?.Dispose();
         }
     }

@@ -4,6 +4,100 @@
         <name>reEngine.Core</name>
     </assembly>
     <members>
+        <member name="T:reEngine.Core.Aot.AotCacheKey">
+            <summary>
+            Deterministic cache key identifying an Ahead-of-Time (AOT) compiled assembly under <c>&lt;dataDir&gt;\cache\</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheKey.#ctor(System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Deterministic cache key identifying an Ahead-of-Time (AOT) compiled assembly under <c>&lt;dataDir&gt;\cache\</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheKey.ToCacheVersionSegment">
+            <summary>
+            Returns the deterministic 16-char ROM hash prefix + engine/module version segment.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Aot.AotCacheEntry">
+            <summary>
+            Indexed metadata entry for a cached AOT-compiled <c>*.Generated.dll</c> binary.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheEntry.#ctor(reEngine.Core.Aot.AotCacheKey,System.String,System.String,System.DateTimeOffset,System.DateTimeOffset,System.Int64,System.String,System.Boolean)">
+            <summary>
+            Indexed metadata entry for a cached AOT-compiled <c>*.Generated.dll</c> binary.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Aot.AotCompileResult">
+            <summary>
+            Outcome of an AOT cache lookup or local compilation pass.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCompileResult.#ctor(System.Boolean,reEngine.Core.Aot.AotCacheEntry,System.Boolean,System.TimeSpan,System.String,System.String)">
+            <summary>
+            Outcome of an AOT cache lookup or local compilation pass.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Aot.CleanRoomRecompCheckResult">
+            <summary>
+            Clean-room validation outcome ensuring <c>.recomp</c> packages do not bundle pre-compiled <c>*.Generated.dll</c> binaries.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.CleanRoomRecompCheckResult.#ctor(System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},System.String)">
+            <summary>
+            Clean-room validation outcome ensuring <c>.recomp</c> packages do not bundle pre-compiled <c>*.Generated.dll</c> binaries.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Aot.IAotCacheManager">
+            <summary>
+            Contract for managing deterministic <c>&lt;dataDir&gt;\cache\</c> AOT assemblies and clean-room <c>.recomp</c> checks.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.IAotCacheManager.ResolveCacheDirectory(reEngine.Core.Aot.AotCacheKey)">
+            <summary>Resolves the deterministic cache directory for the specified <see cref="T:reEngine.Core.Aot.AotCacheKey"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.IAotCacheManager.TryGetEntryAsync(reEngine.Core.Aot.AotCacheKey,System.Threading.CancellationToken)">
+            <summary>Attempts to retrieve and validate an existing cached AOT entry.</summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.IAotCacheManager.StoreCompiledAssemblyAsync(reEngine.Core.Aot.AotCacheKey,System.String,System.Threading.CancellationToken)">
+            <summary>Stores a locally compiled AOT assembly into <c>&lt;dataDir&gt;\cache\</c> under a cross-process lock.</summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.IAotCacheManager.EvictStaleEntriesAsync(System.String,reEngine.Core.Aot.AotCacheKey,System.Threading.CancellationToken)">
+            <summary>Evicts stale cache entries for <paramref name="moduleId"/>, optionally preserving <paramref name="activeKey"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.IAotCacheManager.ValidateCleanRoomRecompPackage(System.String)">
+            <summary>Rejects unexpected pre-compiled <c>*.Generated.dll</c> files inside a <c>.recomp</c> archive or directory.</summary>
+        </member>
+        <member name="T:reEngine.Core.Aot.AotCacheManager">
+            <summary>
+            Manages deterministic Ahead-of-Time (AOT) compiled <c>*.Generated.dll</c> entries under
+            <c>&lt;dataDir&gt;\cache\</c> with <c>aot-index.json</c> tracking, cross-process locking, and clean-room checks.
+            </summary>
+        </member>
+        <member name="F:reEngine.Core.Aot.AotCacheManager.IndexFileName">
+            <summary>Filename of the deterministic AOT cache index stored under <c>&lt;dataDir&gt;\cache\</c>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheManager.#ctor(System.String)">
+            <summary>
+            Initializes a new <see cref="T:reEngine.Core.Aot.AotCacheManager"/> rooted at <paramref name="dataDir"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheManager.ResolveCacheDirectory(reEngine.Core.Aot.AotCacheKey)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheManager.TryGetEntryAsync(reEngine.Core.Aot.AotCacheKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheManager.StoreCompiledAssemblyAsync(reEngine.Core.Aot.AotCacheKey,System.String,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheManager.EvictStaleEntriesAsync(System.String,reEngine.Core.Aot.AotCacheKey,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Aot.AotCacheManager.ValidateCleanRoomRecompPackage(System.String)">
+            <inheritdoc />
+        </member>
         <member name="T:reEngine.Core.Associations.FileAssociationRecord">
             <summary>
             Persisted shell association metadata for <c>.recomp</c> packages.
@@ -16,7 +110,7 @@
         </member>
         <member name="T:reEngine.Core.Associations.IFileAssociationStore">
             <summary>
-            Abstracts <c>.recomp</c> file association registration across live HKCU and sandbox virtual storage.
+            Abstracts <c>.recomp</c> and <c>.decomp</c> file association registration across live HKCU and sandbox virtual storage.
             </summary>
         </member>
         <member name="M:reEngine.Core.Associations.IFileAssociationStore.RegisterRecompAssociation(System.String,System.String)">
@@ -27,6 +121,15 @@
         </member>
         <member name="M:reEngine.Core.Associations.IFileAssociationStore.UnregisterRecompAssociation">
             <summary>Removes the <c>.recomp</c> association if present.</summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.IFileAssociationStore.RegisterDecompAssociation(System.String,System.String)">
+            <summary>Registers the <c>.decomp</c> open handler pointing to <paramref name="executablePath"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.IFileAssociationStore.ReadDecompAssociation">
+            <summary>Reads the currently registered <c>.decomp</c> association, or returns <see langword="null"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Associations.IFileAssociationStore.UnregisterDecompAssociation">
+            <summary>Removes the <c>.decomp</c> association if present.</summary>
         </member>
         <member name="T:reEngine.Core.Associations.VirtualRegistryAssociationStore">
             <summary>
@@ -50,6 +153,15 @@
         <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.UnregisterRecompAssociation">
             <inheritdoc />
         </member>
+        <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.RegisterDecompAssociation(System.String,System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.ReadDecompAssociation">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.VirtualRegistryAssociationStore.UnregisterDecompAssociation">
+            <inheritdoc />
+        </member>
         <member name="T:reEngine.Core.Associations.WindowsRegistryAssociationStore">
             <summary>
             Live per-user Windows Registry association store writing strictly under <c>HKCU\Software\Classes</c>.
@@ -69,6 +181,15 @@
         <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.UnregisterRecompAssociation">
             <inheritdoc />
         </member>
+        <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.RegisterDecompAssociation(System.String,System.String)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.ReadDecompAssociation">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.UnregisterDecompAssociation">
+            <inheritdoc />
+        </member>
         <member name="T:reEngine.Core.Bootstrap.ReEnginePackagingConstants">
             <summary>
             Canonical branding, packaging, and containment constants for <c>reEngine</c>.
@@ -82,6 +203,18 @@
         </member>
         <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.Version">
             <summary>Current packaged SemVer version.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.StudioName">
+            <summary>Canonical studio umbrella folder under <c>%LOCALAPPDATA%\Programs\</c>.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.SuiteName">
+            <summary>Canonical suite folder nested under <see cref="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.StudioName"/>.</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.UmbrellaSubpath">
+            <summary>Canonical umbrella subpath relative to <c>%LOCALAPPDATA%\Programs\</c> (Standard 18: umbrellaSubpath).</summary>
+        </member>
+        <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.DefaultInstallProfile">
+            <summary>Default installer footprint profile identifier (Standard 18: installProfile).</summary>
         </member>
         <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.BrandAccentHex">
             <summary>Brand accent color hex (Sky Cyan).</summary>
@@ -117,8 +250,23 @@
             and zero literal host paths in compiled binaries.
             </summary>
         </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultSuiteInstallDir(System.String,System.String,System.Boolean)">
+            <summary>
+            Resolves the canonical suite umbrella directory (<c>%LOCALAPPDATA%\Programs\StreamItAll\reEngine\</c>)
+            while enforcing fail-closed containment in <c>--test-mode</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveToolchainDir(System.String)">
+            <summary>
+            Returns the offline Ghidra + OpenJDK <c>toolchain\</c> sibling directory under <c>suiteInstallDir</c>
+            (falling back to <paramref name="reEngineInstallDir"/>\toolchain for isolated portable/sandbox runs).
+            </summary>
+        </member>
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveEnginesRootDir(System.String)">
-            <summary>Returns the side-by-side <c>engines\</c> subdirectory under <paramref name="reEngineInstallDir"/>.</summary>
+            <summary>
+            Returns the side-by-side <c>engines\</c> sibling directory under <c>suiteInstallDir</c>
+            (falling back to <paramref name="reEngineInstallDir"/>\engines for isolated portable/sandbox runs).
+            </summary>
         </member>
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.BuildEngineVersionInstallDir(System.String,System.String,System.String)">
             <summary>
@@ -146,6 +294,247 @@
             <summary>
             Removes a leading <c>[HEARTBEAT] </c> prefix produced by <c>Foundation.Core.HeartbeatLogger</c> to avoid duplicate tags.
             </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.DecompStage">
+            <summary>
+            Canonical clean-room decompilation pipeline milestones (<c>D0</c>–<c>D5</c>).
+            </summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.DecompStage.D0">
+            <summary>D0: ROM/ISO checksum verification and media intake.</summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.DecompStage.D1">
+            <summary>D1: Binary section discovery and entry-point mapping.</summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.DecompStage.D2">
+            <summary>D2: Offline Ghidra headless symbol/type recovery.</summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.DecompStage.D3">
+            <summary>D3: Clean-room C/IR lift recipe emission.</summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.DecompStage.D4">
+            <summary>D4: Matching/equivalence verification against golden fixtures.</summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.DecompStage.D5">
+            <summary>D5: Full shiftable clean-room decompilation package.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.DecompStageResult">
+            <summary>
+            Result returned by <c>IDecompPlatformProvider.RunDecompAsync</c> for a pipeline stage.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompStageResult.#ctor(reEngine.Core.Decomp.DecompStage,System.Boolean,System.String,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.TimeSpan,System.String)">
+            <summary>
+            Result returned by <c>IDecompPlatformProvider.RunDecompAsync</c> for a pipeline stage.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.DecompUnbuiltEngineError">
+            <summary>
+            Deterministic 3-part remediation error emitted when a <c>.decomp</c> or <c>.recomp</c> module targets
+            an unbuilt or missing platform engine (e.g., <c>re64</c>, <c>reGenesis</c>, <c>reCube</c>).
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompUnbuiltEngineError.#ctor(System.String,System.String,System.String,System.String,System.String,System.String)">
+            <summary>
+            Deterministic 3-part remediation error emitted when a <c>.decomp</c> or <c>.recomp</c> module targets
+            an unbuilt or missing platform engine (e.g., <c>re64</c>, <c>reGenesis</c>, <c>reCube</c>).
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompUnbuiltEngineError.Create(System.String,System.String,System.String,System.String)">
+            <summary>
+            Creates a deterministic 3-part unbuilt-engine error payload.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompUnbuiltEngineError.FormatMessage">
+            <summary>
+            Formats the 3-part deterministic remediation message for CLI and UI diagnostics.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.DecompRunOptions">
+            <summary>
+            Execution options passed to <c>IDecompPlatformProvider.RunDecompAsync</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompRunOptions.#ctor(System.String,System.String,System.String,reEngine.Core.Decomp.DecompStage,System.String,System.String,System.Boolean,System.Boolean,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String})">
+            <summary>
+            Execution options passed to <c>IDecompPlatformProvider.RunDecompAsync</c>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.DecompDispatchResult">
+            <summary>
+            Outcome of dispatching a <c>.decomp</c> module through <see cref="T:reEngine.Core.Decomp.DecompPipelineCoordinator"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompDispatchResult.#ctor(System.Boolean,reEngine.Core.Manifests.DecompPackageManifest,reEngine.Core.Resolution.InstalledEngineCandidate,reEngine.Core.Decomp.DecompUnbuiltEngineError,reEngine.Core.Decomp.DecompStageResult,reEngine.Core.Manifests.DecompCleanRoomValidationResult,System.String)">
+            <summary>
+            Outcome of dispatching a <c>.decomp</c> module through <see cref="T:reEngine.Core.Decomp.DecompPipelineCoordinator"/>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.DecompPipelineCoordinator">
+            <summary>
+            Universal <c>D0</c>–<c>D5</c> orchestrator that parses <c>.decomp</c> manifests, resolves installed <c>re*</c>
+            platform engines, delegates stage execution to <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/>, and validates clean-room outputs.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.#ctor(System.Collections.Generic.IEnumerable{reEngine.Core.Manifests.IDecompPlatformProvider})">
+            <summary>
+            Initializes a new coordinator with optional in-process <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/> instances.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.ParseManifest(System.String)">
+            <summary>
+            Parses a JSON or ZIP-packaged <c>.decomp</c> manifest file with fail-closed Zip-Slip validation.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.DispatchAsync(reEngine.Core.Decomp.DecompRunOptions,System.String,System.Threading.CancellationToken)">
+            <summary>
+            Resolves the target <c>re*</c> engine, delegates <c>D0</c>–<c>D5</c> execution, and validates clean-room outputs.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.ValidateCleanRoomOutputDirectory(System.String)">
+            <summary>
+            Validates that <paramref name="outputDirectory"/> contains zero retail ROMs, save states, or pre-lifted artifacts.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.ReEngineInstallProfile">
+            <summary>
+            Installation footprint profile determining whether offline decompilation tools are bundled.
+            </summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.ReEngineInstallProfile.Lightweight">
+            <summary>Compact router-only footprint without bundled Ghidra or OpenJDK.</summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.ReEngineInstallProfile.Full">
+            <summary>Full offline bundle including stripped Apache-2.0 Ghidra, jlink OpenJDK, and THIRDPARTY_LICENSES.txt.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.OfflineToolchainStatus">
+            <summary>
+            Resolved status of the offline <c>toolchain\</c> directory.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.OfflineToolchainStatus.#ctor(System.Boolean,reEngine.Core.Decomp.ReEngineInstallProfile,System.String,System.String,System.String,System.String,System.String,System.String,System.Boolean,System.Boolean,System.String)">
+            <summary>
+            Resolved status of the offline <c>toolchain\</c> directory.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.OfflineToolchainLocator">
+            <summary>
+            Locates and validates the offline <c>toolchain\</c> (<c>ghidra\</c> + <c>jdk\</c> + <c>THIRDPARTY_LICENSES.txt</c>)
+            with zero runtime internet calls.
+            </summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.OfflineToolchainLocator.MaxToolchainBudgetMb">
+            <summary>Default maximum footprint budget for the <c>Full</c> offline toolchain in megabytes.</summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.OfflineToolchainLocator.ThirdPartyLicensesFileName">
+            <summary>Canonical license notice filename stored alongside the offline toolchain.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.OfflineToolchainLocator.ResolveToolchainDirectory(System.String,System.String)">
+            <summary>
+            Resolves the <c>toolchain\</c> directory from an explicit override, an install root, or its suite parent.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.OfflineToolchainLocator.Locate(System.String,reEngine.Core.Decomp.ReEngineInstallProfile,System.String,reEngine.Core.Manifests.DecompToolchainRequirements)">
+            <summary>
+            Validates offline toolchain availability for the active <paramref name="profile"/> without network access.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.DecompToolchainRequirements">
+            <summary>
+            Toolchain prerequisites declared by a <c>.decomp</c> package manifest.
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompToolchainRequirements.MinimumGhidraVersion">
+            <summary>Minimum headless Ghidra version required (e.g., <c>11.2</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompToolchainRequirements.RequiresHeadlessJdk">
+            <summary>Whether an offline <c>jlink</c> OpenJDK runtime is required.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompToolchainRequirements.RequiredExtensions">
+            <summary>Optional platform-specific analyzer or loader extension identifiers.</summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.DecompPackageManifest">
+            <summary>
+            Clean-room <c>.decomp</c> package manifest implementing <see cref="T:Foundation.Retro.IDecompPackageManifest"/>.
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.ModuleId">
+            <summary>Canonical lowercase-kebab-case module identifier.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.Title">
+            <summary>Human-facing module display title.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.PlatformId">
+            <summary>Target console/platform identifier (e.g., <c>psx</c>, <c>nes</c>, <c>n64</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.EngineId">
+            <summary>Target platform engine identifier (e.g., <c>reStation</c>, <c>reNes</c>, <c>re64</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.EngineVersion">
+            <summary>Minimum compatible engine SemVer required by this package.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.CompatibleEngineTrack">
+            <summary>Compatible engine track selector (e.g., <c>0.2.x</c>, <c>0.1.x</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.DecompSchemaVersion">
+            <summary>Standard 18 SemVer of the <c>.decomp</c> container schema.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.TargetDecompTier">
+            <summary>Target decompilation readiness tier (<c>none</c>, <c>D0</c>–<c>D5</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.GoalDecompTier">
+            <summary>Goal decompilation tier (<c>none</c>, <c>D0</c>–<c>D5</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.PackageVersion">
+            <summary>Optional semantic version of this <c>.decomp</c> package.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.UpstreamResearchPath">
+            <summary>Optional read-only upstream Tier R research repository path or identifier.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.GhidraProjectName">
+            <summary>Optional Ghidra project name used during offline headless analysis.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.ToolchainRequirements">
+            <summary>Offline toolchain requirements for executing <c>D0</c>–<c>D5</c> stages.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.PreloadRomDir">
+            <summary>Relative preload media directory inside the module root (defaults to <c>data/rom</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.RecipeEntryPoint">
+            <summary>Optional clean-room recipe or script entrypoint relative to the package root.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.ExtensionData">
+            <summary>Forward-compatible unknown JSON properties preserved across round-trips.</summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.DecompCleanRoomValidationResult">
+            <summary>
+            Result of validating that a decompilation output directory contains only clean-room artifacts.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Manifests.DecompCleanRoomValidationResult.#ctor(System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},System.String)">
+            <summary>
+            Result of validating that a decompilation output directory contains only clean-room artifacts.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Manifests.IDecompPlatformProvider">
+            <summary>
+            Platform engine provider contract discovered under installed <c>engines\re&lt;Platform&gt;\v&lt;Ver&gt;\</c> directories.
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.IDecompPlatformProvider.PlatformId">
+            <summary>Canonical platform identifier handled by this provider (e.g., <c>psx</c>, <c>nes</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.IDecompPlatformProvider.DisplayName">
+            <summary>Human-readable display name of the platform provider.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.IDecompPlatformProvider.MinimumEngineVersion">
+            <summary>Minimum engine SemVer required to host this provider.</summary>
+        </member>
+        <member name="M:reEngine.Core.Manifests.IDecompPlatformProvider.RunDecompAsync(reEngine.Core.Decomp.DecompRunOptions,System.Threading.CancellationToken)">
+            <summary>Executes the requested <c>D0</c>–<c>D5</c> decompilation pipeline stage.</summary>
+        </member>
+        <member name="M:reEngine.Core.Manifests.IDecompPlatformProvider.ValidateCleanRoomOutput(System.String)">
+            <summary>Validates that generated outputs are clean-room compliant (zero retail ROM/BIOS/save-state dumps).</summary>
         </member>
         <member name="T:reEngine.Core.Manifests.RecompPackageManifest">
             <summary>

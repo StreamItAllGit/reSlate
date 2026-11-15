@@ -22,12 +22,18 @@ internal static unsafe partial class Program
     private sealed class LoopState
     {
         public IntPtr Gamepad = HostInputMapper.OpenFirstGamepad();
-        public int MouseDx, MouseDy;
+        public float MouseDx, MouseDy;
         public bool MouseCaptured, QuitRequested, PrevSave, PrevLoad, UiDirty = true;
+        public bool WheelUp, WheelDown, RunHeadless;
         public bool SuppressNextIdleSubTickVBlank;
+        public uint PrevCaptureTriggerMask;
         public long HostFrame;
         public string DiscInfo = string.Empty;
         public string? ScriptScreenshot;
+        public string? PendingBackendSwitch;
+        public readonly HashSet<string> PrevNativeActions = new(StringComparer.OrdinalIgnoreCase);
+        public readonly List<string> ActiveNativeBuffer = new();
+        public readonly List<string> PressedNativeBuffer = new();
     }
 
     private static int RunHostLoop(
@@ -52,6 +58,7 @@ internal static unsafe partial class Program
             : InputScriptRunner.Load(options.InputScriptPath, sandbox.TestMode ? CliOptions.ResolveSandboxBoundary(sandbox) : null);
 
         bool runHeadless = options.Headless && !options.VisibleTest;
+        st.RunHeadless = runHeadless;
         var audioSpec = new SdlAudioSpec { Format = Sdl3Native.AudioS16Le, Channels = 2, Freq = PsxSpu.SampleRate };
         IntPtr audioStream = video.SdlAvailable && !runHeadless
             ? Sdl3Native.SDL_OpenAudioDeviceStream(Sdl3Native.DefaultAudioPlaybackDevice, &audioSpec, IntPtr.Zero, IntPtr.Zero)
@@ -73,8 +80,8 @@ internal static unsafe partial class Program
                 || (!string.IsNullOrWhiteSpace(autoShotPath) && (maxFrames > 0 ? st.HostFrame + 1 >= maxFrames : st.HostFrame + 1 == 2)),
             IsModernMouseLookActive: () => !drawer.IsOpen && st.MouseCaptured,
             MouseSensitivity: () => (float)settings.MouseSensitivity,
-            PollSubTickLook: () => PollLiveSubTickLook(video, host, cpu, drawer, overlay, settings, sandbox, logger, st, runHeadless),
-            PresentSubTickFrame: () => PresentSubTickLoopFrame(video, host, cpu, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, runHeadless),
+            PollSubTickLook: () => PollLiveSubTickLook(video, host, cpu, drawer, overlay, settings, sandbox, pacer, logger, st, runHeadless),
+            PresentSubTickFrame: () => PresentSubTickLoopFrame(video, host, cpu, drawer, overlay, manifest, settings, pacer, st.DiscInfo, logger.IsEnabled, runHeadless),
             IsEnhancedFrameRateEnabled: () => settings.FrameRateMode == FrameRateMode.Enhanced));
 
         Span<byte> scriptKeys = stackalloc byte[KeyBindingsConfig.MaxScancode + 1];
@@ -84,8 +91,14 @@ internal static unsafe partial class Program
             while (!st.QuitRequested && !host.HasFinished)
             {
                 long t0 = Stopwatch.GetTimestamp();
-                PumpEvents(video, host, cpu, drawer, overlay, settings, sandbox, logger, st);
+                PumpEvents(video, host, cpu, drawer, overlay, settings, sandbox, pacer, logger, st);
                 if (st.QuitRequested) break;
+
+                if (st.PendingBackendSwitch is { } nextBackend)
+                {
+                    st.PendingBackendSwitch = null;
+                    ApplyLiveBackendSwitch(video, cpu, drawer, overlay, settings, sandbox, logger, st, nextBackend);
+                }
 
                 scriptKeys.Clear();
                 uint scriptMouseMask = 0u;
@@ -98,10 +111,21 @@ internal static unsafe partial class Program
 
                 HostInputState input = HostInputMapper.BuildLiveInput(
                     cpu, drawer.IsOpen, video.SdlAvailable, settings, globalProfile.KeyBindings, profileProvider,
-                    st.Gamepad, ref st.MouseDx, ref st.MouseDy, scriptKeys, scriptMouseMask);
+                    st.Gamepad, ref st.MouseDx, ref st.MouseDy, st.WheelUp, st.WheelDown,
+                    gameModule as INativeGameActionHook, st.PrevNativeActions, st.ActiveNativeBuffer, st.PressedNativeBuffer,
+                    out bool releaseMouseCapture, scriptKeys, scriptMouseMask);
+                st.WheelUp = false;
+                st.WheelDown = false;
+                if (releaseMouseCapture && st.MouseCaptured)
+                {
+                    st.MouseCaptured = false;
+                    st.MouseDx = 0f;
+                    st.MouseDy = 0f;
+                    video.SetRelativeMouse(false);
+                }
                 bool saveEdge = input.QuickSave && !st.PrevSave, loadEdge = input.QuickLoad && !st.PrevLoad;
                 st.PrevSave = input.QuickSave; st.PrevLoad = input.QuickLoad;
-                if (saveEdge) host.SaveQuickSlot(0);
+                if (saveEdge) host.RequestQuickSave(0);
                 if (loadEdge) host.RequestQuickLoad(0);
                 ModernInputController.ApplyToCpu(cpu, input, settings);
 
@@ -131,10 +155,13 @@ internal static unsafe partial class Program
                     {
                         video.SyncViewport(settings.ResolutionScale);
                         cpu.Gpu.PresentFrame(preferLastDrawnOrigin: true);
-                        PresentLoopFrame(video, host, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, runHeadless, frameShot);
+                        PresentLoopFrame(video, host, drawer, overlay, manifest, settings, cpu.Gpu.EffectiveWidescreen, st.DiscInfo, logger.IsEnabled, runHeadless, frameShot);
                     }
                     st.UiDirty = false;
-                    tGpu = tEnd = Stopwatch.GetTimestamp();
+                    tGpu = Stopwatch.GetTimestamp();
+                    pacer.TargetFps = ComputeTargetFps(settings, runHeadless);
+                    _ = pacer.WaitForNextFrame();
+                    tEnd = Stopwatch.GetTimestamp();
                 }
                 else if (skipIdleSecondVBlank && string.IsNullOrWhiteSpace(frameShot))
                 {
@@ -146,7 +173,7 @@ internal static unsafe partial class Program
                     st.SuppressNextIdleSubTickVBlank = false;
                     video.SyncViewport(settings.ResolutionScale);
                     cpu.Gpu.PresentFrame();
-                    PresentLoopFrame(video, host, drawer, overlay, manifest, settings, st.DiscInfo, logger.IsEnabled, runHeadless, frameShot);
+                    PresentLoopFrame(video, host, drawer, overlay, manifest, settings, cpu.Gpu.EffectiveWidescreen, st.DiscInfo, logger.IsEnabled, runHeadless, frameShot);
                     st.UiDirty = false;
                     tGpu = Stopwatch.GetTimestamp();
                     pacer.TargetFps = ComputeTargetFps(settings, runHeadless);
@@ -196,29 +223,55 @@ internal static unsafe partial class Program
         }
     }
 
+    private static void ApplyLiveBackendSwitch(
+        HostVideoSurface video, PsxCpu cpu, SlideOverSettingsDrawer drawer, UiOverlayPresenter overlay,
+        RecompSettings settings, SandboxEnvironment sandbox, ReStationLogger logger, LoopState st, string nextBackend)
+    {
+        if (video.TrySwitchBackend(nextBackend, settings, logger, out string? switchError))
+        {
+            cpu.Gpu.SetBackend(video.Backend);
+            drawer.VideoWarningBanner = null;
+            settings.BackendId = video.Backend.BackendId;
+        }
+        else
+        {
+            settings.BackendId = video.Backend.BackendId;
+            drawer.VideoWarningBanner = switchError ?? "OpenGL 3.3 unavailable; kept Software CPU.";
+            logger.Warn("VIDEO", $"Live backend hot-swap rejected: {drawer.VideoWarningBanner}");
+        }
+        settings.Save(sandbox.ConfigFilePath);
+        overlay.MarkDirty();
+        st.UiDirty = true;
+    }
+
     private static (float MouseDx, float MouseDy, float StickX, float StickY) PollLiveSubTickLook(
         HostVideoSurface video, ReStationHost host, PsxCpu cpu, SlideOverSettingsDrawer drawer, UiOverlayPresenter overlay,
-        RecompSettings settings, SandboxEnvironment sandbox, ReStationLogger logger, LoopState st, bool headless)
+        RecompSettings settings, SandboxEnvironment sandbox, HighResFramePacer pacer, ReStationLogger logger, LoopState st, bool headless)
     {
-        if (!headless && video.SdlAvailable) PumpEvents(video, host, cpu, drawer, overlay, settings, sandbox, logger, st);
+        if (!headless && video.SdlAvailable) PumpEvents(video, host, cpu, drawer, overlay, settings, sandbox, pacer, logger, st);
         float mdx = !drawer.IsOpen && st.MouseCaptured ? st.MouseDx : 0f;
         float mdy = !drawer.IsOpen && st.MouseCaptured ? st.MouseDy : 0f;
-        st.MouseDx = 0; st.MouseDy = 0;
+        st.MouseDx = 0f; st.MouseDy = 0f;
         (float sx, float sy) = video.SdlAvailable ? HostInputMapper.ReadRightStick(st.Gamepad) : (0f, 0f);
         return (mdx, mdy, sx, sy);
     }
 
     private static void PresentSubTickLoopFrame(HostVideoSurface video, ReStationHost host, PsxCpu cpu, SlideOverSettingsDrawer drawer,
-        UiOverlayPresenter overlay, IReStationModuleManifest? manifest, RecompSettings settings, string discInfo, bool loggingActive, bool headless)
+        UiOverlayPresenter overlay, IReStationModuleManifest? manifest, RecompSettings settings, HighResFramePacer pacer,
+        string discInfo, bool loggingActive, bool headless)
     {
         if (headless) return;
         video.SyncViewport(settings.ResolutionScale);
         cpu.Gpu.PresentFrame(preferLastDrawnOrigin: true);
-        PresentLoopFrame(video, host, drawer, overlay, manifest, settings, discInfo, loggingActive, headless: false, shotPath: null);
+        PresentLoopFrame(video, host, drawer, overlay, manifest, settings, cpu.Gpu.EffectiveWidescreen, discInfo, loggingActive, headless: false, shotPath: null);
+        double savedTarget = pacer.TargetFps;
+        pacer.TargetFps = 0.0;
+        _ = pacer.WaitForNextFrame();
+        pacer.TargetFps = savedTarget;
     }
 
     private static void PresentLoopFrame(HostVideoSurface video, ReStationHost host, SlideOverSettingsDrawer drawer, UiOverlayPresenter overlay,
-        IReStationModuleManifest? manifest, RecompSettings settings, string discInfo, bool loggingActive, bool headless, string? shotPath)
+        IReStationModuleManifest? manifest, RecompSettings settings, bool effectiveWidescreen, string discInfo, bool loggingActive, bool headless, string? shotPath)
     {
         if (headless && string.IsNullOrWhiteSpace(shotPath)) return;
         bool overlayActive = drawer.IsOpen || settings.IsFpsOverlayEnabled;
@@ -228,15 +281,28 @@ internal static unsafe partial class Program
             if (video.Backend is IPsxGpuBackendHooks hooks)
             {
                 bool changed = overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry());
-                hooks.RenderUiOverlay(overlay.UiPixels, UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, changed);
+                hooks.RenderUiOverlay(
+                    overlay.ActiveOverlayPixels, overlay.ActiveOverlayWidth, overlay.ActiveOverlayHeight,
+                    overlay.ActiveOverlayDstX, overlay.ActiveOverlayDstY,
+                    UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, changed);
                 video.SwapGlOnly();
                 return;
             }
         }
 
         byte[] gameRgba = video.Backend.CaptureRgba(out int gw, out int gh);
-        _ = overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry());
-        overlay.Composite(gameRgba, gw, gh, settings);
+        bool uiChanged = overlayActive && overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry());
+        if (!headless && video.Renderer != IntPtr.Zero && string.IsNullOrWhiteSpace(shotPath))
+        {
+            video.PresentLayeredSoftware(
+                gw, gh, gameRgba, effectiveWidescreen,
+                overlayActive, overlay.ActiveOverlayWidth, overlay.ActiveOverlayHeight,
+                overlay.ActiveOverlayPixels, overlay.ActiveOverlayDstX, overlay.ActiveOverlayDstY, uiChanged);
+            return;
+        }
+
+        if (!overlayActive) _ = overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry());
+        overlay.Composite(gameRgba, gw, gh, settings, effectiveWidescreen);
         if (!headless && video.CanPresent)
             video.PresentRgba(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, overlay.CompositePixels);
         if (!string.IsNullOrWhiteSpace(shotPath))

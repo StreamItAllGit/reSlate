@@ -41,10 +41,13 @@ public sealed class RecompSettings
     [JsonPropertyName("useGlobalFormatRules")] public bool UseGlobalFormatRules { get; set; } = true;
     [JsonPropertyName("resolutionScale")] public int ResolutionScale { get; set; } = 4;
     [JsonPropertyName("backendId")] public string BackendId { get; set; } = PsxRenderBackendIds.OpenGl;
-    [JsonPropertyName("isWidescreen16By9")] public bool IsWidescreen16By9 { get; set; } = true;
+    [JsonPropertyName("isWidescreen16By9")] public bool IsWidescreen16By9 { get; set; } = false;
     [JsonPropertyName("isPgxpEnabled")] public bool IsPgxpEnabled { get; set; } = true;
     [JsonPropertyName("isFullscreen")] public bool IsFullscreen { get; set; }
     [JsonPropertyName("controlMode")] public ControlMode ControlMode { get; set; } = ControlMode.ModernWasdMouse;
+    [JsonPropertyName("controllerDpadMode")] public string ControllerDpadMode { get; set; } = NativeInputModeIds.ControllerDpadQuickActions;
+    [JsonPropertyName("isometricMoveMode")] public string IsometricMoveMode { get; set; } = NativeInputModeIds.IsometricMoveCropGrid;
+    [JsonPropertyName("executionTierMode")] public string ExecutionTierMode { get; set; } = ReStationExecutionTierModes.Default;
     [JsonPropertyName("mouseSensitivity")] public double MouseSensitivity { get; set; } = 1.0;
     [JsonPropertyName("shouldFastLoadData")] public bool ShouldFastLoadData { get; set; } = true;
     [JsonPropertyName("masterVolume")] public double MasterVolume { get; set; } = 0.85;
@@ -58,7 +61,8 @@ public sealed class RecompSettings
     [JsonPropertyName("isVsyncEnabled")] public bool IsVsyncEnabled { get; set; }
     [JsonPropertyName("keyBindings")] public KeyBindingsConfig KeyBindings { get; set; } = new();
     [JsonPropertyName("inputProfileMode")] public InputProfileMode InputProfileMode { get; set; } = InputProfileMode.PerGameModern;
-    [JsonPropertyName("modernActionBindings")] public Dictionary<string, int>? ModernActionBindings { get; set; }
+    [JsonPropertyName("modernActionBindings"), JsonConverter(typeof(ModernBindingsJsonConverter))] public Dictionary<string, int[]>? ModernActionBindings { get; set; }
+    [JsonPropertyName("modernControllerBindings"), JsonConverter(typeof(ModernBindingsJsonConverter))] public Dictionary<string, int[]>? ModernControllerBindings { get; set; }
     /// <summary>Preserves forward/unknown settings keys across load-save cycles (Standard 19 §2.3).</summary>
     [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -71,37 +75,129 @@ public sealed class RecompSettings
         BackendId = string.Equals(BackendId, PsxRenderBackendIds.Software, StringComparison.OrdinalIgnoreCase)
             ? PsxRenderBackendIds.Software
             : PsxRenderBackendIds.OpenGl;
+        ControllerDpadMode = NativeInputModeIds.NormalizeControllerDpadMode(ControllerDpadMode);
+        IsometricMoveMode = NativeInputModeIds.NormalizeIsometricMoveMode(IsometricMoveMode);
+        ExecutionTierMode = ReStationExecutionTierModes.Normalize(ExecutionTierMode);
         MouseSensitivity = double.IsFinite(MouseSensitivity) ? Math.Clamp(MouseSensitivity, 0.1, 10.0) : 1.0;
         MasterVolume = double.IsFinite(MasterVolume) ? Math.Clamp(MasterVolume, 0.0, 1.0) : 0.85;
         TargetFps = TargetFps <= 0 ? 0 : Math.Clamp(TargetFps, 30, 500);
         if (!Enum.IsDefined(InputProfileMode)) InputProfileMode = InputProfileMode.PerGameModern;
         KeyBindings ??= new KeyBindingsConfig();
         KeyBindings.Clamp(ControlMode);
-        if (ModernActionBindings is not null)
-        {
-            foreach (string key in ModernActionBindings.Keys.ToArray())
-            {
-                ModernActionBindings[key] = KeyBindingsConfig.NormalizeBindingCode(ModernActionBindings[key], 0);
-            }
-        }
+        ModernActionBindings = NormalizeBindingsMap(ModernActionBindings, isController: false);
+        ModernControllerBindings = NormalizeBindingsMap(ModernControllerBindings, isController: true);
+    }
+
+    public IReadOnlyList<int> GetModernActionBindings(GameActionDescriptor action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (ModernActionBindings is not null && ModernActionBindings.TryGetValue(action.ActionId, out int[]? bound))
+            return bound;
+        return action.DefaultBindingCodes;
+    }
+
+    public IReadOnlyList<int> GetModernControllerBindings(GameActionDescriptor action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (ModernControllerBindings is not null && ModernControllerBindings.TryGetValue(action.ActionId, out int[]? bound))
+            return bound;
+        return action.DefaultControllerCodes;
     }
 
     public int GetModernActionBinding(GameActionDescriptor action)
     {
-        ArgumentNullException.ThrowIfNull(action);
-        if (ModernActionBindings is not null && ModernActionBindings.TryGetValue(action.ActionId, out int bound))
-            return KeyBindingsConfig.NormalizeBindingCode(bound, action.DefaultBindingCode);
-        return action.DefaultBindingCode;
+        IReadOnlyList<int> list = GetModernActionBindings(action);
+        return list.Count > 0 ? list[0] : 0;
     }
 
     public void SetModernActionBinding(string actionId, int bindingCode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(actionId);
-        ModernActionBindings ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        ModernActionBindings[actionId] = KeyBindingsConfig.NormalizeBindingCode(bindingCode, 0);
+        int norm = KeyBindingsConfig.NormalizeBindingCode(bindingCode, 0);
+        ModernActionBindings ??= new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
+        ModernActionBindings[actionId] = norm > 0 ? new[] { norm } : Array.Empty<int>();
     }
 
-    public void ResetModernActionBindings() => ModernActionBindings = null;
+    public void SetModernActionSlot(GameActionDescriptor action, int slotIndex, int bindingCode)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (slotIndex is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(slotIndex));
+        if (slotIndex == 3) { SetModernControllerSlot(action, bindingCode); return; }
+        int norm = KeyBindingsConfig.NormalizeBindingCode(bindingCode, 0);
+        if (norm <= 0) { ClearModernActionSlot(action, slotIndex); return; }
+        var list = new List<int>(GetModernActionBindings(action));
+        list.RemoveAll(c => c == norm);
+        if (slotIndex < list.Count) list[slotIndex] = norm;
+        else list.Add(norm);
+        if (list.Count > GameActionDescriptor.MaxBindingsPerDevice)
+            list.RemoveRange(GameActionDescriptor.MaxBindingsPerDevice, list.Count - GameActionDescriptor.MaxBindingsPerDevice);
+        ModernActionBindings ??= new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
+        ModernActionBindings[action.ActionId] = list.ToArray();
+    }
+
+    public void SetModernControllerSlot(GameActionDescriptor action, int controllerCode)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        int norm = KeyBindingsConfig.NormalizeControllerCode(controllerCode, 0);
+        ModernControllerBindings ??= new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
+        if (norm <= 0) { ModernControllerBindings[action.ActionId] = Array.Empty<int>(); return; }
+        var list = new List<int>(GetModernControllerBindings(action));
+        list.RemoveAll(c => c == norm);
+        if (list.Count == 0) list.Add(norm);
+        else list[0] = norm;
+        if (list.Count > GameActionDescriptor.MaxBindingsPerDevice)
+            list.RemoveRange(GameActionDescriptor.MaxBindingsPerDevice, list.Count - GameActionDescriptor.MaxBindingsPerDevice);
+        ModernControllerBindings[action.ActionId] = list.ToArray();
+    }
+
+    public void ClearModernActionSlot(GameActionDescriptor action, int slotIndex)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        if (slotIndex is < 1 or > 3) return;
+        if (slotIndex == 3)
+        {
+            ModernControllerBindings ??= new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
+            ModernControllerBindings[action.ActionId] = Array.Empty<int>();
+            return;
+        }
+        var list = new List<int>(GetModernActionBindings(action));
+        if (slotIndex < list.Count) list.RemoveAt(slotIndex);
+        ModernActionBindings ??= new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
+        ModernActionBindings[action.ActionId] = list.ToArray();
+    }
+
+    public void ResetModernActionBindings()
+    {
+        ModernActionBindings = null;
+        ModernControllerBindings = null;
+    }
+
+    private static Dictionary<string, int[]>? NormalizeBindingsMap(Dictionary<string, int[]>? rawMap, bool isController)
+    {
+        if (rawMap is null) return null;
+        var normalized = new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string key, int[]? values) in rawMap)
+        {
+            if (string.IsNullOrWhiteSpace(key)) continue;
+            var slots = new List<int>(GameActionDescriptor.MaxBindingsPerDevice);
+            if (values is not null)
+            {
+                foreach (int raw in values)
+                {
+                    int clean = isController
+                        ? KeyBindingsConfig.NormalizeControllerCode(raw, 0)
+                        : KeyBindingsConfig.NormalizeBindingCode(raw, 0);
+                    if (clean > 0 && !slots.Contains(clean))
+                    {
+                        slots.Add(clean);
+                        if (slots.Count >= GameActionDescriptor.MaxBindingsPerDevice) break;
+                    }
+                }
+            }
+            normalized[key] = slots.Count == 0 ? Array.Empty<int>() : slots.ToArray();
+        }
+        return normalized;
+    }
 
     /// <summary>Loads settings atomically (self-healing from .bak or defaults) and clamps the result.</summary>
     public static SettingsLoadOutcome<RecompSettings> Load(string configFilePath)
@@ -122,5 +218,69 @@ public sealed class RecompSettings
         Clamp();
         UpdatedAtUtc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture);
         new GranularSettingsManager(Path.GetDirectoryName(full)!).SaveAtomically(full, this, JsonOptions);
+    }
+}
+
+/// <summary>Deserializes legacy scalar <c>int</c> or multi-bind <c>int[]</c> modern binding entries into normalized <c>int[]</c> slots.</summary>
+public sealed class ModernBindingsJsonConverter : JsonConverter<Dictionary<string, int[]>?>
+{
+    public override Dictionary<string, int[]>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException("Expected JSON object for modern action bindings.");
+        var map = new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndObject) return map;
+            if (reader.TokenType != JsonTokenType.PropertyName) continue;
+            string key = reader.GetString() ?? string.Empty;
+            if (!reader.Read()) break;
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int scalar))
+            {
+                if (!string.IsNullOrWhiteSpace(key)) map[key] = scalar > 0 ? new[] { scalar } : Array.Empty<int>();
+            }
+            else if (reader.TokenType == JsonTokenType.StartArray)
+            {
+                var list = new List<int>(GameActionDescriptor.MaxBindingsPerDevice);
+                while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+                {
+                    if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int item) && item > 0 && !list.Contains(item) && list.Count < GameActionDescriptor.MaxBindingsPerDevice)
+                        list.Add(item);
+                }
+                if (!string.IsNullOrWhiteSpace(key)) map[key] = list.Count == 0 ? Array.Empty<int>() : list.ToArray();
+            }
+            else if (reader.TokenType == JsonTokenType.Null)
+            {
+                if (!string.IsNullOrWhiteSpace(key)) map[key] = Array.Empty<int>();
+            }
+            else
+            {
+                reader.Skip();
+            }
+        }
+        return map;
+    }
+
+    public override void Write(Utf8JsonWriter writer, Dictionary<string, int[]>? value, JsonSerializerOptions options)
+    {
+        if (value is null) { writer.WriteNullValue(); return; }
+        writer.WriteStartObject();
+        foreach (KeyValuePair<string, int[]> kv in value)
+        {
+            writer.WritePropertyName(kv.Key);
+            writer.WriteStartArray();
+            if (kv.Value is not null)
+            {
+                int count = 0;
+                foreach (int code in kv.Value)
+                {
+                    if (code <= 0) continue;
+                    writer.WriteNumberValue(code);
+                    if (++count >= GameActionDescriptor.MaxBindingsPerDevice) break;
+                }
+            }
+            writer.WriteEndArray();
+        }
+        writer.WriteEndObject();
     }
 }

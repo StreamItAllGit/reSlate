@@ -212,6 +212,8 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
 
     public void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, bool uploadPixels) { }
 
+    public void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, int dstX, int dstY, int canvasW, int canvasH, bool uploadPixels) { }
+
     public void Dispose() => PrimitivesSubmitted = 0;
 
     private void EnsureHiVram()

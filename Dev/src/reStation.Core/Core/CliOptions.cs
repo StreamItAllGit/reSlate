@@ -22,6 +22,7 @@ public sealed class CliOptions
         "  --target-fps <n|unlocked>   --vsync [on|off]     --no-vsync   --frames <n>\n" +
         "  --fixture <spec.json>       --input-script <spec.json>  --dump-screenshot <png>\n" +
         "  --data-dir <dir>  --config <path>  --log-dir <dir>  --test-mode  --headless  --visible-test\n" +
+        "  --jit-bringup  --force-zero-rwx  --profile <json>\n" +
         "  --verify  --open-settings  --enable-logs  --show-fps  --version  --help";
 
     public IReadOnlyList<string> RawArgs { get; private init; } = Array.Empty<string>();
@@ -48,6 +49,9 @@ public sealed class CliOptions
     public bool OpenSettings { get; private init; }
     public bool EnableLogs { get; private init; }
     public bool ShowFps { get; private init; }
+    public bool JitBringup { get; private init; }
+    public bool ForceZeroRwx { get; private init; }
+    public string? ProfilePath { get; private init; }
     public bool ShowVersion { get; private init; }
     public bool ShowHelp { get; private init; }
 
@@ -55,11 +59,11 @@ public sealed class CliOptions
     public static CliOptions Parse(IReadOnlyList<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        string? module = null, disc = null, preloadMedia = null, backend = null, fixture = null, inputScript = null, dump = null, data = null, config = null, log = null;
+        string? module = null, disc = null, preloadMedia = null, backend = null, fixture = null, inputScript = null, dump = null, data = null, config = null, log = null, profilePath = null;
         int? scale = null, targetFps = null, frames = null;
         FrameRateMode? fpsMode = null;
         bool? vsync = null;
-        bool test = false, headless = false, visible = false, verify = false, openSettings = false, enableLogs = false, showFps = false, shouldWait = false, showVersion = false, help = false;
+        bool test = false, headless = false, visible = false, verify = false, openSettings = false, enableLogs = false, showFps = false, jitBringup = false, forceZeroRwx = false, shouldWait = false, showVersion = false, help = false;
 
         for (int i = 0; i < args.Count; i++)
         {
@@ -129,6 +133,9 @@ public sealed class CliOptions
                 case "--open-settings": openSettings = true; break;
                 case "--enable-logs": enableLogs = true; break;
                 case "--show-fps": showFps = true; break;
+                case "--jit-bringup": jitBringup = true; break;
+                case "--force-zero-rwx": forceZeroRwx = true; break;
+                case "--profile": profilePath = NextValidatedPath(args, ref i, arg); break;
                 case "--wait": shouldWait = true; break;
                 case "--version": showVersion = true; break;
                 case "--help" or "-h" or "/?": help = true; break;
@@ -142,7 +149,8 @@ public sealed class CliOptions
             ShouldWait = shouldWait, BackendId = backend, ResolutionScale = scale,
             FpsMode = fpsMode, TargetFps = targetFps, Vsync = vsync, MaxFrames = frames, FixturePath = fixture,
             InputScriptPath = inputScript, DumpScreenshotPath = dump, DataDir = data, ConfigPath = config, LogDir = log, TestMode = test, Headless = headless,
-            VisibleTest = visible, VerifyOnly = verify, OpenSettings = openSettings, EnableLogs = enableLogs, ShowFps = showFps, ShowVersion = showVersion, ShowHelp = help
+            VisibleTest = visible, VerifyOnly = verify, OpenSettings = openSettings, EnableLogs = enableLogs, ShowFps = showFps,
+            JitBringup = jitBringup, ForceZeroRwx = forceZeroRwx, ProfilePath = profilePath, ShowVersion = showVersion, ShowHelp = help
         };
     }
 

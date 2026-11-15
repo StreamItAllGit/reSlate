@@ -1,9 +1,10 @@
 // @module: reStation.Core.Input.KeyBindingsConfig
-// @purpose: Standard 18 keyBindings model mapping PS1 pad buttons + host quick actions to SDL keyboard scancodes (4..511) or mouse buttons (1001..1005).
-// @depends-on: System.Text.Json.Serialization, reStation.Core
+// @purpose: Standard 18 keyBindings model mapping PS1 pad buttons + host quick actions to SDL keyboard scancodes (4..511), mouse buttons/wheel (1001..1007), or gamepad labels (2001..2032).
+// @depends-on: System.Text.Json.Serialization, reStation.Contracts, reStation.Core
 // @exports: InputProfileMode, BindableAction, KeyBindingsConfig
 
 using System.Text.Json.Serialization;
+using reStation.Contracts;
 
 namespace reStation.Core.Input;
 
@@ -34,18 +35,29 @@ public sealed class KeyBindingsConfig
     public const int MouseMiddle = 1003;
     public const int MouseX1 = 1004;
     public const int MouseX2 = 1005;
+    public const int MouseWheelUp = 1006;
+    public const int MouseWheelDown = 1007;
     public const int MinMouseCode = MouseLeft;
-    public const int MaxMouseCode = MouseX2;
+    public const int MaxMouseCode = MouseWheelDown;
 
     [JsonPropertyName("bindings")]
     public Dictionary<BindableAction, int> Bindings { get; set; } = CreateDefaults(ControlMode.ModernWasdMouse);
 
     public static bool IsMouseCode(int code) => code is >= MinMouseCode and <= MaxMouseCode;
 
+    public static bool IsWheelCode(int code) => code is MouseWheelUp or MouseWheelDown;
+
+    public static bool IsGamepadCode(int code) => GamepadBindingCode.IsGamepadCode(code);
+
     public static bool IsValidBindingCode(int code) => code == 0 || (code is > 0 and <= MaxScancode) || IsMouseCode(code);
+
+    public static bool IsValidControllerCode(int code) => code == 0 || IsGamepadCode(code);
 
     public static int NormalizeBindingCode(int code, int fallback = 0) =>
         IsValidBindingCode(code) ? code : (IsValidBindingCode(fallback) ? fallback : 0);
+
+    public static int NormalizeControllerCode(int code, int fallback = 0) =>
+        IsValidControllerCode(code) ? code : (IsValidControllerCode(fallback) ? fallback : 0);
 
     public int GetScancode(BindableAction action) => Bindings.TryGetValue(action, out int sc) ? sc : 0;
 
@@ -77,34 +89,71 @@ public sealed class KeyBindingsConfig
         _ => action.ToString()
     };
 
-    /// <summary>Formats any keyboard scancode or mouse button code into a compact keycap label.</summary>
-    public static string FormatBindingLabel(int code) => code switch
+    /// <summary>Formats any keyboard scancode, mouse button/wheel code, or gamepad binding code into a compact keycap label.</summary>
+    public static string FormatBindingLabel(int code)
     {
-        <= 0 => "---",
-        MouseLeft => "LClick",
-        MouseRight => "RClick",
-        MouseMiddle => "MClick",
-        MouseX1 => "Mouse4",
-        MouseX2 => "Mouse5",
-        >= 4 and <= 29 => ((char)('A' + code - 4)).ToString(),
-        >= 30 and <= 38 => ((char)('1' + code - 30)).ToString(),
-        39 => "0",
-        40 => "Enter",
-        41 => "Esc",
-        42 => "Bksp",
-        43 => "Tab",
-        44 => "Space",
-        >= 58 and <= 69 => $"F{code - 57}",
-        79 => "Right",
-        80 => "Left",
-        81 => "Down",
-        82 => "Up",
-        224 => "LCtrl",
-        225 => "LShift",
-        226 => "LAlt",
-        228 => "RCtrl",
-        229 => "RShift",
-        _ => $"Key#{code}"
+        if (IsGamepadCode(code)) return FormatCompactGamepadLabel(code);
+        return code switch
+        {
+            <= 0 => "---",
+            MouseLeft => "LClick",
+            MouseRight => "RClick",
+            MouseMiddle => "MClick",
+            MouseX1 => "Mouse4",
+            MouseX2 => "Mouse5",
+            MouseWheelUp => "WheelUp",
+            MouseWheelDown => "WheelDn",
+            >= 4 and <= 29 => ((char)('A' + code - 4)).ToString(),
+            >= 30 and <= 38 => ((char)('1' + code - 30)).ToString(),
+            39 => "0",
+            40 => "Enter",
+            41 => "Esc",
+            42 => "Bksp",
+            43 => "Tab",
+            44 => "Space",
+            >= 58 and <= 69 => $"F{code - 57}",
+            75 => "PgUp",
+            76 => "Del",
+            78 => "PgDn",
+            79 => "Right",
+            80 => "Left",
+            81 => "Down",
+            82 => "Up",
+            224 => "LCtrl",
+            225 => "LShift",
+            226 => "LAlt",
+            228 => "RCtrl",
+            229 => "RShift",
+            _ => $"Key#{code}"
+        };
+    }
+
+    private static string FormatCompactGamepadLabel(int code) => code switch
+    {
+        GamepadBindingCode.South => "Pad A",
+        GamepadBindingCode.East => "Pad B",
+        GamepadBindingCode.West => "Pad X",
+        GamepadBindingCode.North => "Pad Y",
+        GamepadBindingCode.Back => "Back",
+        GamepadBindingCode.Guide => "Guide",
+        GamepadBindingCode.Start => "Start",
+        GamepadBindingCode.L3 => "L3",
+        GamepadBindingCode.R3 => "R3",
+        GamepadBindingCode.LB => "LB",
+        GamepadBindingCode.RB => "RB",
+        GamepadBindingCode.DPadUp => "D-Up",
+        GamepadBindingCode.DPadDown => "D-Dn",
+        GamepadBindingCode.DPadLeft => "D-Lt",
+        GamepadBindingCode.DPadRight => "D-Rt",
+        GamepadBindingCode.LT => "LT",
+        GamepadBindingCode.RT => "RT",
+        GamepadBindingCode.Misc1 => "Misc",
+        GamepadBindingCode.Paddle1 => "PadP1",
+        GamepadBindingCode.Touchpad => "Touch",
+        GamepadBindingCode.Paddle2 => "PadP2",
+        GamepadBindingCode.Paddle3 => "PadP3",
+        GamepadBindingCode.Paddle4 => "PadP4",
+        _ => $"Pad#{code - GamepadBindingCode.MinCode}"
     };
 
     /// <summary>SDL3 scancode defaults (W=26, A=4, S=22, D=7, arrows 79-82, Space=44, F5=62, F9=66).</summary>

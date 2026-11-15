@@ -25,7 +25,9 @@ public static class ModuleManifestEmitter
         out string csprojPath)
     {
         var emitted = new List<string>(4);
-        string assemblyName = $"{options.ModuleId}.recomp";
+        string assemblyName = options.CompileGeneratedDll || options.EmitCleanRoomOnly
+            ? $"{options.ModuleId}.Generated"
+            : $"{options.ModuleId}.recomp";
         string moduleClassName = $"{pascalId}GameModule";
         string moduleTypeName = $"{rootNamespace}.{moduleClassName}";
         string bootExe = specs.Count > 0 ? specs[0].RelativePath : string.Empty;
@@ -38,6 +40,23 @@ public static class ModuleManifestEmitter
         EmitProjectFile(csprojPath, assemblyName, rootNamespace);
         emitted.Add(csprojPath);
 
+        string? aotRecipeRel = File.Exists(Path.Combine(outDir, ReStationEngineInfo.DefaultAotRecipePath))
+            ? ReStationEngineInfo.DefaultAotRecipePath
+            : null;
+        manifestPath = EmitManifestFile(outDir, options, bootExe, assemblyName + ".dll", moduleTypeName, aotRecipeRel);
+        emitted.Add(manifestPath);
+        return emitted;
+    }
+
+    /// <summary>Writes <c>module.recomp.json</c> using clean-room AOT recipe metadata without emitting generated C# files.</summary>
+    internal static string EmitManifestFile(
+        string outDir,
+        RecompCompilerOptions options,
+        string bootExe,
+        string entryAssemblyFileName,
+        string moduleTypeName,
+        string? aotRecipeRelativePath)
+    {
         var manifest = new ReStationModuleManifest
         {
             SchemaVersion = 1,
@@ -49,17 +68,19 @@ public static class ModuleManifestEmitter
             EngineId = ReStationEngineInfo.EngineId,
             EngineVersion = ReStationEngineInfo.Version,
             CompatibleEngineTrack = ReStationEngineInfo.CompatibleEngineTrack,
+            SupportedEngineTracks = [ReStationEngineInfo.CompatibleEngineTrack, "0.1.x"],
+            ExecutionTierMode = ReStationExecutionTierModes.Normalize(options.ExecutionTierMode),
+            AotRecipe = aotRecipeRelativePath,
             PreloadRomDir = ReStationEngineInfo.DefaultPreloadRomDir,
             SerialNumber = options.SerialNumber,
-            EntryAssembly = assemblyName + ".dll",
+            EntryAssembly = entryAssemblyFileName,
             DefaultBootExecutable = bootExe,
             ModuleTypeName = moduleTypeName
         };
 
-        manifestPath = Path.Combine(outDir, "module.recomp.json");
+        string manifestPath = Path.Combine(outDir, "module.recomp.json");
         manifest.SaveToFile(manifestPath);
-        emitted.Add(manifestPath);
-        return emitted;
+        return manifestPath;
     }
 
     /// <summary>Compiles <paramref name="csprojPath"/> into <paramref name="outDir"/> using <c>dotnet build</c>.</summary>
@@ -149,6 +170,10 @@ public static class ModuleManifestEmitter
         sb.AppendLine($"        Title = \"{Escape(options.Title)}\",");
         sb.AppendLine($"        DisplayName = \"{Escape(options.Title)}\",");
         sb.AppendLine($"        Version = \"{Escape(version)}\",");
+        sb.AppendLine($"        EngineId = \"{Escape(ReStationEngineInfo.EngineId)}\",");
+        sb.AppendLine($"        EngineVersion = \"{Escape(ReStationEngineInfo.Version)}\",");
+        sb.AppendLine($"        CompatibleEngineTrack = \"{Escape(ReStationEngineInfo.CompatibleEngineTrack)}\",");
+        sb.AppendLine($"        ExecutionTierMode = \"{Escape(ReStationExecutionTierModes.Normalize(options.ExecutionTierMode))}\",");
         sb.AppendLine($"        SerialNumber = \"{Escape(options.SerialNumber)}\",");
         sb.AppendLine($"        EntryAssembly = \"{Escape(assemblyName)}.dll\",");
         sb.AppendLine($"        DefaultBootExecutable = \"{Escape(bootExe)}\",");

@@ -66,7 +66,7 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
         string reEngineRoot = Path.Combine(_tempRoot, "reEngine");
         string sideBySide = ReStationInstallerBootstrap.ComputeSideBySideDir(reEngineRoot);
 
-        string expected = Path.Combine(reEngineRoot, "engines", "reStation", "v" + ReStationInstallerTheme.Version);
+        string expected = Path.Combine(_tempRoot, "engines", "reStation", "v" + ReStationInstallerTheme.Version);
         Assert.Equal(Path.GetFullPath(expected), Path.GetFullPath(sideBySide));
     }
 
@@ -76,7 +76,7 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
         string sandboxRoot = Path.Combine(_tempRoot, "sandbox");
         string reEngineApp = Path.Combine(sandboxRoot, "reEngine", "app");
         Directory.CreateDirectory(reEngineApp);
-        string reEngineSdkVersion = typeof(reEngine.Core.Bootstrap.ReEngineBootstrapHelper).Assembly.GetName().Version?.ToString(3) ?? "0.1.3";
+        string reEngineSdkVersion = typeof(reEngine.Core.Bootstrap.ReEngineBootstrapHelper).Assembly.GetName().Version?.ToString(3) ?? "0.2.0";
         File.WriteAllText(Path.Combine(reEngineApp, "version.txt"), reEngineSdkVersion);
 
         int rc = ReStationInstallerBootstrap.Prepare(
@@ -95,9 +95,12 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
         string resolvedInstall = SandboxEnvironment.AssertPathContained(effective[installIdx + 1], sandboxRoot);
         Assert.Equal(Path.GetFullPath(sandboxRoot), resolvedData);
         Assert.EndsWith(
-            Path.Combine("reEngine", "engines", "reStation", "v" + ReStationInstallerTheme.Version),
+            Path.Combine("engines", "reStation", "v" + ReStationInstallerTheme.Version),
             resolvedInstall,
             StringComparison.OrdinalIgnoreCase);
+        Assert.False(
+            resolvedInstall.Contains(Path.Combine("reEngine", "engines"), StringComparison.OrdinalIgnoreCase),
+            "Installer target must use peer engines\\reStation\\v0.2.0 rather than nested reEngine\\engines\\.");
     }
 
     [Fact]
@@ -161,14 +164,17 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     }
 
     [Fact]
-    public void InstallerAndLauncher_Expose015MetadataParameterizedAssemblyAndZeroEmptyCatches()
+    public void InstallerAndLauncher_Expose020MetadataParameterizedAssemblyAndZeroEmptyCatches()
     {
-        Assert.Equal("0.1.5", ReStationInstallerTheme.Version);
-        Assert.Equal("reStation-Setup-v0.1.5-win-x64", typeof(Program).Assembly.GetName().Name);
+        Assert.Equal("0.2.0", ReStationInstallerTheme.Version);
+        Assert.Equal("reStation-Setup-v0.2.0-win-x64", typeof(Program).Assembly.GetName().Name);
 
         string srcRoot = FindSrcRoot();
         string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));
         Assert.Contains("<AssemblyName>reStation-Setup-v$(Version)-win-x64</AssemblyName>", installerCsproj, StringComparison.Ordinal);
+        Assert.DoesNotContain("Embedded.reEngine-Setup", installerCsproj, StringComparison.Ordinal);
+        Assert.Contains("LogicalName=\"Foundation.Retro.dll.gz\"", installerCsproj, StringComparison.Ordinal);
+        Assert.Contains("LogicalName=\"reEngine.Core.dll.gz\"", installerCsproj, StringComparison.Ordinal);
 
         string launcherCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Launcher", "reStation.Launcher.csproj"));
         Assert.Contains("LogicalName=\"Foundation.Launcher.dll\"", launcherCsproj, StringComparison.Ordinal);

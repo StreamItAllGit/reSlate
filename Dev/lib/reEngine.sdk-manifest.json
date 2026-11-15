@@ -1,0 +1,35 @@
+{
+    "schemaVersion":  1,
+    "appId":  "reengine",
+    "displayName":  "reEngine",
+    "sdkVersion":  "0.2.0",
+    "version":  "0.2.0",
+    "updatedAtUtc":  "2026-11-15T09:58:00.325Z",
+    "artifacts":  [
+                      {
+                          "fileName":  "reEngine.Core.dll",
+                          "fileSizeBytes":  134144,
+                          "sha256Hex":  "b63b13c5864f6a2f0b6e128274747f7c14bff9e0ff6bd96aea32c2f9e7699e41"
+                      },
+                      {
+                          "fileName":  "reEngine.Core.xml",
+                          "fileSizeBytes":  49959,
+                          "sha256Hex":  "1d19cc9eac1f8ce5970643dd2ec1a53eb17d176392d14bf1c5840e22ec2290e2"
+                      },
+                      {
+                          "fileName":  "reEngine.Core.deps.json",
+                          "fileSizeBytes":  1211,
+                          "sha256Hex":  "54288c44a4cb48bdfa1c4426b99c2193f1a01c65f76a5514e89363d7e88d6682"
+                      },
+                      {
+                          "fileName":  "LICENSE",
+                          "fileSizeBytes":  16726,
+                          "sha256Hex":  "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
+                      },
+                      {
+                          "fileName":  "reEngine-Setup-v0.2.0-win-x64.exe",
+                          "fileSizeBytes":  72535632,
+                          "sha256Hex":  "793a86c7eaba5c4cf134856212233c4f383c02b0bf3f537d781daf282aeedbaa"
+                      }
+                  ]
+}

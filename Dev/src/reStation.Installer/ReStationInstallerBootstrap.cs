@@ -1,70 +1,39 @@
 // @module: reStation.Installer.ReStationInstallerBootstrap
-// @purpose: reEngine auto-bootstrap for the reStation installer: sandbox-contained in --test-mode, side-by-side engines\reStation\v<Ver> target via ReEngineBootstrapHelper, zero literal host paths.
-// @depends-on: System.Diagnostics, System.Reflection, System.Runtime.CompilerServices, System.Runtime.InteropServices, reEngine.Core.Bootstrap
+// @purpose: Side-by-side engines\reStation\v0.2.0 target resolution, --reengine-dir/--suite-dir support, and fail-closed --test-mode containment without nested Setup bloat.
+// @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Reflection, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerBootstrap
-// @owner: devv-pkg (Wave 2 Slice 3)
 
-using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
+using Foundation.Core;
+using Foundation.Installer;
 using reEngine.Core.Bootstrap;
 
 namespace reStation.Installer;
 
 internal static class ReStationInstallerBootstrap
 {
-    private const int AttachParentProcess = -1;
+    private static readonly string[] SkipExactArgs =
+        { "--help", "-h", "/?", "help", "--version", "-v", "--verify", "--dry-run", "--uninstall", "--visible-test" };
 
-    /// <summary>Flags that only print help/version or verify/dry-run without modifying installations.</summary>
-    private static readonly string[] InformationalFlags =
-    {
-        "--help", "-h", "/?", "help", "--version", "-v", "--verify", "--dry-run"
-    };
+    internal static bool ShouldSkip(IReadOnlyList<string> args, string? processPath, string uninstallerExeName) =>
+        string.Equals(Path.GetFileName(processPath), uninstallerExeName, StringComparison.OrdinalIgnoreCase) ||
+        args.Any(a => SkipExactArgs.Any(s => string.Equals(a.Trim(), s, StringComparison.OrdinalIgnoreCase)));
 
-    /// <summary>Flags that never install anything and therefore never bootstrap reEngine.</summary>
-    private static readonly string[] SkipFlags =
-    {
-        "--help", "-h", "/?", "help", "--version", "-v", "--verify", "--dry-run", "--uninstall", "--visible-test"
-    };
-
-    private static readonly string[] DirectInstallMarkers =
-    {
-        "reStation.exe",
-        @"app\reStation.exe",
-        "reStation.Player.exe",
-        @"app\reStation.Player.exe",
-        "install-manifest.json",
-        @"app\install-manifest.json",
-        ".install_manifest.json",
-        @"app\.install_manifest.json",
-        "uninstall.exe",
-        "reStation-Uninstall.exe"
-    };
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern bool AttachConsole(int dwProcessId);
-
-    /// <summary>True when the run is informational/verification-only or the installed uninstaller copy is executing.</summary>
-    internal static bool ShouldSkip(IReadOnlyList<string> args, string? processPath = null, string? uninstallerExeName = null)
-    {
-        if (args.Any(a => SkipFlags.Contains(a.Trim(), StringComparer.OrdinalIgnoreCase))) return true;
-        return !string.IsNullOrWhiteSpace(processPath) && !string.IsNullOrWhiteSpace(uninstallerExeName) &&
-               string.Equals(Path.GetFileName(processPath), uninstallerExeName, StringComparison.OrdinalIgnoreCase);
-    }
-
-    internal static bool HasFlag(IReadOnlyList<string> args, string flag) =>
-        args.Any(a => string.Equals(a.Trim(), flag, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>Reads <c>--flag value</c> or <c>--flag=value</c>; null when absent or valueless.</summary>
     internal static string? ReadValue(IReadOnlyList<string> args, string flag)
     {
         for (int i = 0; i < args.Count; i++)
         {
-            string a = args[i].Trim();
-            if (a.StartsWith(flag + "=", StringComparison.OrdinalIgnoreCase)) return a[(flag.Length + 1)..].Trim().Trim('"');
-            if (string.Equals(a, flag, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Count && !string.IsNullOrWhiteSpace(args[i + 1]))
-                return args[i + 1].Trim().Trim('"');
+            string trimmed = args[i].Trim();
+            if (string.Equals(trimmed, flag, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Count)
+            {
+                string val = args[i + 1].Trim();
+                return string.IsNullOrWhiteSpace(val) ? null : val;
+            }
+            if (trimmed.StartsWith(flag + "=", StringComparison.OrdinalIgnoreCase))
+            {
+                string val = trimmed[(flag.Length + 1)..].Trim();
+                return string.IsNullOrWhiteSpace(val) ? null : val;
+            }
         }
         return null;
     }
@@ -72,249 +41,229 @@ internal static class ReStationInstallerBootstrap
     internal static string? ReadInstallDir(IReadOnlyList<string> args) =>
         ReadValue(args, "--install-dir") ?? ReadValue(args, "--target-dir");
 
-    /// <summary>--test-mode containment root: explicit --data-dir, else explicit --install-dir, else <paramref name="tempDir"/>.</summary>
-    internal static string ResolveSandboxRoot(IReadOnlyList<string> args, string tempDir) =>
-        Path.GetFullPath(ReadValue(args, "--data-dir") ?? ReadInstallDir(args) ?? tempDir);
-
-    /// <summary>Drops any existing data/install-dir options and appends the contained <c>--data-dir</c> + <c>--install-dir</c> pair.</summary>
-    internal static string[] RewriteContainedArgs(IReadOnlyList<string> args, string sandboxRoot, string sideBySideDir)
-    {
-        var result = new List<string>();
-        for (int i = 0; i < args.Count; i++)
-        {
-            string a = args[i].Trim();
-            bool pair = a.Equals("--data-dir", StringComparison.OrdinalIgnoreCase) ||
-                        a.Equals("--install-dir", StringComparison.OrdinalIgnoreCase) ||
-                        a.Equals("--target-dir", StringComparison.OrdinalIgnoreCase);
-            bool joined = a.StartsWith("--data-dir=", StringComparison.OrdinalIgnoreCase) ||
-                          a.StartsWith("--install-dir=", StringComparison.OrdinalIgnoreCase) ||
-                          a.StartsWith("--target-dir=", StringComparison.OrdinalIgnoreCase);
-            if (pair) { i++; continue; }
-            if (joined) continue;
-            result.Add(args[i]);
-        }
-        result.Add("--data-dir");
-        result.Add(sandboxRoot);
-        result.Add("--install-dir");
-        result.Add(sideBySideDir);
-        return result.ToArray();
-    }
-
-    /// <summary>Extracts the embedded reEngine setup EXE into <paramref name="destDir"/>; null when this build does not embed it.</summary>
-    internal static string? ExtractBootstrapExe(Assembly assembly, string destDir)
-    {
-        using Stream? stream = assembly.GetManifestResourceStream(ReStationInstallerTheme.ReEngineBootstrapResourceName);
-        if (stream is null) return null;
-        Directory.CreateDirectory(destDir);
-        string exePath = Path.Combine(destDir, "reEngine-Setup.exe");
-        using var fs = new FileStream(exePath, FileMode.Create, FileAccess.Write, FileShare.None);
-        stream.CopyTo(fs);
-        return exePath;
-    }
-
-    /// <summary>Side-by-side <c>&lt;reEngineDir&gt;\engines\reStation\v&lt;Version&gt;</c> (<c>v0.1.x</c> track) target computed strictly via the reEngine SDK.</summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static string ComputeSideBySideDir(string reEngineInstallDir) =>
-        ReEngineBootstrapHelper.BuildEngineVersionInstallDir(reEngineInstallDir, ReStationInstallerTheme.EngineId, ReStationInstallerTheme.Version);
+        ReEngineBootstrapHelper.BuildEngineVersionInstallDir(
+            reEngineInstallDir, ReStationInstallerTheme.EngineId, ReStationInstallerTheme.Version);
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static async Task<(bool Success, string ReEngineDir, string Message)> EnsureReEngineAsync(string? bundledExe, bool testMode, string? sandboxRoot)
+    internal static bool HasDirectInstallation(string? dir)
     {
-        ReEngineBootstrapResult result = await ReEngineBootstrapHelper
-            .EnsureReEngineInstalledAsync(bundledExe, null, true, testMode, sandboxRoot).ConfigureAwait(false);
-        string dir = result.Success ? result.ReEngineInstallDir : ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(null, sandboxRoot, testMode);
-        return (result.Success, dir, result.DiagnosticMessage);
+        if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return false;
+        string full = Path.GetFullPath(dir);
+        return File.Exists(Path.Combine(full, ReStationInstallerTheme.MainExecutable)) ||
+               File.Exists(Path.Combine(full, "app", "reStation.Player.exe")) ||
+               File.Exists(Path.Combine(full, "app", "install-manifest.json")) ||
+               File.Exists(Path.Combine(full, "install-manifest.json"));
     }
 
-    /// <summary>
-    /// Ensures reEngine is installed and computes the side-by-side target. Returns 0 to continue; <paramref name="effectiveArgs"/> carries
-    /// the rewritten contained arguments in --test-mode, while live mode seeds the default install directory via the process-local variable.
-    /// </summary>
-    /// <summary>True when <paramref name="dir"/> is already a direct leaf installation directory.</summary>
-    internal static bool HasDirectInstallation(string dir) =>
-        !string.IsNullOrWhiteSpace(dir) &&
-        Directory.Exists(dir) &&
-        DirectInstallMarkers.Any(marker => File.Exists(Path.Combine(dir, marker)));
-
-    /// <summary>True when the current invocation is an uninstall run (<c>--uninstall</c> or uninstaller binary).</summary>
-    internal static bool IsUninstallInvocation(IReadOnlyList<string> args, string? processPath = null, string? uninstallerExeName = null) =>
-        HasFlag(args, "--uninstall") ||
-        (!string.IsNullOrWhiteSpace(processPath) && !string.IsNullOrWhiteSpace(uninstallerExeName) &&
-         string.Equals(Path.GetFileName(processPath), uninstallerExeName, StringComparison.OrdinalIgnoreCase));
-
-    /// <summary>Probes <c>&lt;base&gt;\engines\reStation\v&lt;Version&gt;</c> then <c>&lt;base&gt;\reEngine\engines\reStation\v&lt;Version&gt;</c>.</summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static string? TryResolveSideBySideLeaf(string baseDir)
     {
         if (string.IsNullOrWhiteSpace(baseDir)) return null;
         string fullBase = Path.GetFullPath(baseDir);
         string[] candidates =
         {
+            Path.Combine(fullBase, "engines", ReStationInstallerTheme.EngineId, $"v{ReStationInstallerTheme.Version}"),
             ComputeSideBySideDir(fullBase),
-            ComputeSideBySideDir(Path.Combine(fullBase, "reEngine"))
+            ComputeSideBySideDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteName))
         };
-        return candidates.FirstOrDefault(HasDirectInstallation)
-            ?? candidates.FirstOrDefault(Directory.Exists);
+        return candidates.FirstOrDefault(HasDirectInstallation);
     }
 
-    /// <summary>Replaces any <c>--install-dir</c> or <c>--target-dir</c> option with <paramref name="resolvedLeaf"/>.</summary>
-    internal static string[] RewriteInstallDirArg(IReadOnlyList<string> args, string resolvedLeaf)
+    internal static string? TryResolveSandboxRoot(IReadOnlyList<string> args)
     {
-        var result = new List<string>(args.Count + 2);
-        for (int i = 0; i < args.Count; i++)
-        {
-            string raw = args[i];
-            string trimmed = raw.Trim();
-            if (trimmed.Equals("--install-dir", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.Equals("--target-dir", StringComparison.OrdinalIgnoreCase))
-            {
-                if (i + 1 < args.Count && !args[i + 1].TrimStart().StartsWith("--", StringComparison.Ordinal)) i++;
-                continue;
-            }
-            if (trimmed.StartsWith("--install-dir=", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith("--target-dir=", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-            result.Add(raw);
-        }
-        result.Add("--install-dir");
-        result.Add(resolvedLeaf);
-        return result.ToArray();
+        string? raw = ReadValue(args, "--sandbox-root")
+            ?? ReadValue(args, "--data-dir")
+            ?? Environment.GetEnvironmentVariable("RESTATION_DATA_DIR")
+            ?? Environment.GetEnvironmentVariable("DATA_DIR")
+            ?? Environment.GetEnvironmentVariable("APP_HOME");
+        if (!string.IsNullOrWhiteSpace(raw)) return Path.GetFullPath(raw.Trim());
+
+        string? explicitInstall = ReadInstallDir(args);
+        return !string.IsNullOrWhiteSpace(explicitInstall) && InstallerSandboxContext.IsSafeTestInstallDirectory(explicitInstall)
+            ? Path.GetFullPath(explicitInstall)
+            : null;
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static string ResolveDefaultSideBySideDir(string? sandboxRoot, bool testMode) =>
-        ComputeSideBySideDir(ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(null, sandboxRoot, testMode));
-
-    /// <summary>Normalizes base-directory <c>--install-dir</c> arguments during <c>--uninstall</c> to the side-by-side leaf directory.</summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static string[] NormalizeUninstallArgs(IReadOnlyList<string> args) =>
         NormalizeUninstallArgs(args, out _);
 
-    /// <summary>Normalizes base-directory <c>--install-dir</c> arguments during <c>--uninstall</c> and computes any fallback default leaf for environment wiring.</summary>
-    [MethodImpl(MethodImplOptions.NoInlining)]
     internal static string[] NormalizeUninstallArgs(IReadOnlyList<string> args, out string? resolvedDefaultLeafForEnv)
     {
         resolvedDefaultLeafForEnv = null;
-        string[] original = args as string[] ?? args.ToArray();
-        bool testMode = HasFlag(args, "--test-mode");
-        string? sandboxRoot = testMode
-            ? ResolveSandboxRoot(args, Path.Combine(Path.GetTempPath(), "restation-setup-sandbox"))
-            : null;
+        bool testMode = args.Any(a => string.Equals(a.Trim(), "--test-mode", StringComparison.OrdinalIgnoreCase));
+        string? sandboxRoot = testMode ? TryResolveSandboxRoot(args) : null;
         string? rawInstall = ReadInstallDir(args);
+        string? rawReEngine = ReadValue(args, "--reengine-dir");
 
+        if (testMode && string.IsNullOrWhiteSpace(sandboxRoot))
+            throw new InvalidOperationException("Fail-Closed Sandbox Violation: --test-mode --uninstall requires explicit --data-dir.");
+
+        string targetLeaf;
         if (!string.IsNullOrWhiteSpace(rawInstall))
         {
-            string fullRaw = Path.GetFullPath(rawInstall);
-            if (sandboxRoot is not null) global::Foundation.Core.SandboxEnvironment.AssertPathContained(fullRaw, sandboxRoot);
-            if (HasDirectInstallation(fullRaw)) return original;
-
-            string? leaf = TryResolveSideBySideLeaf(fullRaw);
-            if (leaf is null) return original;
-            if (sandboxRoot is not null) global::Foundation.Core.SandboxEnvironment.AssertPathContained(leaf, sandboxRoot);
-            return RewriteInstallDirArg(original, leaf);
+            string full = Path.GetFullPath(rawInstall);
+            targetLeaf = HasDirectInstallation(full) ? full : (TryResolveSideBySideLeaf(full) ?? full);
         }
-
-        if (sandboxRoot is not null)
+        else if (!string.IsNullOrWhiteSpace(rawReEngine))
         {
-            string candidate = ResolveDefaultSideBySideDir(sandboxRoot, testMode: true);
-            if (Directory.Exists(candidate))
-            {
-                global::Foundation.Core.SandboxEnvironment.AssertPathContained(candidate, sandboxRoot);
-                return RewriteInstallDirArg(original, candidate);
-            }
-            return original;
+            targetLeaf = ComputeSideBySideDir(Path.GetFullPath(rawReEngine));
+        }
+        else if (testMode && sandboxRoot is not null)
+        {
+            string defRe = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(null, sandboxRoot, true);
+            targetLeaf = TryResolveSideBySideLeaf(sandboxRoot) ?? ComputeSideBySideDir(defRe);
+        }
+        else
+        {
+            targetLeaf = ReStationInstallerTheme.ResolveDefaultVersionInstallDir();
+            resolvedDefaultLeafForEnv = targetLeaf;
         }
 
-        string defaultLeaf = ResolveDefaultSideBySideDir(sandboxRoot: null, testMode: false);
-        if (Directory.Exists(defaultLeaf)) resolvedDefaultLeafForEnv = defaultLeaf;
-        return original;
+        if (testMode && sandboxRoot is not null) targetLeaf = SandboxEnvironment.AssertPathContained(targetLeaf, sandboxRoot);
+
+        var updated = new List<string>(args.Count + 2);
+        bool replaced = false;
+        for (int i = 0; i < args.Count; i++)
+        {
+            string t = args[i].Trim();
+            if ((string.Equals(t, "--install-dir", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(t, "--target-dir", StringComparison.OrdinalIgnoreCase)) && i + 1 < args.Count)
+            {
+                updated.Add("--install-dir");
+                updated.Add(targetLeaf);
+                i++;
+                replaced = true;
+            }
+            else
+            {
+                updated.Add(args[i]);
+            }
+        }
+
+        if (!replaced && (!string.IsNullOrWhiteSpace(rawInstall) || testMode || !string.IsNullOrWhiteSpace(rawReEngine)))
+        {
+            updated.Add("--install-dir");
+            updated.Add(targetLeaf);
+        }
+        return updated.ToArray();
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private static int TryPrepareUninstall(string[] args, out string[] effectiveArgs)
+    internal static string[] RewriteContainedArgs(
+        string[] args, bool testMode, string? sandboxRoot, string sideBySideDir, string? explicitInstall)
     {
-        effectiveArgs = args;
-        try
+        var updated = new List<string>(args.Length + 4);
+        bool hasData = false;
+        for (int i = 0; i < args.Length; i++)
         {
-            effectiveArgs = NormalizeUninstallArgs(args, out string? defaultLeaf);
-            string? processDir = Path.GetDirectoryName(Environment.ProcessPath);
-            bool runningInsideInstall = !string.IsNullOrWhiteSpace(processDir) && HasDirectInstallation(processDir);
-            if (!runningInsideInstall &&
-                !string.IsNullOrWhiteSpace(defaultLeaf) &&
-                string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable)))
+            string t = args[i].Trim();
+            if (string.Equals(t, "--data-dir", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length && sandboxRoot is not null)
             {
-                Environment.SetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable, defaultLeaf);
+                updated.Add("--data-dir");
+                updated.Add(sandboxRoot);
+                i++;
+                hasData = true;
             }
-            return 0;
+            else if ((string.Equals(t, "--install-dir", StringComparison.OrdinalIgnoreCase) ||
+                      string.Equals(t, "--target-dir", StringComparison.OrdinalIgnoreCase)) && i + 1 < args.Length)
+            {
+                string val = Path.GetFullPath(args[i + 1].Trim());
+                updated.Add("--install-dir");
+                updated.Add(sandboxRoot is not null ? SandboxEnvironment.AssertPathContained(val, sandboxRoot) : val);
+                i++;
+            }
+            else
+            {
+                updated.Add(args[i]);
+            }
         }
-        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or UnauthorizedAccessException)
+
+        if (testMode && !hasData && sandboxRoot is not null) { updated.Add("--data-dir"); updated.Add(sandboxRoot); }
+        if (string.IsNullOrWhiteSpace(explicitInstall))
         {
-            Console.Error.WriteLine($"[reStation Installer] FAIL: {ex.Message}");
-            return 3;
+            updated.Add("--install-dir");
+            updated.Add(sandboxRoot is not null ? SandboxEnvironment.AssertPathContained(sideBySideDir, sandboxRoot) : sideBySideDir);
         }
+        return updated.ToArray();
     }
 
-    internal static int Prepare(string[] args, Assembly payloadAssembly, string uninstallerExeName, out string[] effectiveArgs)
+    internal static string? ResolveExplicitReEngineDir(IReadOnlyList<string> args)
     {
+        string? reEngineDir = ReadValue(args, "--reengine-dir");
+        if (!string.IsNullOrWhiteSpace(reEngineDir)) return Path.GetFullPath(reEngineDir);
+
+        string? suiteDir = ReadValue(args, "--suite-dir");
+        if (string.IsNullOrWhiteSpace(suiteDir)) return null;
+        string fullSuite = Path.GetFullPath(suiteDir);
+        return File.Exists(Path.Combine(fullSuite, "reEngine.exe"))
+            ? fullSuite
+            : Path.Combine(fullSuite, ReStationInstallerTheme.SuiteName);
+    }
+
+    private static string? FindSiblingExternalReEngineInstaller(bool testMode, string? sandboxRoot)
+    {
+        string? selfPath = Environment.ProcessPath;
+        string? selfDir = string.IsNullOrWhiteSpace(selfPath) ? null : Path.GetDirectoryName(Path.GetFullPath(selfPath));
+        if (string.IsNullOrWhiteSpace(selfDir) || !Directory.Exists(selfDir)) return null;
+
+        string? candidate = Directory.EnumerateFiles(selfDir, "reEngine-Setup-*.exe", SearchOption.TopDirectoryOnly)
+            .OrderByDescending(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+        if (candidate is not null && testMode && sandboxRoot is not null)
+        {
+            string fullRoot = Path.GetFullPath(sandboxRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            if (!Path.GetFullPath(candidate).StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase)) return null;
+        }
+        return candidate;
+    }
+
+    internal static int Prepare(string[] args, Assembly installerAssembly, string uninstallerExeName, out string[] effectiveArgs)
+    {
+        _ = installerAssembly;
         effectiveArgs = args;
-        if (args.Any(a => InformationalFlags.Contains(a.Trim(), StringComparer.OrdinalIgnoreCase))) return 0;
-        if (IsUninstallInvocation(args, Environment.ProcessPath, uninstallerExeName))
-        {
-            return TryPrepareUninstall(args, out effectiveArgs);
-        }
-        if (ShouldSkip(args, Environment.ProcessPath, uninstallerExeName)) return 0;
-
-        bool testMode = HasFlag(args, "--test-mode");
-        string? sandboxRoot = testMode ? ResolveSandboxRoot(args, Path.Combine(Path.GetTempPath(), "restation-setup-sandbox")) : null;
-        string bootstrapDir = testMode
-            ? Path.Combine(sandboxRoot!, "_bootstrap")
-            : Path.Combine(Path.GetTempPath(), "restation-bootstrap-" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            string? bundledExe = ExtractBootstrapExe(payloadAssembly, bootstrapDir);
-            (bool success, string reEngineDir, string message) = EnsureReEngineAsync(bundledExe, testMode, sandboxRoot).GetAwaiter().GetResult();
-            if (!success)
-            {
-                try
-                {
-                    AttachConsole(AttachParentProcess);
-                }
-                catch (DllNotFoundException ex)
-                {
-                    Trace.WriteLine($"[WARN] [INSTALLER] AttachConsole unavailable: {ex.Message}");
-                }
-                Console.Error.WriteLine($"Setup error: reEngine bootstrap failed: {message}");
-                return 1;
-            }
-
-            string sideBySide = ComputeSideBySideDir(reEngineDir);
-            if (testMode)
-            {
-                effectiveArgs = RewriteContainedArgs(args, sandboxRoot!, sideBySide);
-            }
-            else if (ReadInstallDir(args) is null &&
-                     string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable)))
-            {
-                Environment.SetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable, sideBySide);
-            }
-            return 0;
-        }
-        finally
+        bool isUninstall = string.Equals(Path.GetFileName(Environment.ProcessPath), uninstallerExeName, StringComparison.OrdinalIgnoreCase) ||
+                           args.Any(a => string.Equals(a.Trim(), "--uninstall", StringComparison.OrdinalIgnoreCase));
+        if (isUninstall)
         {
             try
             {
-                if (Directory.Exists(bootstrapDir)) Directory.Delete(bootstrapDir, recursive: true);
+                effectiveArgs = NormalizeUninstallArgs(args, out string? defaultLeaf);
+                if (!string.IsNullOrWhiteSpace(defaultLeaf) && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable)))
+                    Environment.SetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable, defaultLeaf);
+                return 0;
             }
-            catch (IOException ex)
-            {
-                Trace.WriteLine($"[WARN] [INSTALLER] Bootstrap temp cleanup skipped (IO): {ex.Message}");
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                Trace.WriteLine($"[WARN] [INSTALLER] Bootstrap temp cleanup skipped (Access): {ex.Message}");
-            }
+            catch (InvalidOperationException ex) { Console.Error.WriteLine(ex.Message); return 3; }
         }
+
+        if (ShouldSkip(args, Environment.ProcessPath, uninstallerExeName)) return 0;
+
+        bool testMode = args.Any(a => string.Equals(a.Trim(), "--test-mode", StringComparison.OrdinalIgnoreCase));
+        string? explicitInstall = ReadInstallDir(args);
+        try
+        {
+            string? sandboxRoot = null;
+            if (testMode)
+            {
+                sandboxRoot = TryResolveSandboxRoot(args) ?? throw new InvalidOperationException(
+                    "Fail-Closed Sandbox Violation: --test-mode requires explicit --data-dir or contained sandbox path.");
+            }
+            string? explicitReEngineDir = ResolveExplicitReEngineDir(args);
+            if (testMode && sandboxRoot is not null && !string.IsNullOrWhiteSpace(explicitReEngineDir))
+                explicitReEngineDir = SandboxEnvironment.AssertPathContained(explicitReEngineDir, sandboxRoot);
+
+            string targetReEngineDir = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitReEngineDir, sandboxRoot, testMode);
+            string? siblingInstaller = FindSiblingExternalReEngineInstaller(testMode, sandboxRoot);
+            if (!string.IsNullOrWhiteSpace(siblingInstaller))
+            {
+                ReEngineBootstrapResult res = ReEngineBootstrapHelper
+                    .EnsureReEngineInstalledAsync(siblingInstaller, targetReEngineDir, !testMode, testMode, sandboxRoot)
+                    .GetAwaiter().GetResult();
+                if (!res.Success) { Console.Error.WriteLine(res.DiagnosticMessage); return 1; }
+                targetReEngineDir = res.ReEngineInstallDir;
+            }
+
+            string sideBySide = ComputeSideBySideDir(targetReEngineDir);
+            effectiveArgs = RewriteContainedArgs(args, testMode, sandboxRoot, sideBySide, explicitInstall);
+            return 0;
+        }
+        catch (InvalidOperationException ex) { Console.Error.WriteLine(ex.Message); return 3; }
     }
 }

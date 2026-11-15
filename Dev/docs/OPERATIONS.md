@@ -1,154 +1,126 @@
-# reStation — Operations & Verification Runbook
+# reStation v0.2.0 — Operations & Verification Runbook
 
-**Synced Version:** `0.1.5` (`2026-11-14`)  
-**Owner:** `reStation` Engine (Dev Bible Standard 16)
+- **Version:** `v0.2.0` (`Target Track: 0.2.x`, Backward-Compatible Track: `0.1.x`)
+- **Maintained By:** `@tessa` (Clarity & Ops) & `@devv` (Packaging & CLI)
+- **Canonical Production Boundary:** Zero automated edits or unconfirmed writes to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\` or any live installation during tests, builds, or audits.
 
 ---
 
-## 1. CLI Automation Switches
+## 1. Install Topology (`AllowAutoStart = false`)
 
-### 1.1 `reStation.exe` / `reStation.Player.exe` Flags (`CliOptions`)
-`reStation.exe` (`reStation.Launcher`) forwards all arguments to `app\reStation.Player.exe`. Passing `--wait` (using `[MethodImpl(MethodImplOptions.NoInlining)]` Windows `JobObjectGuard` child-tree supervision via `LauncherArgsHelper`) or any verification/CLI switch (`--visible-test`, `--fixture`, `--input-script`, `--verify`, `--test-mode`, `--headless`, `--version`, `--help`, `-h`, `/?`) causes the launcher to wait synchronously and propagate the exact exit code (`0` pass, `1` runtime/verify/fixture failure, `2` CLI usage error, `3` fail-closed `STD-03` sandbox violation, `4` disc ingestion failure, reserved `5` `--jit-bringup` non-VBlank watchdog timeout [`v0.2.0`], reserved `6` `--require-backend` hardware/ICD unavailable [`v0.3.0`], and `130` clean `SIGINT` cancellation).
+`reStation v0.2.0` follows `Foundation v0.4.0` non-admin user-scope suite deployment:
 
-| Flag | Values / Syntax | Operational Behavior |
+```text
+%LOCALAPPDATA%\Programs\StreamItAll\reEngine\
+├── toolchain\                          (Optional Full profile offline Ghidra + OpenJDK)
+└── engines\reStation\v0.2.0\
+    ├── reStation.exe                   (Single-file launcher -> app\reStation.Player.exe)
+    ├── settings.example.json           (Clean-room overlay template staged at track root)
+    ├── AGENTS.md                       (Runtime context anchor)
+    ├── app\                            (reStation.Player.exe, reStation.Decomp.dll, reStation.Compiler.exe, Foundation.*.dll, reEngine.Core.dll, LICENSE, engine.manifest.json, app.manifest.json, AGENTS.md)
+    ├── data\
+    │   ├── rom\                        (User-owned BYO-ROM media; preserved across upgrades/uninstalls)
+    │   ├── cache\                      (Player-PC local <Game>.Generated.dll AOT cache; auto-evicts stale keys)
+    │   ├── saves\                      (Quick-save .rst1 + "RSTX" snapshots)
+    │   ├── memcards\                   (Virtual .mcr memory cards)
+    │   ├── settings.json               (User settings + Standard 18/19 keys + Schema A/B controls)
+    │   └── settings.controls.json      (Global 1:1 baseline profile)
+    └── logs\                           (runtime.log, installer.log, crashes\crash_*.json)
+```
+
+- **No Background Daemons:** `AllowAutoStart = false` is enforced in [`ReStationInstallerTheme.cs`](../src/reStation.Installer/ReStationInstallerTheme.cs) and [`LauncherArgsHelper.cs`](../src/reStation.Launcher/LauncherArgsHelper.cs); `--autostart` / `--auto-start` flags fail fast cleanly.
+
+---
+
+## 2. CLI Flags & Environment Contract
+
+### Player (`reStation.exe`) & Launcher (`reStation.Launcher.exe`)
+- `--module <path>` — Load unpacked module directory, `module.recomp.json`, or single-file ZIP `.recomp` archive.
+- `--disc <path>` / `--preload-media <path>` — Point to verified PS1 disc/EXE media inside allowed root.
+- `--data-dir <dir>` / `--config <file>` / `--log-dir <dir>` — Explicit runtime data, settings JSON, and log directory overrides.
+- `--reengine-dir <dir>` / `--suite-dir <dir>` / `--profile Lightweight|Full` — Override `reEngine` router location or active install profile.
+- `--backend software|opengl` · `--scale <1..8>` · `--fps-mode original|enhanced` · `--target-fps <hz>` · `--vsync` / `--no-vsync`.
+- `--execution-tier staticAotOnly|aotWithJitFallback|aotWithThreadedIr|jitBringup|interpreterOracle` — Select local AOT primary vs. optional JIT/IR diagnostic mode.
+- `--jit-bringup` / `--force-zero-rwx` — Enable `JitBringupRecorder` + zero-RWX Threaded-IR diagnostic mode (`ExitCode = 5` on VBlank stall guard).
+- `--test-mode` (`--sandbox-root <dir>`) — Strict fail-closed containment; prevents touching host installs or user-profile configs.
+- `--visible-test` / `--headless` / `--verify` / `--open-settings` / `--enable-logs` / `--show-fps` / `--frames <n>` / `--fixture <id>` / `--input-script <file>` / `--dump-screenshot <png>` / `--wait`.
+
+### Compiler (`reStation.Compiler.exe`)
+- `--disc`, `--gamedata-dir`, `--exe-path`, `--decomp-dir`, `--functions-json`, `--out-dir`, `--module-id`, `--serial`, `--title`, `--version`, `--aot-recipe`, `--execution-tier`, `--emit-clean-room` (emits `aot-recipe.json` + clean `module.recomp.json` with zero `*.Generated.dll`), `--out-package`, `--compile-dll`, `--compile-generated-dll`, `--data-dir`, `--thin-shell`, `--help`.
+
+### Installer (`reStation-Setup-v0.2.0-win-x64.exe`)
+- `--install-dir <dir>` / `--target-dir <dir>` / `--reengine-dir <dir>` / `--suite-dir <dir>` / `--profile Lightweight|Full` / `--data-dir <dir>` / `--sandbox-root <dir>` / `--migrate-legacy` / `--confirm-legacy-cleanup` / `--uninstall` / `--test-mode` / `--silent` (`--quiet`) / `--headless` / `--dry-run` / `--verify` / `--visible-test`.
+
+---
+
+## 3. Config & Settings File Reference
+
+Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.2.0` template persisted to `<dataDir>\settings.json`:
+- **Suite & Decomp Metadata (`Standard 18`):** `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`.
+- **Audio/Video & Framing:** `backendId` (`"software"` / `"opengl"`), `resolutionScale`, `isWidescreen16By9` (`false` default for `4:3` framing), `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`.
+- **Input (`Schema A` & `Schema B`):** `inputProfileMode`, `controlMode`, `modernActionBindings` (`Dictionary<string, int[<=3]>` via `ModernBindingsJsonConverter` with legacy scalar read support), `modernControllerBindings` (`int[<=3]` codes `2001..2032`), `controllerDpadMode` (`"quickActions"` | `"dpadWalkStickRun"` | `"stickWalkDpadRun"`), `isometricMoveMode` (`"cropGrid"` | `"screenSpace"`), `jsonExtensionData` passthrough.
+
+---
+
+## 4. Ports, Locks & Sister-App Coexistence
+
+- **Zero Network Ports:** `reStation` opens zero listening TCP/UDP sockets during gameplay, compilation, or `.decomp` execution.
+- **Process Supervision (`--wait`):** [`LauncherArgsHelper.AttachJobGuard`](../src/reStation.Launcher/LauncherArgsHelper.cs) assigns a Windows `KILL_ON_JOB_CLOSE` Job Object so closing the caller/router terminates supervised `reStation.exe` sessions cleanly with exact exit code propagation (`0` clean, `5` bringup VBlank stall guard, `1` fatal/sandbox rejection).
+
+---
+
+## 5. Logs & Crash Bundles (Three-Tier Sweep)
+
+1. **Production (`Read-Only` during Audits):** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.0\logs\` (`runtime.log`, `crashes\`).
+2. **Development (`RS-06`):** `Dev\logs\` (resolved automatically via [`ReStationLogger.TryResolveDevLogsDirectory`](../src/reStation.Core/Core/ReStationLogger.cs#L116-L132) inside source checkouts; excluded by root `.gitignore`).
+3. **Sandbox:** `Sandbox\logs\` (`runtime.log`, `installer.log`, `screenshots\`, `fixtures\`, `crashes\`).
+
+Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`, `fps`, `backend`, `subTicks`, `vramOps`, `spuVoices`, `status`). Crash bundles write `crashes\crash_*.json` plus preceding log tail context.
+
+---
+
+## 6. Backup, Restore & Legacy Migration (`RS-05`)
+
+- **Source Archive (`Archive\`):** Before history rewrites or release tagging, create a compressed backup via `7z.exe a -mx=9 Archive\pre-scrub-v0.2.0.7z ...` (excluding gitignored caches/logs/`bin`/`obj`).
+- **Opt-In Legacy `v0.1.1` Migration:** [`ReStationLegacyMigrationHelper`](../src/reStation.Installer/ReStationLegacyMigrationHelper.cs) detects stranded `v0.1.1` installs (`app\data\` + `logs\crashes\crash_*.json`), copies `settings.json` and preserves `data\rom\` into the `v0.2.0` `data\` directory **only** when `--migrate-legacy` is passed, and deletes non-ROM stranded artifacts **only** after explicit interactive confirmation or `--confirm-legacy-cleanup`.
+
+---
+
+## 7. Build, Sanitization & Release Packaging Procedure
+
+1. **Zero-Warning Compile & Test Suite (Code-Only `<= 400` Lines Gate):**
+   ```powershell
+   dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore
+   ```
+   Verify all `.cs` and `.ps1` files remain `<= 400` lines and `0` warnings/failures/skips occur.
+2. **Single-Pass Release Build (`Dev\scripts\build_release.ps1`):**
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.2.0
+   ```
+   Emits `Builds\v0.2.0\` (including `AGENTS.md`, `app\LICENSE`, `engine.manifest.json` with `supportedEngineTracks: ["0.2.x", "0.1.x"]`, zero `data\rom\`), compiles `Releases\v0.2.0\README.md` from `USER_GUIDE.md` via [`sanitize_release_docs.ps1`](../scripts/sanitize_release_docs.ps1), validates zero-PII/4-pillar installer via `reStation-Setup-v0.2.0-win-x64.exe`, publishes immutable `SharedLibs\reStation\v0.2.0\`, and snapshots `Archive\reStation-v0.2.0-src.7z`.
+3. **Public History Hygiene Check:** Before pushing public tags, verify zero `ghidra_psx_ldr`, Sony SDK headers, `*.Generated.dll`, retail ROMs, workstation paths (`<WORKSTATION_ROOT>\`, `<PROGRAMS_ROOT>\`, `<USER_HOME>\`), hostnames, or private IDs exist in tracked source/docs/history (`git-filter-repo`).
+
+---
+
+## 8. Sandbox Verification Recipe (`@inspecter`)
+
+1. Reset/create clean `Sandbox\{app,data,logs}` layout and test installer `--test-mode --silent --profile Lightweight` plus `--uninstall` round-trip.
+2. Run headless xUnit + AOT cold-to-warm compile test in `Sandbox\data\cache\` and clean-room `.decomp` provider D0–D5 dry/offline check.
+3. Run single-instance foreground topmost GUI smoke + sequential `--input-script`:
+   ```powershell
+   Builds\v0.2.0\reStation.exe --visible-test --test-mode --data-dir Sandbox\data --log-dir Sandbox\logs
+   ```
+   Capture and visually inspect screenshots (`read_file`): `4:3` default frame, `1060x34` `F3` HUD strip, `F1` drawer tabs (`Video`, `Controls` mode pills, 5-column scrollable `Keybinds`), live `Software <-> OpenGL 3.3` toggle/fallback banner, and `F5`/`F9` quick-save/load.
+4. Sweep all 3 log roots (`%LOCALAPPDATA%\Programs\...\logs\`, `Dev\logs\`, `Sandbox\logs\`) with preceding 20–50 lines and write timestamped report to `Dev\docs\reports\`.
+
+---
+
+## 9. Incident Playbooks
+
+| Symptom | Root Diagnosis | Resolution |
 | :--- | :--- | :--- |
-| `--module` | `<module.recomp.json>` | Loads and validates the `.recomp` manifest, entry assembly, and `IGameFramePatch` / `ISubTickFrameHook` / `IOverlayRecompModule`. |
-| `--disc` | `<image>` | Extracts and SHA-256-verifies `.iso`, `.bin`+`.cue`, `.chd`, `.7z`, or `.zip` into `<dataDir>\gamedata\`. Highest priority (`--disc` > `--preload-media` > `<module>\data\rom\`). |
-| `--preload-media` | `<path>` | Explicit preloaded disc/archive override forwarded by `reEngine` (`--open --wait`); verified fail-closed inside sandbox boundaries (`Exit 3` escape, `Exit 4` missing media). |
-| `--wait` | *(switch)* | Holds parent `reStation.exe` launcher cleanly via Windows `JobObjectGuard` until `reStation.Player.exe` exits and propagates child exit code (`v0.1.1+`). |
-| `--version` | *(switch)* | Prints `reStation v0.1.5` cleanly across both `reStation.exe` and `app\reStation.Player.exe` and exits `0`. |
-| `--backend` | `opengl \| software` | Selects `OpenGl33RenderBackend` (`opengl`, off-thread FIFO `Queue.cs`) or deterministic `SoftwareCpuRenderBackend` oracle (`software`). In `--headless`, `opengl` logs `[WARN] [GL_FALLBACK] reason=headless forced=software`. |
-| `--scale` | `1 \| 2 \| 4 \| 8` | Overrides internal render resolution multiplier (`1x`–`8x`). |
-| `--fps-mode` | `original \| enhanced` | Selects hardware `60.0 Hz` cap (`original`) or configurable `--target-fps` (`enhanced`). |
-| `--target-fps` | `0 \| unlocked \| 30..500` | Sets target FPS (`0` / `unlocked` = uncapped). Values `1..29` or `> 500` throw `ArgumentException` (exit `2`). |
-| `--vsync` / `--no-vsync` | `[on \| off \| true \| false \| 1 \| 0]` | Enables (`--vsync` / `--vsync on`) or disables (`--vsync off` / `--no-vsync`) VSync. |
-| `--frames` | `<n>` (`>= 1`) | Runs exact host frame count before clean shutdown (default in `--headless` with no `gameModule`: `1`). |
-| `--fixture` | `<spec.json>` | Runs deterministic `FixtureRunnerHost` (`SoftwareCpuRenderBackend` headless or foreground topmost SDL/GL with `--visible-test`), writing PNG/WAV artifacts under `<logDir>\fixtures\`. Exits `0` (all pass), `1` (mismatch), or `2` (no specs). |
-| `--input-script` | `<spec.json>` | Runs `InputScriptRunner` frame-ranged key/mouse holds, `F1` drawer navigation, frame PNG captures, and live RAM assertions (validated inside the sandbox root under `--test-mode`). Exits `1` if any RAM assertion fails. |
-| `--dump-screenshot` | `<pngPath>` | Saves `1280x720` composited RGBA PNG at final frame (or frame `2` if `--frames` is unset), or sets `--visible-test` output path. |
-| `--data-dir` | `<dir>` | Overrides writable data root (also via `RESTATION_DATA_DIR` / `DATA_DIR`). |
-| `--config` | `<path>` | Overrides `settings.json` path (also via `RESTATION_CONFIG` / `CONFIG_PATH`). |
-| `--log-dir` | `<dir>` | Overrides log directory (also via `RESTATION_LOG_DIR` / `LOG_DIR`). |
-| `--test-mode` | *(switch)* | Fail-closed sandbox mode (also via `RESTATION_TEST_MODE` / `TEST_MODE`). Forces `shouldEnableRuntimeLogs = true`, **requires explicit `--data-dir`**, and asserts `ConfigFilePath` + `LogDirectory` stay strictly inside `DataDirectory` (exit `3` otherwise). |
-| `--headless` | *(switch)* | Runs without a foreground SDL window (`TargetFps = 0` uncapped, skips SDL audio device creation). |
-| `--visible-test` | *(switch)* | Mandatory GUI/game live-view default: opens a foreground `HWND_TOPMOST` OpenGL `1280x720` live game/fixture/drawer window when media, `--fixture`, `--open-settings`, or `--input-script` is supplied (default `240` frames when `--frames` is omitted, capturing PNG telemetry cleanly), or falls back to the 3s `VisibleTestHarness` `#0E0E10` PS1 showcase (`<logDir>\screenshots\visible-test.png`) when bare. |
-| `--verify` | *(switch)* | Verifies `<dataDir>\gamedata\disc_manifest.json` or `<module>\data\rom\` preload availability, emits forced heartbeat, exits `0` or `1`. |
-| `--open-settings` | *(switch)* | Opens the `F1` Slide-Over Settings Drawer on frame 1. |
-| `--enable-logs` | *(switch)* | Forces `runtime.log` writing for the session without mutating saved `settings.json`. |
-| `--show-fps` | *(switch)* | Enables the `F3` telemetry HUD overlay for the session. |
-| `--help` / `-h` / `/?` | *(switch)* | Prints `CliOptions.HelpText` and exits `0`. |
-
-### 1.2 `reStation.Compiler.exe` Switches (`RecompCompilerPipeline`)
-```powershell
-reStation.Compiler.exe (--disc <image> | --gamedata-dir <dir> | --exe-path <exe>) `
-  [--decomp-dir <dir>] [--functions-json <file>] `
-  --out-dir <dir> --module-id <id> --serial <serialNumber> --title <title> `
-  [--version <semver>] [--compile-dll]
-```
-- Exit codes: `0` success, `1` compile/IO failure, `2` missing/conflicting/unknown flags (`--disc` and `--gamedata-dir` are mutually exclusive).
-
----
-
-## 2. Fail-Closed `Sandbox\` Execution & Verification Matrix
-
-All automated development, CI, and acceptance tests run inside `Sandbox\` (`app\`, `data\`, `logs\`) with `--test-mode` so production data under `<PROGRAMS_ROOT>\` is never touched.
-
-### 2.1 Containment Guards (`SandboxEnvironment`)
-- `CliOptions.CreateSandbox()` throws `InvalidOperationException` (exit `3`) if `--test-mode` is passed without `--data-dir` or if `--config` / `--log-dir` escape the resolved sandbox boundary (`...\Sandbox\` when `--data-dir` resides inside `Sandbox\`, the parent of `...\data`, or `DataDirectory` otherwise).
-- `SandboxEnvironment.AssertPathContained` blocks path-traversal (`..`) across ISO-9660 extraction (`DiscVerifierAndExtractor`), `data\rom\` preload discovery (`PreloadRomDetector`), module `entryAssembly` loading (`ModuleAssemblyLoader`), quick-saves (`QuickSaveManager`), `.mcr` cards (`MemCardMcrStore`), and fixture save-states (`FixtureRunnerHost`).
-
-### 2.2 Standard Build, Unit Test & Sandbox Commands
-```powershell
-# 1. Full Solution Build (/warnaserror) & Unit/Parity Suite (0 warnings, 100% pass)
-dotnet build Dev\src\reStation.slnx -c Release /warnaserror
-dotnet test  Dev\src\reStation.slnx -c Release --no-build --logger "console;verbosity=minimal"
-
-# 2. Headless Sandbox Run + Forced Heartbeat Verification
-.\Sandbox\app\reStation.exe --test-mode --headless --frames 240 --backend software `
-  --data-dir .\Sandbox\data --log-dir .\Sandbox\logs
-
-# 3. Deterministic Save-State Fixture Parity Check (PNG + WAV outputs in Sandbox\logs\fixtures\)
-.\Sandbox\app\reStation.exe --test-mode --headless --module "<path>\module.recomp.json" `
-  --fixture "<path>\fixtures.json" --data-dir .\Sandbox\data --log-dir .\Sandbox\logs
-
-# 4. Foreground Topmost Live-View Test (bare showcase or live --module / --open-settings / --input-script)
-.\Sandbox\app\reStation.exe --test-mode --visible-test `
-  --data-dir .\Sandbox\data --log-dir .\Sandbox\logs
-```
-
----
-
-## 3. `--test-mode` Installer Verification & `audit_installer.ps1`
-
-### 3.1 Zero-Daemon & Embedded Bootstrap Rules (`reStation.Installer`)
-- **`AllowAutoStart = false`:** `ReStationInstallerTheme.AllowAutoStart` and `Program.AllowAutoStart` are strictly `false` (Standard 12 / 19). `Program.SanitizeArgs` strips every `--autostart*` and `--auto-start*` CLI token before `ReStationInstallerBootstrap.Prepare` and `StandardInstallerHost.Run`.
-- **NoInlining AssemblyResolve:** `reStation.Installer.Program` resolves `Foundation.Core`, `Foundation.Installer`, and `reEngine.Core` from embedded `.dll.gz` streams before `RunInstallerCore` (`MethodImplOptions.NoInlining`) JITs.
-- **Side-by-Side `reEngine` Bootstrap (`ReStationInstallerBootstrap`):**
-  - Skipped for informational/verification runs (`--help`, `-h`, `/?`, `help`, `--version`, `-v`, `--verify`, `--dry-run`, `--visible-test`). During `--uninstall` (or `reStation-Uninstall.exe`), `NormalizeUninstallArgs` skips `reEngine` bootstrapping and normalizes base-directory `--install-dir` / `--target-dir` arguments (`<root>` or `<root>\reEngine`) to `<reEngineRoot>\engines\reStation\v0.1.5` (or sets `RESTATION_INSTALL_DIR` in live GUI mode when omitted), preserves direct leaf paths, and enforces `--test-mode` fail-closed containment (`Exit 3` on escape).
-  - **Live Mode:** Extracts embedded `reEngine-Setup.exe` (`v0.1.3`), ensures `reEngine` is installed, computes `<reEngineDir>\engines\reStation\v0.1.5`, and seeds `RESTATION_INSTALL_DIR` when `--install-dir` / `--target-dir` is omitted.
-  - **Contained `--test-mode`:** Resolves sandbox root (`--data-dir`, else `--install-dir`/`--target-dir`, else `%TEMP%\restation-setup-sandbox`), extracts/bootstraps `reEngine` inside `<sandboxRoot>\`, rewrites effective args to `--data-dir <sandboxRoot> --install-dir <sandboxRoot>\reEngine\engines\reStation\v0.1.5`, and deletes temporary `_bootstrap\` files on exit.
-
-### 3.2 Packaging & Audit Pipeline (`Dev\scripts\build_release.ps1` + `sanitize_release_docs.ps1`)
-```powershell
-# Single-pass Release Packager (LOC gate, build/test, --help/--version parity, sanitize_release_docs.ps1,
-# Builds\v0.1.5\ (with app\LICENSE, zero data\rom\), Authenticode sign, Installers\, <INSTALLERS_ROOT>\, audit_installer.ps1, max-2 Releases\, SharedLibs\, Archive\)
-powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.1.5
-```
-
-To verify installer compliance standalone via `audit_installer.ps1`:
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File "$env:USERPROFILE\.gemini\config\skills\release-packaging\scripts\audit_installer.ps1" `
-  -InstallerPath "Installers" `
-  -StagingDir "Builds\v0.1.5" `
-  -ExpectedVersion "0.1.5"
-```
-Checks enforced by `audit_installer.ps1` & `sanitize_release_docs.ps1`:
-1. `Installers\` holds strictly versioned `.exe` files + UTF-8 sanitized `RELEASE_NOTES.md` (historical installers retained per Standard 03; `<INSTALLERS_ROOT>\` holds latest `reStation-Setup-v0.1.5-win-x64.exe`).
-2. Staging dir (`Builds\v0.1.5\`) contains `app\LICENSE` (`MPL-2.0`), zero engine `data\rom\` directory, and zero `.pdb`, `.db`, `.sqlite`, `.sqlite3`, `.log`, `.env`, `oauth_creds*.json`, or `*secret*.json` files; `Releases\` markdown docs contain zero `file:///`, agent-handle, internal-path, or UTF-8 mojibake leaks.
-3. All `.exe` binaries carry a valid (or intact self-signed) Authenticode signature (`CertThumbprint` `A5414BDD36F7F113C7B2356F189B7A43F69C35E6`).
-4. ASCII and UTF-16LE binary scans confirm zero leaked host PII (`<USER_HOME_PREFIX>\...`, `<PROJECTS_ROOT>\`, `<PROGRAMS_ROOT>\`) or secret/token literals.
-
----
-
-## 4. 3-Tier Log Paths, `<= 15s` Heartbeats & `CrashBundleService` Diagnostics
-
-### 4.1 3-Tier Log Sweep Roots (Standard 15)
-Always inspect all three roots (with `20–50` lines of preceding context) before diagnosing runtime issues:
-1. **Production (Read-Only during Audits):** `<PROGRAMS_ROOT>\reEngine\engines\reStation\v0.1.5\logs\` (plus `data\logs\` if deployed with sidecar data).
-2. **Development:** `Dev\logs\`
-3. **Sandbox:** `Sandbox\logs\` (`runtime.log`, `screenshots\`, `fixtures\`, `crashes\`).
-
-### 4.2 `ReStationLogger` & `<= 15s` Telemetry Heartbeats
-- **Log Sink & Standard 15 Format:** `ReStationLogger` wraps `Foundation.Core.CappedSharedLogSink` (`runtime.log`, `4 MiB` max cap) plus an always-active `200`-line in-memory circular buffer (`GetRecentLines()`), stamping every line as `yyyy-MM-ddTHH:mm:ss.fffZ [v0.1.5] [PID:<pid>/T:<tid:D2>]`. `PsxCpu.Break` triage warnings emit `break 0x{c:X5} at pc=0x{Pc:X8} exe={ActiveExeId} ra=0x{R[31]:X8}` for active overlay diagnostics.
-- **Heartbeat Cadence:** `HeartbeatLogger` (`Foundation.Core`) emits a single-prefix `[HEARTBEAT]` line every `<= 15s` (plus forced frame `1` / `--verify` / `FixtureRunnerHost` ticks with positive denominators) formatted via `PsxTelemetrySnapshot.ToHeartbeatLine()`:
-  ```text
-  2026-11-14T19:32:24.036Z [v0.1.5] [PID:20864/T:01] [INFO] [HEARTBEAT] reStation: 1/180 (0.6%) | 1.6s | frame=1 fps=39.0 p99Ms=25.65 cpuMs=21.88 gpuMs=2.93 waitMs=0.22 resolutionScale=4 backend=opengl sectorsPerSec=0.0 mdecMbPerSec=0 activeSpuVoices=0 xaDrops=0 audioFillPct=0.0 audioUnderruns=0
-  ```
-- **Healthy Parity Baselines:** `xaDrops = 0`, `audioUnderruns = 0`, `sectorsPerSec` near `150.0` during `2x` CD-ROM streaming (`75.0` at `1x`), `p99Ms` within frame budget, `138/138` xUnit tests (`0` warnings), `audit_installer.ps1` (`0` findings), and packaged `Sandbox\` silent install + topmost `--visible-test` + `F1` drawer verification `PASS` ([`0.1.5.20261114_193351.-.sandbox-visible-test.md`](Dev/docs/reports/archive/0.1.5.20261114_193351.-.sandbox-visible-test.md)).
-
-### 4.3 `CrashBundleService` Diagnostics
-`Program.cs` registers `CrashBundleService.RegisterGlobalHandlers(...)` (`AppDomain.CurrentDomain.UnhandledException` + `TaskScheduler.UnobservedTaskException`) and explicitly calls `TryWriteCrashBundle(...)` on fatal host exceptions and emulation-thread faults (`ReStationHost.RunFrame()`).
-- **Output Path:** `<logDir>\crashes\crash_restation_<yyyyMMdd_HHmmss_fff>.json`
-- **Schema (`CrashBundlePayload`, `schemaVersion: 1`):** Captures `appId`, `version`, `crashedAtUtc`, `pid`, `osDescription`, `frameworkDescription`, `workingSetBytes`, `exceptionType`, `exceptionMessage`, `stackTrace`, `innerException`, and up to the last `100` lines of `ReStationLogger.GetRecentLines()`.
-
----
-
-## 5. Immutable `SharedLibs\reStation\v0.1.5\` SDK Consumption Rules
-
-`Dev\scripts\build_release.ps1` preserves prior immutable releases (`v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, `v0.1.4`) and publishes clean engine SDK drops (recreating `Latest\` cleanly) to:
-- **Immutable Version Drop:** `<SHARED_LIBS_ROOT>\reStation\v0.1.5\`
-- **Rolling Convenience Pointer:** `<SHARED_LIBS_ROOT>\reStation\Latest\` *(refreshed atomically each release without overwriting `v0.1.0`..`v0.1.4`)*
-
-Published artifacts (indexed in `sdk-manifest.json` with `schemaVersion: 1`, `fileName`, `fileSizeBytes`, `sha256Hex`, plus `engine.manifest.json` declaring `"supportedEngineTracks": ["0.1.x"]`, root `LICENSE`, and root `README.md`):
-- `reStation.Contracts.dll` / `.xml` / `.deps.json`
-- `reStation.Core.dll` / `.xml` / `.deps.json`
-- `reStation.Compiler.exe` / `.dll` / `.deps.json` / `.runtimeconfig.json`
-- `Foundation.Core.dll` / `Foundation.Retro.dll`
-- `reStation-Setup-v0.1.5-win-x64.exe`
-- `LICENSE`, `README.md`, `engine.manifest.json`, `sdk-manifest.json`
-
-### Downstream Rules (Standard 00 §4 & Standard 01 §3.7)
-1. **Immutability:** Never modify or overwrite files inside an already-published `<SHARED_LIBS_ROOT>\reStation\v<Ver>\` folder. Existing `<Game>Recomp` modules remain pinned to their validated engine drop.
-2. **Type-Identity Reference Pattern:** Compiled `.recomp` modules reference `reStation.Contracts`, `reStation.Core`, `Foundation.Core`, and `Foundation.Retro` with `<Private>false</Private>` (via `-p:ReStationLibDir=...`, `RESTATION_LIB_DIR`, `RESTATION_SHARED_DIR`, or `<module>\lib\`) so `ModuleAssemblyLoader` shares host interface type identity cleanly across `AssemblyLoadContext`.
-3. **Child Module Fix Boundary:** Strictly additive, non-breaking fixes uncovered during downstream `<Game>Recomp` runs ship as an immutable `PATCH+1` (`v0.1.5` / `v0.1.(Z+1)`) drop (passing all `reStation` tests with `0` warnings and Gate 2 sign-off); breaking API/ABI changes or large features must be filed in `Dev\docs\reports\` for a dedicated parent `reStation` release.
+| **`PSX_GHIDRA_HEADLESS_FAILED` / `MISSING_OFFLINE_TOOLCHAIN`** | `Full` `.decomp` D2 run invoked without valid `toolchain\ghidra` + JDK under `reEngine` | Point `--toolchain-dir` / install `reEngine` Full toolchain; clean-room script generation still succeeds offline without `invokeGhidra=true` |
+| **OpenGL immediately reverts to Software with banner** | GPU/VM lacks OpenGL 3.3 Core context | `HostVideoSurface.TrySwitchBackend` automatically preserves Software pipeline; update GPU driver or stay on `Software` |
+| **Installer fails with `Fail-Closed Sandbox Violation`** | Path attempted to escape `--sandbox-root` during `--test-mode` | Pass strictly contained subpaths inside `--sandbox-root` / `--data-dir` |
+| **Exit code `5` during `--jit-bringup`** | `JitBringupRecorder` hit `MaxStalledCyclesWithoutVBlank` spin threshold | Inspect emitted bringup profile JSON under `<dataDir>\logs\` or run primary AOT cache |
+| **Stranded `v0.1.1` files linger after upgrade** | `--migrate-legacy` ran without `--confirm-legacy-cleanup` (by safety design) | Re-run with `--confirm-legacy-cleanup` or approve the interactive confirmation prompt |

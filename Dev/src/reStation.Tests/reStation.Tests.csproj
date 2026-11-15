@@ -22,6 +22,7 @@
     <ProjectReference Include="..\reStation.Contracts\reStation.Contracts.csproj" />
     <ProjectReference Include="..\reStation.Core\reStation.Core.csproj" />
     <ProjectReference Include="..\reStation.Compiler\reStation.Compiler.csproj" />
+    <ProjectReference Include="..\reStation.Decomp\reStation.Decomp.csproj" />
     <ProjectReference Include="..\reStation.Player\reStation.Player.csproj" />
     <ProjectReference Include="..\reStation.Installer\reStation.Installer.csproj" />
     <Reference Include="Foundation.Core">

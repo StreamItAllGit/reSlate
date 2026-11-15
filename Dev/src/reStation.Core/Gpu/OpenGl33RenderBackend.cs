@@ -281,7 +281,7 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     {
         if (_disposed) return;
         FlushQueuedOpsOnOwnerThread();
-        lock (_queueLock) _queuedOps.Clear();
+        lock (_queueLock) ClearQueuedOpsAndReturnBuffersLocked();
         _disposed = true;
         if (!_glReady || !Gl.IsInitialized) return;
         DeleteProg(ref _drawProg); DeleteProg(ref _blitProg);

@@ -132,13 +132,49 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
     }
 
     [Fact]
-    public void BuildReleaseScript_AndMetadataFiles_Match013DualManifestContract()
+    public void OpenGl33RenderBackend_OffThreadSameRectUploads_CoalesceViaArrayPool()
+    {
+        using var stubs = new StubGlProcTable();
+        var gl = new OpenGl33Bindings();
+        gl.Initialize(stubs.GetProc);
+
+        using var backend = new OpenGl33RenderBackend(gl);
+        backend.Initialize(320, 240, 1);
+
+        Exception? workerEx = null;
+        var worker = new Thread(() =>
+        {
+            try
+            {
+                ushort[] first = { 0x001F, 0x001F, 0x001F, 0x001F };
+                ushort[] latest = { 0x7C00, 0x7C00, 0x7C00, 0x7C00 };
+                backend.UploadVramRect(8, 8, 2, 2, first);
+                backend.UploadVramRect(8, 8, 2, 2, latest);
+                Assert.Equal(1, backend.QueuedOpCount);
+            }
+            catch (Exception ex)
+            {
+                workerEx = ex;
+            }
+        }) { IsBackground = true };
+        worker.Start();
+        worker.Join();
+        Assert.Null(workerEx);
+
+        backend.EndFrameAndPresent(0, 0, 320, 240, is24Bit: false, widescreen16By9: false);
+        Assert.Equal(0, backend.QueuedOpCount);
+    }
+
+    [Fact]
+    public void BuildReleaseScript_AndMetadataFiles_Match020DualManifestContract()
     {
         string devDir = FindDevRoot();
         string script = File.ReadAllText(Path.Combine(devDir, "scripts", "build_release.ps1"));
         Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "build_release.ps1")).Length <= 400);
         Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "sanitize_release_docs.ps1")).Length <= 400);
-        Assert.Contains("reEngine-Setup-v0.1.3-win-x64.exe", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("reEngine-Setup-v0.1.3-win-x64.exe", script, StringComparison.Ordinal);
+        Assert.Contains("reStation.Decomp.dll", script, StringComparison.Ordinal);
+        Assert.Contains("settings.example.json", script, StringComparison.Ordinal);
         Assert.DoesNotContain(@"data\rom\.keep", script, StringComparison.Ordinal);
         Assert.Contains("LICENSE", script, StringComparison.Ordinal);
         Assert.Contains("--preload-media", script, StringComparison.Ordinal);
@@ -150,9 +186,9 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("supportedEngineTracks", script, StringComparison.Ordinal);
         Assert.Contains("README.md", script, StringComparison.Ordinal);
 
-        Assert.Equal("0.1.5", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.Equal("0.2.0", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.1.5", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.2.0", appManifest.RootElement.GetProperty("version").GetString());
     }
 
     private static string FindDevRoot()

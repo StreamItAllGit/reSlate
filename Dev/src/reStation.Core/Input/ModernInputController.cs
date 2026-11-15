@@ -4,6 +4,7 @@
 // @exports: PsxPadButton, HostInputState, ModernInputController
 // @owner: devv-audio-mdec (T3) — public surface T1-locked (Player HostInputMapper consumes it).
 
+using System.Runtime.InteropServices;
 using reStation.Contracts;
 using reStation.Core.Cpu;
 
@@ -29,6 +30,11 @@ public struct HostInputState
     /// <summary>Relative mouse motion in host pixels since last frame.</summary>
     public float MouseDeltaX, MouseDeltaY;
     public bool QuickSave, QuickLoad;
+    /// <summary>Bitmask indexed by <c>code - GamepadBindingCode.MinCode</c> for SDL3 gamepad codes <c>2001..2032</c>.</summary>
+    public uint GamepadButtonsMask;
+    public bool WheelUp, WheelDown;
+    public bool ControllerConnected;
+    public float RawLeftStickX, RawLeftStickY;
 }
 
 public static class ModernInputController
@@ -79,10 +85,10 @@ public static class ModernInputController
     {
         foreach ((BindableAction action, PsxPadButton button) in ButtonMap)
         {
-            if (IsCodeDown(keyboardState, mouseButtonsMask, kb.GetScancode(action))) state.Buttons |= button;
+            if (IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(action))) state.Buttons |= button;
         }
-        state.QuickSave |= IsCodeDown(keyboardState, mouseButtonsMask, kb.GetScancode(BindableAction.QuickSave));
-        state.QuickLoad |= IsCodeDown(keyboardState, mouseButtonsMask, kb.GetScancode(BindableAction.QuickLoad));
+        state.QuickSave |= IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(BindableAction.QuickSave));
+        state.QuickLoad |= IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(BindableAction.QuickLoad));
     }
 
     private static void ApplyModernModuleProfile(
@@ -95,27 +101,120 @@ public static class ModernInputController
     {
         bool gameplay = cpu is not null && profileProvider.IsGameplayContextActive(cpu);
         bool upBound = false, downBound = false, leftBound = false, rightBound = false;
+        bool menuUpClaimed = false, menuDownClaimed = false, menuLeftClaimed = false, menuRightClaimed = false;
         foreach (GameActionDescriptor action in profileProvider.ModernActions)
         {
-            int code = settings.GetModernActionBinding(action);
-            if (code == 82) upBound = true;
-            else if (code == 81) downBound = true;
-            else if (code == 80) leftBound = true;
-            else if (code == 79) rightBound = true;
-
-            if (!IsCodeDown(keyboardState, mouseButtonsMask, code)) continue;
+            bool actionDown = false;
+            bool explicitMenu = action.MenuPadMask != 0;
+            IReadOnlyList<int> kbm = settings.GetModernActionBindings(action);
+            for (int i = 0; i < kbm.Count; i++)
+            {
+                int code = kbm[i];
+                if (code == 82) { upBound = true; if (explicitMenu) menuUpClaimed = true; }
+                else if (code == 81) { downBound = true; if (explicitMenu) menuDownClaimed = true; }
+                else if (code == 80) { leftBound = true; if (explicitMenu) menuLeftClaimed = true; }
+                else if (code == 79) { rightBound = true; if (explicitMenu) menuRightClaimed = true; }
+                if (IsCodeDown(keyboardState, mouseButtonsMask, in state, code)) actionDown = true;
+            }
+            IReadOnlyList<int> pad = settings.GetModernControllerBindings(action);
+            for (int i = 0; i < pad.Count; i++)
+            {
+                if (IsCodeDown(keyboardState, mouseButtonsMask, in state, pad[i])) actionDown = true;
+            }
+            if (!actionDown) continue;
             if (action.IsQuickSave) state.QuickSave = true;
             if (action.IsQuickLoad) state.QuickLoad = true;
             ushort mask = gameplay ? action.GameplayPadMask : action.MenuPadMask;
             state.Buttons |= (PsxPadButton)mask;
         }
-        if (!upBound && IsDown(keyboardState, 82)) state.Buttons |= PsxPadButton.Up;
-        if (!downBound && IsDown(keyboardState, 81)) state.Buttons |= PsxPadButton.Down;
-        if (!leftBound && IsDown(keyboardState, 80)) state.Buttons |= PsxPadButton.Left;
-        if (!rightBound && IsDown(keyboardState, 79)) state.Buttons |= PsxPadButton.Right;
+        bool allowUp = !gameplay ? !menuUpClaimed : !upBound;
+        bool allowDown = !gameplay ? !menuDownClaimed : !downBound;
+        bool allowLeft = !gameplay ? !menuLeftClaimed : !leftBound;
+        bool allowRight = !gameplay ? !menuRightClaimed : !rightBound;
+        if (allowUp && IsDown(keyboardState, 82)) state.Buttons |= PsxPadButton.Up;
+        if (allowDown && IsDown(keyboardState, 81)) state.Buttons |= PsxPadButton.Down;
+        if (allowLeft && IsDown(keyboardState, 80)) state.Buttons |= PsxPadButton.Left;
+        if (allowRight && IsDown(keyboardState, 79)) state.Buttons |= PsxPadButton.Right;
     }
 
-    private static bool IsCodeDown(ReadOnlySpan<byte> keys, uint mouseButtonsMask, int code) => code switch
+    /// <summary>Evaluates held/pressed named Modern PC actions and drives <see cref="INativeGameActionHook"/> with mode metadata.</summary>
+    public static void ApplyNativeGameActions(
+        ReadOnlySpan<byte> keyboardState,
+        uint mouseButtonsMask,
+        in HostInputState state,
+        IReStationCpuEx cpu,
+        RecompSettings settings,
+        IModuleInputProfileProvider? profileProvider,
+        INativeGameActionHook? nativeHook,
+        ISet<string> previousActiveActions,
+        List<string> activeBuffer,
+        List<string> pressedBuffer,
+        out bool releaseMouseCapture)
+    {
+        releaseMouseCapture = false;
+        ArgumentNullException.ThrowIfNull(previousActiveActions);
+        ArgumentNullException.ThrowIfNull(activeBuffer);
+        ArgumentNullException.ThrowIfNull(pressedBuffer);
+        if (nativeHook is null || profileProvider is null || settings.InputProfileMode != InputProfileMode.PerGameModern)
+        {
+            previousActiveActions.Clear();
+            return;
+        }
+
+        bool gameplay = profileProvider.IsGameplayContextActive(cpu);
+        activeBuffer.Clear();
+        pressedBuffer.Clear();
+        float moveX = 0f, moveY = 0f, lookX = 0f, lookY = 0f;
+
+        foreach (GameActionDescriptor action in profileProvider.ModernActions)
+        {
+            if (!IsActionDown(keyboardState, mouseButtonsMask, in state, settings, action)) continue;
+            activeBuffer.Add(action.ActionId);
+            if (!previousActiveActions.Contains(action.ActionId)) pressedBuffer.Add(action.ActionId);
+            AccumulateActionAxis(action.ActionId, ref moveX, ref moveY, ref lookX, ref lookY);
+        }
+
+        previousActiveActions.Clear();
+        foreach (string id in activeBuffer) previousActiveActions.Add(id);
+
+        float k = settings.ControlMode == ControlMode.ModernWasdMouse ? (float)settings.MouseSensitivity / 32f : 0f;
+        var ctx = new NativeGameActionContext(
+            Math.Clamp(moveX + state.LeftStickX, -1f, 1f),
+            Math.Clamp(moveY - state.LeftStickY, -1f, 1f),
+            lookX + state.RightStickX + (state.MouseDeltaX * k),
+            lookY + state.RightStickY + (state.MouseDeltaY * k),
+            settings.ControllerDpadMode,
+            settings.IsometricMoveMode,
+            state.RawLeftStickX,
+            state.RawLeftStickY,
+            state.ControllerConnected);
+        nativeHook.ApplyNativeActions(cpu, CollectionsMarshal.AsSpan(activeBuffer), CollectionsMarshal.AsSpan(pressedBuffer), in ctx, gameplay, out releaseMouseCapture);
+    }
+
+    private static bool IsActionDown(ReadOnlySpan<byte> keys, uint mouseMask, in HostInputState st, RecompSettings settings, GameActionDescriptor action)
+    {
+        IReadOnlyList<int> kbm = settings.GetModernActionBindings(action);
+        for (int i = 0; i < kbm.Count; i++)
+            if (IsCodeDown(keys, mouseMask, in st, kbm[i])) return true;
+        IReadOnlyList<int> pad = settings.GetModernControllerBindings(action);
+        for (int i = 0; i < pad.Count; i++)
+            if (IsCodeDown(keys, mouseMask, in st, pad[i])) return true;
+        return false;
+    }
+
+    private static void AccumulateActionAxis(string id, ref float moveX, ref float moveY, ref float lookX, ref float lookY)
+    {
+        if (id.Equals("moveForward", StringComparison.OrdinalIgnoreCase) || id.Equals("moveUp", StringComparison.OrdinalIgnoreCase)) moveY += 1f;
+        else if (id.Equals("moveBackward", StringComparison.OrdinalIgnoreCase) || id.Equals("moveBack", StringComparison.OrdinalIgnoreCase) || id.Equals("moveDown", StringComparison.OrdinalIgnoreCase)) moveY -= 1f;
+        else if (id.Equals("moveLeft", StringComparison.OrdinalIgnoreCase) || id.Equals("strafeLeft", StringComparison.OrdinalIgnoreCase)) moveX -= 1f;
+        else if (id.Equals("moveRight", StringComparison.OrdinalIgnoreCase) || id.Equals("strafeRight", StringComparison.OrdinalIgnoreCase)) moveX += 1f;
+        else if (id.Equals("lookLeft", StringComparison.OrdinalIgnoreCase) || id.Equals("turnLeft", StringComparison.OrdinalIgnoreCase)) lookX -= 1f;
+        else if (id.Equals("lookRight", StringComparison.OrdinalIgnoreCase) || id.Equals("turnRight", StringComparison.OrdinalIgnoreCase)) lookX += 1f;
+        else if (id.Equals("lookUp", StringComparison.OrdinalIgnoreCase)) lookY -= 1f;
+        else if (id.Equals("lookDown", StringComparison.OrdinalIgnoreCase)) lookY += 1f;
+    }
+
+    private static bool IsCodeDown(ReadOnlySpan<byte> keys, uint mouseButtonsMask, in HostInputState state, int code) => code switch
     {
         <= 0 => false,
         KeyBindingsConfig.MouseLeft => (mouseButtonsMask & 1u) != 0,
@@ -123,6 +222,10 @@ public static class ModernInputController
         KeyBindingsConfig.MouseRight => (mouseButtonsMask & 4u) != 0,
         KeyBindingsConfig.MouseX1 => (mouseButtonsMask & 8u) != 0,
         KeyBindingsConfig.MouseX2 => (mouseButtonsMask & 16u) != 0,
+        KeyBindingsConfig.MouseWheelUp => state.WheelUp,
+        KeyBindingsConfig.MouseWheelDown => state.WheelDown,
+        >= GamepadBindingCode.MinCode and <= GamepadBindingCode.MaxCode =>
+            (state.GamepadButtonsMask & (1u << (code - GamepadBindingCode.MinCode))) != 0,
         _ => IsDown(keys, code)
     };
 

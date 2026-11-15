@@ -27,8 +27,16 @@ internal static class Program
             return 2;
         }
 
-        RecompCompileResult result = new RecompCompilerPipeline(options).Run();
-        (result.Success ? Console.Out : Console.Error).WriteLine(result.Message);
-        return result.Success ? 0 : 1;
+        try
+        {
+            RecompCompileResult result = new RecompCompilerPipeline(options).Run();
+            (result.Success ? Console.Out : Console.Error).WriteLine(result.Message);
+            return result.Success ? 0 : 1;
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Error.WriteLine("Compilation canceled.");
+            return 1;
+        }
     }
 }

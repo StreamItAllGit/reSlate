@@ -264,11 +264,11 @@ public sealed class CliAndSettingsTests : IDisposable
     }
 
     [Fact]
-    public void CliOptions_HelpTextAndEngineInfo_Reflect015Track()
+    public void CliOptions_HelpTextAndEngineInfo_Reflect020Track()
     {
-        Assert.Equal("0.1.5", ReStationEngineInfo.Version);
-        Assert.Equal("0.1.x", ReStationEngineInfo.CompatibleEngineTrack);
-        Assert.Contains("reStation v0.1.5", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Equal("0.2.0", ReStationEngineInfo.Version);
+        Assert.Equal("0.2.x", ReStationEngineInfo.CompatibleEngineTrack);
+        Assert.Contains("reStation v0.2.0", CliOptions.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -311,5 +311,48 @@ public sealed class CliAndSettingsTests : IDisposable
         Assert.Equal(1, logger.HeartbeatCount);
         string logText = File.ReadAllText(logger.LogFilePath);
         Assert.Contains("[HEARTBEAT]", logText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReStationLogger_DevLogsRoot_CreatesDevLogsCleanlyWhenEnabled()
+    {
+        string? devLogsDir = ReStationLogger.TryResolveDevLogsDirectory();
+        Assert.False(string.IsNullOrWhiteSpace(devLogsDir));
+
+        using var devLogger = new ReStationLogger(devLogsDir!, enabled: true, fileName: "dev-verification.log");
+        devLogger.Info("DEV", "RS-06 dev-mode logging verified cleanly under Dev\\logs.");
+
+        Assert.True(Directory.Exists(devLogsDir));
+        Assert.True(File.Exists(devLogger.LogFilePath));
+        Assert.Contains("RS-06 dev-mode logging verified", File.ReadAllText(devLogger.LogFilePath), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RecompSettings_DefaultsAndSchemaB_Enforce4By3AspectAndModernInputModes()
+    {
+        var defaults = new RecompSettings();
+        Assert.False(defaults.IsWidescreen16By9);
+        Assert.Equal(NativeInputModeIds.ControllerDpadQuickActions, defaults.ControllerDpadMode);
+        Assert.Equal(NativeInputModeIds.IsometricMoveCropGrid, defaults.IsometricMoveMode);
+
+        defaults.ControllerDpadMode = "DPADWALKSTICKRUN";
+        defaults.IsometricMoveMode = "SCREENSPACE";
+        defaults.Clamp();
+        Assert.Equal(NativeInputModeIds.ControllerDpadWalkStickRun, defaults.ControllerDpadMode);
+        Assert.Equal(NativeInputModeIds.IsometricMoveScreenSpace, defaults.IsometricMoveMode);
+
+        Directory.CreateDirectory(_tempRoot);
+        string cfgPath = Path.Combine(_tempRoot, "schema-b-settings.json");
+        defaults.Save(cfgPath);
+        RecompSettings reloaded = RecompSettings.Load(cfgPath).Value;
+        Assert.False(reloaded.IsWidescreen16By9);
+        Assert.Equal(NativeInputModeIds.ControllerDpadWalkStickRun, reloaded.ControllerDpadMode);
+        Assert.Equal(NativeInputModeIds.IsometricMoveScreenSpace, reloaded.IsometricMoveMode);
+
+        reloaded.ControllerDpadMode = "invalid-mode";
+        reloaded.IsometricMoveMode = "invalid-iso";
+        reloaded.Clamp();
+        Assert.Equal(NativeInputModeIds.ControllerDpadQuickActions, reloaded.ControllerDpadMode);
+        Assert.Equal(NativeInputModeIds.IsometricMoveCropGrid, reloaded.IsometricMoveMode);
     }
 }

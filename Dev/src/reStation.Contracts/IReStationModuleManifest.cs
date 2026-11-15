@@ -19,13 +19,17 @@ public static class ReStationEngineInfo
     /// <summary>reEngine side-by-side engine identifier.</summary>
     public const string EngineId = "reStation";
     /// <summary>Current engine SemVer.</summary>
-    public const string Version = "0.1.5";
+    public const string Version = "0.2.0";
     /// <summary>Compatible engine track advertised to reEngine.</summary>
-    public const string CompatibleEngineTrack = "0.1.x";
+    public const string CompatibleEngineTrack = "0.2.x";
     /// <summary>Foundation.Retro platform identifier.</summary>
     public const string PlatformId = "ps1";
     /// <summary>Default gitignored user media preload directory relative to the module root.</summary>
     public const string DefaultPreloadRomDir = "data/rom";
+    /// <summary>Default relative AOT recipe file embedded in .recomp packages.</summary>
+    public const string DefaultAotRecipePath = "aot-recipe.json";
+    /// <summary>Engine tracks supported by this host release (primary track first).</summary>
+    public static IReadOnlyList<string> SupportedEngineTracks { get; } = ["0.2.x", "0.1.x"];
 }
 
 /// <summary>PS1-specific extension of <see cref="IRecompModuleManifest"/> describing a dynamically loaded .recomp game module.</summary>
@@ -43,12 +47,24 @@ public interface IReStationModuleManifest : IRecompModuleManifest
     RecompTimingMode DefaultFramerateMode { get; }
     /// <summary>Minimum compatible engine SemVer.</summary>
     string EngineVersion { get; }
-    /// <summary>Compatible engine track selector (e.g. 0.1.x).</summary>
+    /// <summary>Compatible engine track selector (e.g. 0.2.x).</summary>
     string CompatibleEngineTrack { get; }
     /// <summary>Relative preload media directory.</summary>
     string PreloadRomDir { get; }
     /// <summary>Deterministic multi-scene save-state fixtures.</summary>
     IReadOnlyList<SaveStateFixtureSpec> SaveStateFixtures { get; }
+    /// <summary>Engine tracks accepted by this module (defaults to <see cref="CompatibleEngineTrack"/> for v0.1.5 implementers).</summary>
+    IReadOnlyList<string> SupportedEngineTracks => string.IsNullOrWhiteSpace(CompatibleEngineTrack)
+        ? [ReStationEngineInfo.CompatibleEngineTrack]
+        : [CompatibleEngineTrack];
+    /// <summary>Standard 18 <c>executionTierMode</c> selector (defaults to <c>aotWithJitFallback</c>).</summary>
+    string ExecutionTierMode => ReStationExecutionTierModes.Default;
+    /// <summary>Foundation <see cref="RecompExecutionTierMode"/> corresponding to <see cref="ExecutionTierMode"/>.</summary>
+    RecompExecutionTierMode FoundationExecutionTier => ReStationExecutionTierModes.ToFoundationTierMode(ExecutionTierMode);
+    /// <summary>Optional relative path to <c>aot-recipe.json</c> inside the module package.</summary>
+    string? AotRecipe => null;
+    /// <summary>Optional inline AOT recipe metadata carried directly in the manifest.</summary>
+    AotRecipeSpec? AotRecipeSpec => null;
 }
 
 /// <summary>Serializable module.recomp.json DTO (Standard 18 camelCase keys; superset of reEngine RecompPackageManifest).</summary>
@@ -81,8 +97,16 @@ public sealed class ReStationModuleManifest : IReStationModuleManifest
     [JsonPropertyName("engineVersion")] public string EngineVersion { get; set; } = ReStationEngineInfo.Version;
     /// <inheritdoc/>
     [JsonPropertyName("compatibleEngineTrack")] public string CompatibleEngineTrack { get; set; } = ReStationEngineInfo.CompatibleEngineTrack;
+    /// <summary>Optional multi-track engine compatibility list (for modules supporting both <c>0.1.x</c> and <c>0.2.x</c>).</summary>
+    [JsonPropertyName("supportedEngineTracks")] public IReadOnlyList<string>? SupportedEngineTracks { get; set; }
     /// <inheritdoc/>
     [JsonPropertyName("preloadRomDir")] public string PreloadRomDir { get; set; } = ReStationEngineInfo.DefaultPreloadRomDir;
+    /// <summary>Standard 18 <c>executionTierMode</c> selector (defaults to <c>aotWithJitFallback</c>).</summary>
+    [JsonPropertyName("executionTierMode")] public string ExecutionTierMode { get; set; } = ReStationExecutionTierModes.Default;
+    /// <inheritdoc/>
+    [JsonPropertyName("aotRecipe")] public string? AotRecipe { get; set; }
+    /// <inheritdoc/>
+    [JsonPropertyName("aotRecipeSpec")] public AotRecipeSpec? AotRecipeSpec { get; set; }
     /// <summary>Optional reEngine entry executable override.</summary>
     [JsonPropertyName("entryExecutable")] public string? EntryExecutable { get; set; }
     /// <inheritdoc/>
@@ -101,6 +125,13 @@ public sealed class ReStationModuleManifest : IReStationModuleManifest
     [JsonPropertyName("saveStateFixtures")] public IReadOnlyList<SaveStateFixtureSpec> SaveStateFixtures { get; set; } = Array.Empty<SaveStateFixtureSpec>();
     /// <summary>Forward-compatible unknown keys preserved across round-trips.</summary>
     [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
+    /// <summary>Foundation <see cref="RecompExecutionTierMode"/> corresponding to <see cref="ExecutionTierMode"/>.</summary>
+    [JsonIgnore] public RecompExecutionTierMode FoundationExecutionTier => ReStationExecutionTierModes.ToFoundationTierMode(ExecutionTierMode);
+    /// <inheritdoc/>
+    IReadOnlyList<string> IReStationModuleManifest.SupportedEngineTracks =>
+        SupportedEngineTracks is { Count: > 0 }
+            ? SupportedEngineTracks
+            : (string.IsNullOrWhiteSpace(CompatibleEngineTrack) ? [ReStationEngineInfo.CompatibleEngineTrack] : [CompatibleEngineTrack]);
     /// <summary>Full path to the ZIP <c>.recomp</c> cartridge when loaded from an archive; <see langword="null"/> for loose JSON files.</summary>
     [JsonIgnore] public string? ResolvedPackagePath { get; set; }
 
@@ -132,6 +163,10 @@ public sealed class ReStationModuleManifest : IReStationModuleManifest
         if (string.IsNullOrWhiteSpace(manifest.DisplayName)) manifest.DisplayName = manifest.Title;
         if (string.IsNullOrWhiteSpace(manifest.Title)) manifest.Title = manifest.DisplayName;
         if (string.IsNullOrWhiteSpace(manifest.PreloadRomDir)) manifest.PreloadRomDir = ReStationEngineInfo.DefaultPreloadRomDir;
+        if (string.IsNullOrWhiteSpace(manifest.ExecutionTierMode))
+            manifest.ExecutionTierMode = ReStationExecutionTierModes.Default;
+        else if (ReStationExecutionTierModes.TryNormalize(manifest.ExecutionTierMode, out string normalizedTier))
+            manifest.ExecutionTierMode = normalizedTier;
         manifest.Validate(full);
         return manifest;
     }
@@ -165,5 +200,10 @@ public sealed class ReStationModuleManifest : IReStationModuleManifest
         if (!string.Equals(EngineId, ReStationEngineInfo.EngineId, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException($"'{sourceLabel}' targets engine '{EngineId}', expected '{ReStationEngineInfo.EngineId}'.");
         if (Path.IsPathRooted(PreloadRomDir)) throw new InvalidDataException($"'{sourceLabel}' preloadRomDir must be relative.");
+        if (!ReStationExecutionTierModes.TryNormalize(ExecutionTierMode, out _))
+            throw new InvalidDataException($"'{sourceLabel}' has unsupported executionTierMode '{ExecutionTierMode}'.");
+        if (!string.IsNullOrWhiteSpace(AotRecipe) && Path.IsPathRooted(AotRecipe))
+            throw new InvalidDataException($"'{sourceLabel}' aotRecipe must be relative.");
+        AotRecipeSpec?.Validate($"{sourceLabel}:aotRecipeSpec");
     }
 }

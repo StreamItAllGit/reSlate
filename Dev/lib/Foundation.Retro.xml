@@ -36,6 +36,38 @@
             </code>
             </remarks>
         </member>
+        <member name="T:Foundation.Retro.RecompExecutionTierMode">
+            <summary>
+            Execution tier mode for static recompilation runtimes.
+            Ahead-of-Time (AOT) local compilation is primary; JIT bring-up and threaded IR are optional fallbacks.
+            </summary>
+        </member>
+        <member name="T:Foundation.Retro.RecompRenderBackendIds">
+            <summary>
+            Canonical render backend identifiers for Foundation.Retro hosts.
+            </summary>
+        </member>
+        <member name="T:Foundation.Retro.IDecompPackageManifest">
+            <summary>
+            Clean-room .decomp package manifest contract (Standard 18: decompSchemaVersion, targetDecompTier, goalDecompTier).
+            </summary>
+        </member>
+        <member name="T:Foundation.Retro.RecompRuntimeTelemetrySnapshot">
+            <summary>
+            Point-in-time runtime telemetry snapshot emitted by recompilation hosts for diagnostics and HUD overlays.
+            </summary>
+        </member>
+        <member name="M:Foundation.Retro.RecompRuntimeTelemetrySnapshot.#ctor(Foundation.Retro.RecompExecutionTierMode,System.String,System.Int64,System.Double,System.Double,System.Double,System.Int64,System.Int64,System.Boolean,System.DateTimeOffset)">
+            <summary>
+            Point-in-time runtime telemetry snapshot emitted by recompilation hosts for diagnostics and HUD overlays.
+            </summary>
+        </member>
+        <member name="T:Foundation.Retro.AotCacheLayoutHelper">
+            <summary>
+            Deterministic local AOT cache layout resolver under &lt;dataDir&gt;\cache\&lt;ModuleId&gt;\&lt;Version&gt;\.
+            Ensures generated binaries never pollute tracked Git trees or ship in release bundles.
+            </summary>
+        </member>
         <member name="T:Foundation.Retro.SaveStateFixtureRunner">
             <summary>
             Executes deterministic multi-scene save-state fixture runs, optionally capturing final-frame PNGs

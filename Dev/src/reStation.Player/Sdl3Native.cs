@@ -45,12 +45,15 @@ internal static unsafe partial class Sdl3Native
     public const uint DefaultAudioPlaybackDevice = 0xFFFFFFFFU;
     public const int TextureAccessStreaming = 1;
     public const int ScaleModeNearest = 0, ScaleModeLinear = 1;
+    public const uint BlendModeNone = 0U, BlendModeBlend = 1U;
 
     public const uint EventQuit = 0x100U, EventKeyDown = 0x300U, EventMouseMotion = 0x400U;
-    public const uint EventMouseButtonDown = 0x401U, EventMouseButtonUp = 0x402U, EventGamepadAdded = 0x653U, EventDropFile = 0x1000U;
+    public const uint EventMouseButtonDown = 0x401U, EventMouseButtonUp = 0x402U, EventMouseWheel = 0x403U;
+    public const uint EventGamepadButtonDown = 0x651U, EventGamepadAdded = 0x653U, EventGamepadRemoved = 0x654U, EventDropFile = 0x1000U;
 
-    public const int ScA = 4, ScD = 7, ScS = 22, ScW = 26, ScRet = 40, ScEsc = 41, ScTab = 43, ScSpace = 44;
-    public const int ScF1 = 58, ScF3 = 60, ScF5 = 62, ScF9 = 66, ScRight = 79, ScLeft = 80, ScDown = 81, ScUp = 82;
+    public const int ScA = 4, ScD = 7, ScS = 22, ScW = 26, ScRet = 40, ScEsc = 41, ScBackspace = 42, ScTab = 43, ScSpace = 44;
+    public const int ScF1 = 58, ScF3 = 60, ScF5 = 62, ScF9 = 66, ScPgUp = 75, ScDelete = 76, ScPgDn = 78;
+    public const int ScRight = 79, ScLeft = 80, ScDown = 81, ScUp = 82;
     public const int MouseBtnLeft = 1, MouseBtnMiddle = 2, MouseBtnRight = 3, MouseBtnX1 = 4, MouseBtnX2 = 5;
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetHint(byte* name, byte* value);
@@ -66,6 +69,11 @@ internal static unsafe partial class Sdl3Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_GetPointerProperty(uint props, byte* name, IntPtr defaultValue);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowFullscreen(IntPtr window, byte fullscreen);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowRelativeMouseMode(IntPtr window, byte enabled);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_GetWindowRelativeMouseMode(IntPtr window);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern ulong SDL_GetWindowFlags(IntPtr window);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_GetWindowPosition(IntPtr window, out int x, out int y);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowPosition(IntPtr window, int x, int y);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowSize(IntPtr window, int w, int h);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_GetWindowSize(IntPtr window, out int w, out int h);
     [DllImport("user32.dll", ExactSpelling = true)] private static extern int SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
     [DllImport("user32.dll", ExactSpelling = true)] private static extern int SetForegroundWindow(IntPtr hWnd);
@@ -75,6 +83,7 @@ internal static unsafe partial class Sdl3Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void SDL_DestroyTexture(IntPtr texture);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_UpdateTexture(IntPtr texture, IntPtr rect, void* pixels, int pitch);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetTextureScaleMode(IntPtr texture, int scaleMode);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetTextureBlendMode(IntPtr texture, uint blendMode);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetRenderDrawColor(IntPtr renderer, byte r, byte g, byte b, byte a);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_RenderClear(IntPtr renderer);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_RenderTexture(IntPtr renderer, IntPtr texture, SdlFRect* src, SdlFRect* dst);
@@ -195,6 +204,12 @@ internal static unsafe partial class Sdl3Native
 
     /// <summary>SDL_MouseMotionEvent.xrel/yrel (offsets 36/40).</summary>
     public static (float Dx, float Dy) EventMouseRelative(byte* ev) => (*(float*)(ev + 36), *(float*)(ev + 40));
+
+    /// <summary>SDL_MouseWheelEvent vertical scroll normalized for flipped direction (offsets 28/32).</summary>
+    public static float EventMouseWheelY(byte* ev) => (*(uint*)(ev + 32)) == 1U ? -(*(float*)(ev + 28)) : *(float*)(ev + 28);
+
+    /// <summary>SDL_GamepadButtonEvent.button (offset 20).</summary>
+    public static int EventGamepadButton(byte* ev) => *(ev + 20);
 
     /// <summary>SDL_DropEvent.data UTF-8 path (offset 40).</summary>
     public static string? EventDropPath(byte* ev) => Marshal.PtrToStringUTF8(*(IntPtr*)(ev + 40));

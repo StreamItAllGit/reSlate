@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="reStation.Contracts/reStation.Contracts.csproj" />
     <Project Path="reStation.Core/reStation.Core.csproj" />
+    <Project Path="reStation.Decomp/reStation.Decomp.csproj" />
     <Project Path="reStation.Compiler/reStation.Compiler.csproj" />
     <Project Path="reStation.Player/reStation.Player.csproj" />
     <Project Path="reStation.Launcher/reStation.Launcher.csproj" />

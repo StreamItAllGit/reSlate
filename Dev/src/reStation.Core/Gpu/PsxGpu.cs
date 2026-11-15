@@ -40,8 +40,25 @@ public sealed partial class PsxGpu
 
     public RecompSettings Settings { get; }
     public PgxpTracker Pgxp { get; }
-    public IPsxRenderBackend Backend { get; }
+    public IPsxRenderBackend Backend { get; private set; }
     public ushort[] Vram { get; } = new ushort[VramWidth * VramHeight];
+    public Func<bool>? WidescreenSupportChecker { get; set; }
+    public bool EffectiveWidescreen => Settings.IsWidescreen16By9 && (WidescreenSupportChecker?.Invoke() ?? true);
+
+    /// <summary>Hot-swaps the active render backend at a frame boundary and uploads current VRAM/state immediately.</summary>
+    public void SetBackend(IPsxRenderBackend backend)
+    {
+        ArgumentNullException.ThrowIfNull(backend);
+        if (ReferenceEquals(Backend, backend)) return;
+        (Backend as IPsxGpuBackendHooks)?.AttachPgxp(null);
+        Backend = backend;
+        if (backend is IPsxGpuBackendHooks hooks)
+        {
+            hooks.AttachPgxp(Pgxp);
+            hooks.SetTextureWindow(TextureWindowMaskX, TextureWindowMaskY, TextureWindowOffsetX, TextureWindowOffsetY);
+        }
+        backend.UploadVramRect(0, 0, VramWidth, VramHeight, Vram);
+    }
 
     public int DisplayX { get; private set; }
     public int DisplayY { get; private set; }

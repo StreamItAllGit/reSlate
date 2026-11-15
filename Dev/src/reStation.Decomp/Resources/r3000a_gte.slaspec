@@ -1,0 +1,314 @@
+# Clean-Room MIPS R3000A + PS1 GTE (COP2) Little-Endian SLEIGH Specification
+# Language ID: MIPS:LE:32:R3000A_GTE
+#
+# This Source Code Form is subject to the terms of the Mozilla Public License,
+# v. 2.0. If a copy of the MPL was not distributed with this file, You can
+# obtain one at https://mozilla.org/MPL/2.0/.
+
+define endian=little;
+define alignment=4;
+
+define space ram type=ram_space size=4 default;
+define space register type=register_space size=4;
+
+# MIPS R3000A General-Purpose Registers (0x00..0x7C)
+define register offset=0x00 size=4 [
+    zero at v0 v1 a0 a1 a2 a3
+    t0 t1 t2 t3 t4 t5 t6 t7
+    s0 s1 s2 s3 s4 s5 s6 s7
+    t8 t9 k0 k1 gp sp fp ra
+];
+
+# Program Counter & Multiply/Divide Accumulators (0x80..0x8B)
+define register offset=0x80 size=4 [ pc hi lo ];
+
+# COP0 System Control Registers (0x100..0x13F)
+define register offset=0x100 size=4 [
+    cop0_0 cop0_1 cop0_2 cop0_bpc cop0_4 cop0_bda cop0_jumpdest cop0_dcic
+    cop0_badvaddr cop0_bdam cop0_10 cop0_bpcm cop0_sr cop0_cause cop0_epc cop0_prid
+];
+
+# PS1 COP2 / GTE Data Registers (0x200..0x27F)
+define register offset=0x200 size=4 [
+    gte_vxy0 gte_vz0  gte_vxy1 gte_vz1  gte_vxy2 gte_vz2  gte_rgbc gte_otz
+    gte_ir0  gte_ir1  gte_ir2  gte_ir3  gte_sxy0 gte_sxy1 gte_sxy2 gte_sxyp
+    gte_sz0  gte_sz1  gte_sz2  gte_sz3  gte_rgb0 gte_rgb1 gte_rgb2 gte_res1
+    gte_mac0 gte_mac1 gte_mac2 gte_mac3 gte_irgb gte_orgb gte_lzcs gte_lzcr
+];
+
+# PS1 COP2 / GTE Control Registers (0x300..0x37F)
+define register offset=0x300 size=4 [
+    gte_rt11_12 gte_rt13_21 gte_rt22_23 gte_rt31_32 gte_rt33 gte_trx gte_try gte_trz
+    gte_l11_12  gte_l13_21  gte_l22_23  gte_l31_32  gte_l33  gte_rbk gte_gbk gte_bbk
+    gte_lr1_2   gte_lr3_g1  gte_g2_g3   gte_b1_b2   gte_b3   gte_rfc gte_gfc gte_bfc
+    gte_ofx     gte_ofy     gte_h       gte_dqa     gte_dqb  gte_zsf3 gte_zsf4 gte_flag
+];
+
+# Instruction Encoding Token & Overlapping Alias Fields
+define token instr(32)
+    op         = (26,31)
+    rs         = (21,25)
+    rt         = (16,20)
+    rd         = (11,15)
+    shamt      = (6,10)
+    funct      = (0,5)
+    imm16      = (0,15) signed
+    uimm16     = (0,15)
+    target26   = (0,25)
+    cop0_rd    = (11,15)
+    cop0_funct = (0,5)
+    cop2_cmd   = (25,25)
+    cop2_sub   = (21,25)
+    gte_rt     = (16,20)
+    gte_rd     = (11,15)
+    gte_cr     = (11,15)
+    cop2_lo11  = (0,10)
+    cop2_sf    = (19,19)
+    cop2_mx    = (17,18)
+    cop2_v     = (15,16)
+    cop2_cv    = (13,14)
+    cop2_lm    = (10,10)
+    cop2_funct = (0,5)
+    cop2_imm25 = (0,24)
+;
+
+attach variables [ rs rt rd ] [
+    zero at v0 v1 a0 a1 a2 a3
+    t0 t1 t2 t3 t4 t5 t6 t7
+    s0 s1 s2 s3 s4 s5 s6 s7
+    t8 t9 k0 k1 gp sp fp ra
+];
+
+attach variables [ cop0_rd ] [
+    cop0_0 cop0_1 cop0_2 cop0_bpc cop0_4 cop0_bda cop0_jumpdest cop0_dcic
+    cop0_badvaddr cop0_bdam cop0_10 cop0_bpcm cop0_sr cop0_cause cop0_epc cop0_prid
+    cop0_0 cop0_1 cop0_2 cop0_bpc cop0_4 cop0_bda cop0_jumpdest cop0_dcic
+    cop0_badvaddr cop0_bdam cop0_10 cop0_bpcm cop0_sr cop0_cause cop0_epc cop0_prid
+];
+
+attach variables [ gte_rt gte_rd ] [
+    gte_vxy0 gte_vz0  gte_vxy1 gte_vz1  gte_vxy2 gte_vz2  gte_rgbc gte_otz
+    gte_ir0  gte_ir1  gte_ir2  gte_ir3  gte_sxy0 gte_sxy1 gte_sxy2 gte_sxyp
+    gte_sz0  gte_sz1  gte_sz2  gte_sz3  gte_rgb0 gte_rgb1 gte_rgb2 gte_res1
+    gte_mac0 gte_mac1 gte_mac2 gte_mac3 gte_irgb gte_orgb gte_lzcs gte_lzcr
+];
+
+attach variables [ gte_cr ] [
+    gte_rt11_12 gte_rt13_21 gte_rt22_23 gte_rt31_32 gte_rt33 gte_trx gte_try gte_trz
+    gte_l11_12  gte_l13_21  gte_l22_23  gte_l31_32  gte_l33  gte_rbk gte_gbk gte_bbk
+    gte_lr1_2   gte_lr3_g1  gte_g2_g3   gte_b1_b2   gte_b3   gte_rfc gte_gfc gte_bfc
+    gte_ofx     gte_ofy     gte_h       gte_dqa     gte_dqb  gte_zsf3 gte_zsf4 gte_flag
+];
+
+# User P-Code Operations (COP0 / System / PS1 GTE COP2)
+define pcodeop syscall_op;
+define pcodeop break_op;
+define pcodeop rfe_op;
+define pcodeop lwl_op;
+define pcodeop lwr_op;
+define pcodeop swl_op;
+define pcodeop swr_op;
+
+define pcodeop gte_rtps;
+define pcodeop gte_rtpt;
+define pcodeop gte_nclip;
+define pcodeop gte_avsz3;
+define pcodeop gte_avsz4;
+define pcodeop gte_mvmva;
+define pcodeop gte_op;
+define pcodeop gte_sqr;
+define pcodeop gte_dpcs;
+define pcodeop gte_intpl;
+define pcodeop gte_ncds;
+define pcodeop gte_cdp;
+define pcodeop gte_ncdt;
+define pcodeop gte_nccs;
+define pcodeop gte_cc;
+define pcodeop gte_ncs;
+define pcodeop gte_nct;
+define pcodeop gte_dcpl;
+define pcodeop gte_dpct;
+define pcodeop gte_gpf;
+define pcodeop gte_gpl;
+define pcodeop gte_ncct;
+define pcodeop gte_cmd;
+
+# Addressing & Target Subconstructors
+Rel16: rel is imm16 [ rel = inst_next + (imm16 * 4); ] { export *:4 rel; }
+Jump26: abs is target26 [ abs = (inst_next & 0xf0000000) | (target26 << 2); ] { export *:4 abs; }
+MemOff: imm16(rs) is imm16 & rs { local addr:4 = rs + sext(imm16:2); export addr; }
+
+# ---------------------------------------------------------------------------
+# MIPS R3000A Core ISA (op = 0x00 SPECIAL)
+# ---------------------------------------------------------------------------
+:nop is op=0 & rs=0 & rt=0 & rd=0 & shamt=0 & funct=0 { }
+:sll rd, rt, shamt is op=0 & rs=0 & rd & rt & shamt & funct=0x00 { rd = rt << shamt; }
+:srl rd, rt, shamt is op=0 & rs=0 & rd & rt & shamt & funct=0x02 { rd = rt >> shamt; }
+:sra rd, rt, shamt is op=0 & rs=0 & rd & rt & shamt & funct=0x03 { rd = rt s>> shamt; }
+:sllv rd, rt, rs is op=0 & rs & rt & rd & shamt=0 & funct=0x04 { rd = rt << (rs & 0x1f); }
+:srlv rd, rt, rs is op=0 & rs & rt & rd & shamt=0 & funct=0x06 { rd = rt >> (rs & 0x1f); }
+:srav rd, rt, rs is op=0 & rs & rt & rd & shamt=0 & funct=0x07 { rd = rt s>> (rs & 0x1f); }
+:jr rs is op=0 & rs & rt=0 & rd=0 & shamt=0 & funct=0x08 { delayslot(1); goto [rs]; }
+:jalr rd, rs is op=0 & rs & rt=0 & rd & shamt=0 & funct=0x09 { rd = inst_next + 4; delayslot(1); call [rs]; }
+:syscall is op=0 & funct=0x0c { syscall_op(); }
+:break is op=0 & funct=0x0d { break_op(); }
+:mfhi rd is op=0 & rs=0 & rt=0 & rd & shamt=0 & funct=0x10 { rd = hi; }
+:mthi rs is op=0 & rs & rt=0 & rd=0 & shamt=0 & funct=0x11 { hi = rs; }
+:mflo rd is op=0 & rs=0 & rt=0 & rd & shamt=0 & funct=0x12 { rd = lo; }
+:mtlo rs is op=0 & rs & rt=0 & rd=0 & shamt=0 & funct=0x13 { lo = rs; }
+:mult rs, rt is op=0 & rs & rt & rd=0 & shamt=0 & funct=0x18 {
+    local p:8 = sext(rs) * sext(rt);
+    lo = p:4;
+    hi = p(4);
+}
+:multu rs, rt is op=0 & rs & rt & rd=0 & shamt=0 & funct=0x19 {
+    local p:8 = zext(rs) * zext(rt);
+    lo = p:4;
+    hi = p(4);
+}
+:div rs, rt is op=0 & rs & rt & rd=0 & shamt=0 & funct=0x1a {
+    lo = rs s/ rt;
+    hi = rs s% rt;
+}
+:divu rs, rt is op=0 & rs & rt & rd=0 & shamt=0 & funct=0x1b {
+    lo = rs / rt;
+    hi = rs % rt;
+}
+:add rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x20 { rd = rs + rt; }
+:addu rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x21 { rd = rs + rt; }
+:sub rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x22 { rd = rs - rt; }
+:subu rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x23 { rd = rs - rt; }
+:and rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x24 { rd = rs & rt; }
+:or rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x25 { rd = rs | rt; }
+:xor rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x26 { rd = rs ^ rt; }
+:nor rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x27 { rd = ~(rs | rt); }
+:slt rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x2a { rd = zext(rs s< rt); }
+:sltu rd, rs, rt is op=0 & rs & rt & rd & shamt=0 & funct=0x2b { rd = zext(rs < rt); }
+
+# ---------------------------------------------------------------------------
+# Branches, Jumps & Immediate Instructions (op = 0x01..0x0F)
+# ---------------------------------------------------------------------------
+:bltz rs, Rel16 is op=0x01 & rs & rt=0x00 & Rel16 { local c:1 = (rs s< 0); delayslot(1); if (c) goto Rel16; }
+:bgez rs, Rel16 is op=0x01 & rs & rt=0x01 & Rel16 { local c:1 = (rs s>= 0); delayslot(1); if (c) goto Rel16; }
+:bltzal rs, Rel16 is op=0x01 & rs & rt=0x10 & Rel16 { ra = inst_next + 4; local c:1 = (rs s< 0); delayslot(1); if (c) call Rel16; }
+:bgezal rs, Rel16 is op=0x01 & rs & rt=0x11 & Rel16 { ra = inst_next + 4; local c:1 = (rs s>= 0); delayslot(1); if (c) call Rel16; }
+:j Jump26 is op=0x02 & Jump26 { delayslot(1); goto Jump26; }
+:jal Jump26 is op=0x03 & Jump26 { ra = inst_next + 4; delayslot(1); call Jump26; }
+:beq rs, rt, Rel16 is op=0x04 & rs & rt & Rel16 { local c:1 = (rs == rt); delayslot(1); if (c) goto Rel16; }
+:bne rs, rt, Rel16 is op=0x05 & rs & rt & Rel16 { local c:1 = (rs != rt); delayslot(1); if (c) goto Rel16; }
+:blez rs, Rel16 is op=0x06 & rs & rt=0 & Rel16 { local c:1 = (rs s<= 0); delayslot(1); if (c) goto Rel16; }
+:bgtz rs, Rel16 is op=0x07 & rs & rt=0 & Rel16 { local c:1 = (rs s> 0); delayslot(1); if (c) goto Rel16; }
+
+:addi rt, rs, imm16 is op=0x08 & rs & rt & imm16 { rt = rs + sext(imm16:2); }
+:addiu rt, rs, imm16 is op=0x09 & rs & rt & imm16 { rt = rs + sext(imm16:2); }
+:slti rt, rs, imm16 is op=0x0a & rs & rt & imm16 { rt = zext(rs s< sext(imm16:2)); }
+:sltiu rt, rs, imm16 is op=0x0b & rs & rt & imm16 { rt = zext(rs < sext(imm16:2)); }
+:andi rt, rs, uimm16 is op=0x0c & rs & rt & uimm16 { rt = rs & zext(uimm16:2); }
+:ori rt, rs, uimm16 is op=0x0d & rs & rt & uimm16 { rt = rs | zext(uimm16:2); }
+:xori rt, rs, uimm16 is op=0x0e & rs & rt & uimm16 { rt = rs ^ zext(uimm16:2); }
+:lui rt, uimm16 is op=0x0f & rs=0 & rt & uimm16 { rt = zext(uimm16:2) << 16; }
+
+# ---------------------------------------------------------------------------
+# COP0 System Control (op = 0x10)
+# ---------------------------------------------------------------------------
+:mfc0 rt, cop0_rd is op=0x10 & rs=0x00 & rt & cop0_rd & cop2_lo11=0 { rt = cop0_rd; }
+:mtc0 rt, cop0_rd is op=0x10 & rs=0x04 & rt & cop0_rd & cop2_lo11=0 { cop0_rd = rt; }
+:rfe is op=0x10 & cop2_cmd=1 & cop0_funct=0x10 { rfe_op(); }
+
+# ---------------------------------------------------------------------------
+# Load & Store Instructions (op = 0x20..0x2E)
+# ---------------------------------------------------------------------------
+:lb rt, MemOff is op=0x20 & rt & MemOff { rt = sext(*:1 MemOff); }
+:lh rt, MemOff is op=0x21 & rt & MemOff { rt = sext(*:2 MemOff); }
+:lwl rt, MemOff is op=0x22 & rt & MemOff { rt = lwl_op(rt, MemOff); }
+:lw rt, MemOff is op=0x23 & rt & MemOff { rt = *:4 MemOff; }
+:lbu rt, MemOff is op=0x24 & rt & MemOff { rt = zext(*:1 MemOff); }
+:lhu rt, MemOff is op=0x25 & rt & MemOff { rt = zext(*:2 MemOff); }
+:lwr rt, MemOff is op=0x26 & rt & MemOff { rt = lwr_op(rt, MemOff); }
+:sb rt, MemOff is op=0x28 & rt & MemOff { *:1 MemOff = rt:1; }
+:sh rt, MemOff is op=0x29 & rt & MemOff { *:2 MemOff = rt:2; }
+:swl rt, MemOff is op=0x2a & rt & MemOff { swl_op(rt, MemOff); }
+:sw rt, MemOff is op=0x2b & rt & MemOff { *:4 MemOff = rt; }
+:swr rt, MemOff is op=0x2e & rt & MemOff { swr_op(rt, MemOff); }
+
+# ---------------------------------------------------------------------------
+# PS1 COP2 / Geometry Transformation Engine (GTE) Instructions
+# ---------------------------------------------------------------------------
+:mfc2 rt, gte_rd is op=0x12 & cop2_sub=0x00 & rt & gte_rd & cop2_lo11=0 { rt = gte_rd; }
+:cfc2 rt, gte_cr is op=0x12 & cop2_sub=0x02 & rt & gte_cr & cop2_lo11=0 { rt = gte_cr; }
+:mtc2 rt, gte_rd is op=0x12 & cop2_sub=0x04 & rt & gte_rd & cop2_lo11=0 { gte_rd = rt; }
+:ctc2 rt, gte_cr is op=0x12 & cop2_sub=0x06 & rt & gte_cr & cop2_lo11=0 { gte_cr = rt; }
+
+:lwc2 gte_rt, MemOff is op=0x32 & gte_rt & MemOff { gte_rt = *:4 MemOff; }
+:swc2 gte_rt, MemOff is op=0x3a & gte_rt & MemOff { *:4 MemOff = gte_rt; }
+
+# GTE Geometry & Lighting Commands (op = 0x12, bit 25 = 1)
+:rtps cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x01 {
+    gte_sxy2 = gte_rtps(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vz0);
+}
+:nclip is op=0x12 & cop2_cmd=1 & cop2_funct=0x06 {
+    gte_mac0 = gte_nclip(gte_sxy0, gte_sxy1, gte_sxy2);
+}
+:op cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x0c {
+    gte_mac1 = gte_op(cop2_sf:4, cop2_lm:4, gte_ir1, gte_ir2, gte_ir3);
+}
+:dpcs cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x10 {
+    gte_rgb2 = gte_dpcs(cop2_sf:4, cop2_lm:4, gte_rgbc, gte_ir0);
+}
+:intpl cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x11 {
+    gte_rgb2 = gte_intpl(cop2_sf:4, cop2_lm:4, gte_ir0, gte_ir1, gte_ir2, gte_ir3);
+}
+:mvmva cop2_sf, cop2_mx, cop2_v, cop2_cv, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_mx & cop2_v & cop2_cv & cop2_lm & cop2_funct=0x12 {
+    gte_mac1 = gte_mvmva(cop2_sf:4, cop2_mx:4, cop2_v:4, cop2_cv:4, cop2_lm:4);
+}
+:ncds cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x13 {
+    gte_rgb2 = gte_ncds(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vz0, gte_rgbc);
+}
+:cdp cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x14 {
+    gte_rgb2 = gte_cdp(cop2_sf:4, cop2_lm:4, gte_rgbc, gte_ir1, gte_ir2, gte_ir3);
+}
+:ncdt cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x16 {
+    gte_rgb2 = gte_ncdt(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vxy1, gte_vxy2);
+}
+:nccs cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x1b {
+    gte_rgb2 = gte_nccs(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vz0, gte_rgbc);
+}
+:cc cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x1c {
+    gte_rgb2 = gte_cc(cop2_sf:4, cop2_lm:4, gte_rgbc, gte_ir1, gte_ir2, gte_ir3);
+}
+:ncs cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x1e {
+    gte_rgb2 = gte_ncs(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vz0);
+}
+:nct cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x20 {
+    gte_rgb2 = gte_nct(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vxy1, gte_vxy2);
+}
+:sqr cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x28 {
+    gte_mac1 = gte_sqr(cop2_sf:4, cop2_lm:4, gte_ir1, gte_ir2, gte_ir3);
+}
+:dcpl cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x29 {
+    gte_rgb2 = gte_dcpl(cop2_sf:4, cop2_lm:4, gte_rgbc, gte_ir0, gte_ir1, gte_ir2, gte_ir3);
+}
+:dpct cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x2a {
+    gte_rgb2 = gte_dpct(cop2_sf:4, cop2_lm:4, gte_rgb0, gte_ir0);
+}
+:avsz3 is op=0x12 & cop2_cmd=1 & cop2_funct=0x2d {
+    gte_otz = gte_avsz3(gte_sz1, gte_sz2, gte_sz3, gte_zsf3);
+}
+:avsz4 is op=0x12 & cop2_cmd=1 & cop2_funct=0x2e {
+    gte_otz = gte_avsz4(gte_sz0, gte_sz1, gte_sz2, gte_sz3, gte_zsf4);
+}
+:rtpt cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x30 {
+    gte_sxy2 = gte_rtpt(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vxy1, gte_vxy2);
+}
+:gpf cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x3d {
+    gte_rgb2 = gte_gpf(cop2_sf:4, cop2_lm:4, gte_ir0, gte_ir1, gte_ir2, gte_ir3);
+}
+:gpl cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x3e {
+    gte_rgb2 = gte_gpl(cop2_sf:4, cop2_lm:4, gte_ir0, gte_ir1, gte_ir2, gte_ir3);
+}
+:ncct cop2_sf, cop2_lm is op=0x12 & cop2_cmd=1 & cop2_sf & cop2_lm & cop2_funct=0x3f {
+    gte_rgb2 = gte_ncct(cop2_sf:4, cop2_lm:4, gte_vxy0, gte_vxy1, gte_vxy2);
+}
+:cop2 cop2_imm25 is op=0x12 & cop2_cmd=1 & cop2_imm25 {
+    gte_flag = gte_cmd(cop2_imm25:4);
+}
