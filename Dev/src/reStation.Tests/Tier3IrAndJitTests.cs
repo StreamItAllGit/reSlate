@@ -167,4 +167,12 @@ public sealed class Tier3IrAndJitTests : IDisposable
         Assert.False(doc.RootElement.GetProperty("isR4PromotionReady").GetBoolean());
         Assert.Equal(1, doc.RootElement.GetProperty("discoveredFunctionCount").GetInt32());
     }
+
+    [Fact]
+    public void PlayerLoopExitCodeAndLauncherSyncWait_PreserveJitBringupExitCode5()
+    {
+        Assert.Equal(JitBringupRecorder.SpinWatchdogExitCode, reStation.Player.Program.ResolveLoopExitCode(null, preservedExitCode: JitBringupRecorder.SpinWatchdogExitCode));
+        Assert.Equal(0, reStation.Player.Program.ResolveLoopExitCode(null, preservedExitCode: 0));
+        Assert.True(reStation.Launcher.LauncherArgsHelper.RequiresSyncWait(["--jit-bringup"]));
+    }
 }

@@ -4,6 +4,11 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-15
+### Fixed
+- **Preserve Non-Zero `--jit-bringup` Exit Code (`Program.FrameLoop.cs`, `LauncherArgsHelper.cs` — [`Program.FrameLoop.cs`](Dev/src/reStation.Player/Program.FrameLoop.cs), [`LauncherArgsHelper.cs`](Dev/src/reStation.Launcher/LauncherArgsHelper.cs)):** Added `Program.ResolveLoopExitCode` in `reStation.Player` so non-zero `Environment.ExitCode` values (such as `--jit-bringup` fail-fast `ExitCode = 5`) set before normal frame-loop unwinding are returned cleanly instead of overwritten with `0`, and added `--jit-bringup` to `LauncherArgsHelper.SyncWaitFlags`.
+- **`v0.2.3` Regression Test (`167/167` Passing Under `/warnaserror` — [`Tier3IrAndJitTests.cs`](Dev/src/reStation.Tests/Tier3IrAndJitTests.cs)):** Added `PlayerLoopExitCodeAndLauncherSyncWait_PreserveJitBringupExitCode5` and updated version metadata pins cleanly to `0.2.3`.
+
 ## [0.2.2] - 2026-11-15
 ### Added
 - **Recipe-Verified `<container>#<slice>` Overlay Lifting (`DiscOverlaySliceResolver`, `PlayerMediaResolver` — [`DiscOverlaySliceResolver.cs`](Dev/src/reStation.Compiler/DiscOverlaySliceResolver.cs), [`PlayerMediaResolver.cs`](Dev/src/reStation.Core/Aot/PlayerMediaResolver.cs)):** Added `DiscOverlaySliceResolver` (`<container>#<slice>` verified SHA-256 slice discovery and `IOverlayRecompModule` emission in `reStation.Compiler`) paired with `PlayerMediaResolver.TryFindContainerSliceOffset` (`2048`-byte sector scan then `4`-byte scan) so multi-overlay data archives (such as `FDAT.T#Map0..Map7`) verify and lift cleanly without bundled assets.

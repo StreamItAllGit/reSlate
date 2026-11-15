@@ -1,6 +1,6 @@
-# reStation v0.2.2 — System Architecture & Symbol Map
+# reStation v0.2.3 — System Architecture & Symbol Map
 
-- **Version:** `v0.2.2` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
+- **Version:** `v0.2.3` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
 - **Maintained By:** `@devv` (Technical Truth) & `@tessa` (Clarity) · **Enforcer:** `@dean` (Gate 2)
 - **Spoke Reference:** [`v0.2.0-ps1-decomp-and-aot.md`](architecture/v0.2.0-ps1-decomp-and-aot.md)
 
@@ -57,8 +57,8 @@ flowchart LR
     CMP["reStation.Compiler.exe (net8.0)"]
     PLY["reStation.Player.exe (net8.0-windows)"]
     LNC["reStation.Launcher.exe (net8.0-windows)"]
-    INS["reStation-Setup-v0.2.2-win-x64.exe (net8.0-windows)"]
-    TST["reStation.Tests.dll (xUnit, 166 tests)"]
+    INS["reStation-Setup-v0.2.3-win-x64.exe (net8.0-windows)"]
+    TST["reStation.Tests.dll (xUnit, 167 tests)"]
 
     EXT --> CON
     EXT --> CORE
@@ -136,7 +136,7 @@ flowchart LR
 | `Dev/src/reStation.Contracts/IReStationCpuEx.cs` | 29 | 13 | `IReStationCpuEx` sub-tick, `HasCompiledEntry`, `TryAdvanceToNextVBlank` |
 | `Dev/src/reStation.Contracts/IReStationDecompProvider.cs` | 237 | 136 | `ReStationExecutionTierModes`, `AotRecipeSpec`, `AotRecipeExecutableSpec`, `IReStationDecompProvider` |
 | `Dev/src/reStation.Contracts/IReStationHostEx.cs` | 29 | 13 | `IReStationHostEx` headless/target-FPS/mouse-look host interface |
-| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 209 | 139 | `ReStationEngineInfo` (`0.2.2`), `IReStationModuleManifest`, `ReStationModuleManifest` |
+| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 209 | 139 | `ReStationEngineInfo` (`0.2.3`), `IReStationModuleManifest`, `ReStationModuleManifest` |
 | `Dev/src/reStation.Contracts/ISubTickFrameHook.cs` | 25 | 11 | `ISubTickFrameHook` enhanced 60 FPS sub-tick callbacks |
 | `Dev/src/reStation.Contracts/PsxTelemetrySnapshot.cs` | 61 | 30 | `PsxTelemetrySnapshot` heartbeat & HUD telemetry snapshot |
 | `Dev/src/reStation.Core/Aot/IRecompCompiledEntryLookup.cs` | 22 | 12 | `IRecompCompiledEntryLookup`, `LocalAotLoadOptions` |
@@ -209,7 +209,7 @@ flowchart LR
 | `Dev/src/reStation.Installer/ReStationInstallerBootstrap.cs` | 269 | 236 | `ReStationInstallerBootstrap` `--uninstall` normalization + fail-closed `--test-mode` |
 | `Dev/src/reStation.Installer/ReStationInstallerTheme.cs` | 97 | 84 | `ReStationInstallerTheme` (`AllowAutoStart = false`, zero nested `reEngine-Setup`) |
 | `Dev/src/reStation.Installer/ReStationLegacyMigrationHelper.cs` | 302 | 265 | `ReStationLegacyMigrationHelper` opt-in `v0.1.1` ROM/settings rescue & gated cleanup |
-| `Dev/src/reStation.Launcher/LauncherArgsHelper.cs` | 227 | 195 | `LauncherArgsHelper` zero-PII `%LOCALAPPDATA%` path resolution & `JobObjectGuard` |
+| `Dev/src/reStation.Launcher/LauncherArgsHelper.cs` | 227 | 195 | `LauncherArgsHelper` zero-PII `%LOCALAPPDATA%` path resolution, `--jit-bringup` `SyncWaitFlags` & `JobObjectGuard` |
 | `Dev/src/reStation.Launcher/Program.cs` | 151 | 132 | Launcher forwarding `--wait`, `--profile`, `--reengine-dir` into `reStation.Player` |
 | `Dev/src/reStation.Player/FirstRunMediaGateView.cs` | 92 | 69 | `FirstRunMediaGateView` missing BYO-ROM picker prompt |
 | `Dev/src/reStation.Player/FixtureRunnerHost.cs` | 249 | 216 | `FixtureRunnerHost` deterministic fixture + `--visible-test` runner |
@@ -221,7 +221,7 @@ flowchart LR
 | `Dev/src/reStation.Player/ModuleAssemblyLoader.cs` | 370 | 321 | `ModuleAssemblyLoader` collectible ALC, `CompanionAssembly` preload + `Unloading` clear, `_companionAliases`, `AotRecipeSpec` attach |
 | `Dev/src/reStation.Player/PreloadRomDetector.cs` | 89 | 66 | `PreloadRomDetector` `data\rom\` media scanner |
 | `Dev/src/reStation.Player/Program.cs` | 299 | 260 | Player startup, CLI dispatch, `--jit-bringup` wiring, media gate launch |
-| `Dev/src/reStation.Player/Program.FrameLoop.cs` | 313 | 280 | `Program` main `30 Hz` / sub-tick loop, float mouse, live backend switch, VBlank `F5`/`F9` |
+| `Dev/src/reStation.Player/Program.FrameLoop.cs` | 322 | 287 | `Program` main `30 Hz` / sub-tick loop, `ResolveLoopExitCode`, float mouse, live backend switch, VBlank `F5`/`F9` |
 | `Dev/src/reStation.Player/Program.MediaGate.cs` | 304 | 287 | `Program` cold/warm `<dataDir>\cache\` AOT resolution + module activation |
 | `Dev/src/reStation.Player/ReStationHost.cs` | 296 | 256 | `ReStationHost` core host implementation |
 | `Dev/src/reStation.Player/ReStationHost.QuickSave.cs` | 129 | 105 | `ReStationHost` VBlank-queued `RequestQuickSave`/`QuickLoad` + live `SetTargetFps` |
@@ -244,7 +244,7 @@ flowchart LR
 | `Dev/src/reStation.Tests/PsxDecompAndSlaTests.cs` | 231 | 199 | `.decomp` D0–D5, `R3000A_GTE` `.slaspec`, LP32/byte-match, clean-room & offline toolchain tests |
 | `Dev/src/reStation.Tests/PsxSpuAdsrAndXaTests.cs` | 152 | 125 | SPU ADSR, unity volume, XA mute gating tests |
 | `Dev/src/reStation.Tests/RenderBackendParityTests.cs` | 129 | 104 | Software vs. GL 3.3 primitive/VRAM parity tests |
-| `Dev/src/reStation.Tests/Tier3IrAndJitTests.cs` | 170 | 139 | `MipsIrLowerer`, `RamPageEpochTable`, `ThreadedIrBackend`, `Tier3ExecutionCoordinator` SMC & `JitBringupRecorder` `ExitCode=5` tests |
+| `Dev/src/reStation.Tests/Tier3IrAndJitTests.cs` | 178 | 146 | `MipsIrLowerer`, `RamPageEpochTable`, `ThreadedIrBackend`, `Tier3ExecutionCoordinator` SMC & `JitBringupRecorder` `ExitCode=5` (`ResolveLoopExitCode` + `SyncWaitFlags`) tests |
 | `Dev/src/reStation.Tests/V015EngineFixesTests.cs` | 199 | 164 | `v0.1.5` joypad NACK, 4-arg `InitPAD`, SPU gating & overlay emission regression tests |
 | `Dev/src/reStation.Tests/Wave2CliAndFixtureTests.cs` | 289 | 252 | Fixture spec & headless/visible runner tests |
 | `Dev/src/reStation.Tests/Wave2CoreSeamTests.cs` | 375 | 330 | `v0.1.1` seam, `RSTX` trailer, `memcard`, `ReStationEngineInfo` compatibility tests |
@@ -262,7 +262,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | `<dataDir>\settings.json` (`Dev\data\settings.example.json`) | `RecompSettings` + `ReStationLegacyMigrationHelper` | `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`, `backendId`, `resolutionScale`, `isWidescreen16By9`, `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `inputProfileMode`, `controlMode`, `modernActionBindings`, `modernControllerBindings`, `controllerDpadMode`, `isometricMoveMode` |
 | `<dataDir>\settings.controls.json` | `GlobalControllerProfile` | Global PS1 1:1 scancode bindings |
-| `<dataDir>\cache\<moduleId>\<romSha256_16>-reStation-0.2.2-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
+| `<dataDir>\cache\<moduleId>\<romSha256_16>-reStation-0.2.3-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
 | `<dataDir>\saves\*.rst1` | `QuickSaveManager` + `QuickSaveTrailer` | Version 1 binary snapshot + `"RSTX"` additive sections |
 | `<dataDir>\memcards\*.mcr` | `MemCardMcrStore` | Raw 128 KB PS1 memory cards |
 | `Dev\logs\` (`RS-06`) & `Sandbox\logs\` | `ReStationLogger` | `runtime.log` (`<=15s` heartbeats), `crashes\crash_*.json`, `screenshots\` |
@@ -281,7 +281,7 @@ flowchart LR
 
 ## 7. Security & Privacy Model
 
-- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.2\` (`LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
+- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.3\` (`LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
 - **No Auto-Start / No Telemetry:** `AllowAutoStart = false`; zero background listeners or network sockets.
 - **Human-Gated Legacy Cleanup:** Stranded `v0.1.1` cleanup requires explicit `--migrate-legacy` + `--confirm-legacy-cleanup` (or interactive modal `Yes`) and always preserves `data\rom\`.
 
@@ -289,7 +289,7 @@ flowchart LR
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore` (`166/166` passing across all `21` test files, `0` warnings, `0` skipped, verifying `.decomp` D0–D5, cold/warm AOT cache, recipe `ExeId` ordering + `<container>#<slice>` overlay lifting, `generatedCacheAssemblyName` PE identity + collectible `CompanionAssembly` unload, `MipsLifter` `.rodata` dynamic-switch compilation, `RecompSettings.Clamp()` consumer preservation, Tier 3 IR/JIT/SMC/bringup, installer containment & legacy migration, multi-bind `Schema A`/`B` input + Numpad/Nav labels + widened Keybinds grid, and `T7` runtime fixes).
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore` (`167/167` passing across all `21` test files, `0` warnings, `0` skipped, verifying `.decomp` D0–D5, cold/warm AOT cache, recipe `ExeId` ordering + `<container>#<slice>` overlay lifting, `generatedCacheAssemblyName` PE identity + collectible `CompanionAssembly` unload, `MipsLifter` `.rodata` dynamic-switch compilation, `RecompSettings.Clamp()` consumer preservation, Tier 3 IR/JIT/SMC/bringup + `ResolveLoopExitCode` `--jit-bringup` `ExitCode = 5` preservation, installer containment & legacy migration, multi-bind `Schema A`/`B` input + Numpad/Nav labels + widened Keybinds grid, and `T7` runtime fixes).
 - **Live GUI Acceptance (`Sandbox\`):** `--visible-test --test-mode --data-dir Sandbox\data --log-dir Sandbox\logs` paired with `--input-script` captures & screenshot inspection (`read_file`) plus 3-tier log sweep.
 
 ---

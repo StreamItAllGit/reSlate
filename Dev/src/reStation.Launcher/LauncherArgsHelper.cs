@@ -10,13 +10,13 @@ namespace reStation.Launcher;
 
 internal static class LauncherArgsHelper
 {
-    internal const string DefaultVersion = "0.2.2";
+    internal const string DefaultVersion = "0.2.3";
     internal const string CanonicalEngineFolder = "v" + DefaultVersion;
 
     internal static readonly string[] SyncWaitFlags =
     {
         "--wait", "--visible-test", "--fixture", "--input-script", "--verify", "--test-mode",
-        "--headless", "--version", "-v", "--help", "-h", "/?", "help"
+        "--headless", "--jit-bringup", "--version", "-v", "--help", "-h", "/?", "help"
     };
 
     internal static readonly HashSet<string> PathValueFlags = new(StringComparer.OrdinalIgnoreCase)

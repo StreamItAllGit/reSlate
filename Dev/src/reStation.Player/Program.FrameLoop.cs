@@ -188,13 +188,22 @@ internal static unsafe partial class Program
                 if (maxFrames > 0 && st.HostFrame >= maxFrames) break;
             }
             logger.Info("RUNTIME", $"Session end frames={st.HostFrame} cpuFrames={cpu.FrameCount} backend={video.Backend.BackendId} xaDrops={cpu.Spu.XaDrops} scriptFails={inputScript?.AssertionsFailed ?? 0}");
-            return inputScript is not null && inputScript.HasFailures ? 1 : 0;
+            return ResolveLoopExitCode(inputScript);
         }
         finally
         {
             if (audioStream != IntPtr.Zero) Sdl3Native.SDL_DestroyAudioStream(audioStream);
             if (st.Gamepad != IntPtr.Zero) Sdl3Native.SDL_CloseGamepad(st.Gamepad);
         }
+    }
+
+    internal static int ResolveLoopExitCode(InputScriptRunner? inputScript, int? preservedExitCode = null)
+    {
+        int processExitCode = preservedExitCode ?? Environment.ExitCode;
+        if (processExitCode != 0)
+            return processExitCode;
+
+        return inputScript is not null && inputScript.HasFailures ? 1 : 0;
     }
 
     private static void ApplyScriptDrawerCommand(
