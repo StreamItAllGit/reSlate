@@ -19,9 +19,12 @@ public sealed partial class PsxCpu
             Logger?.Warn("CPU", $"Rejected nested RunSlice(inSubTickRender=true) at pc=0x{entryPc:X8}.");
             return;
         }
-        _unwindStack.Push((ShouldUnwind, UnwindTargetPc, InSubTickRender));
+        _unwindStack.Push((ShouldUnwind, UnwindTargetPc, InSubTickRender, _inCompiledTrampoline, _hasPendingTailJump, _pendingTailJumpPc));
         ShouldUnwind = false;
         UnwindTargetPc = returnSentinelPc;
+        _inCompiledTrampoline = false;
+        _hasPendingTailJump = false;
+        _pendingTailJumpPc = 0U;
         if (inSubTickRender) InSubTickRender = true;
         try
         {
@@ -33,6 +36,9 @@ public sealed partial class PsxCpu
             var prev = _unwindStack.Pop();
             UnwindTargetPc = prev.UnwindTarget;
             InSubTickRender = prev.InSubTickRender;
+            _inCompiledTrampoline = prev.InCompiledTrampoline;
+            _hasPendingTailJump = prev.HasPendingTailJump;
+            _pendingTailJumpPc = prev.PendingTailJumpPc;
             if (inSubTickRender) SubTickDeadlineCycle = 0;
             if (!unwindingOut) ShouldUnwind = prev.ShouldUnwind;
         }

@@ -7,8 +7,8 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.4",
-  "activeMilestone": "0.2.4",
+  "version": "0.2.5",
+  "activeMilestone": "0.2.5",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-15",
   "lastVersionDate": "2026-11-15",
@@ -16,15 +16,15 @@
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 7,
-  "openReportCount": 1,
+  "completedTaskCount": 8,
+  "openReportCount": 0,
   "gates": {
     "isGate0ScopePassed": true,
     "isGate1PlanPassed": true,
     "isGate2BuildPassed": true,
-    "isInspecterVerified": true,
-    "isTessaSynced": true
+    "isInspecterVerified": false,
+    "isTessaSynced": false
   },
-  "notes": "Hotfix v0.2.4 PATCH+1: Setup Wizard live folder auto-sorting (ReStationWizardPathNormalizer, generic parent -> <parent>\\reEngine\\engines\\reStation\\v0.2.4, explicit CLI untouched) + reEngine.Core v0.2.1 SDK sync.",
-  "updatedAtUtc": "2026-11-15T20:45:00.000Z"
+  "notes": "Hotfix v0.2.5 PATCH+1 implementation complete (173/173 passing Release tests under /warnaserror): O(1)-stack PsxCpu tail-jump trampoline + Keybinds F3 HUD strip clamp; awaiting @dean Gate 2 PASS, build_release packaging, and live verification.",
+  "updatedAtUtc": "2026-11-15T21:40:00.000Z"
 }

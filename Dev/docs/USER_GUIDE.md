@@ -1,4 +1,4 @@
-# reStation v0.2.4 — User Guide
+# reStation v0.2.5 — User Guide
 
 > **Note:** Clean-room PlayStation 1 (`PS1`) runtime, local Ahead-of-Time (AOT) compiler, and static recompilation engine. Users provide their own legally owned PS1 disc media or executables. Zero copyrighted Sony BIOS files, retail ROMs, disc images, save states, or pre-generated game binaries are bundled or distributed.
 
@@ -13,9 +13,9 @@
 ## 2. Install, Upgrade & Uninstall
 
 ### Canonical Install Layout
-By default, `reStation v0.2.4` installs into your local user application suite (requiring **no administrator elevation** and never auto-starting in the background):
+By default, `reStation v0.2.5` installs into your local user application suite (requiring **no administrator elevation** and never auto-starting in the background):
 
-- **Engine Binary Root:** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.4\`
+- **Engine Binary Root:** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.5\`
 - **User Data & Local AOT Cache:** `<InstallDir>\data\` (`rom\`, `cache\`, `saves\`, `memcards\`, `settings.json`, `settings.controls.json`)
 - **Logs:** `<InstallDir>\logs\` (`runtime.log`, `crashes\`)
 
@@ -24,11 +24,11 @@ By default, `reStation v0.2.4` installs into your local user application suite (
 - **Full (Developers & `.decomp` Creators):** Includes `Lightweight` capabilities plus integration for an offline Ghidra + OpenJDK toolchain placed alongside `reEngine` (`toolchain\`).
 
 ### Installer CLI Options
-- `--install-dir <path>` or `--reengine-dir <path>` — Pick a custom `reEngine` suite root (`reStation-Setup-v0.2.4-win-x64.exe`); choosing a generic parent folder in Setup Wizard auto-sorts into `<parent>\reEngine\engines\reStation\v0.2.4\`.
+- `--install-dir <path>` or `--reengine-dir <path>` — Pick a custom `reEngine` suite root (`reStation-Setup-v0.2.5-win-x64.exe`); choosing a generic parent folder in Setup Wizard auto-sorts into `<parent>\reEngine\engines\reStation\v0.2.5\`.
 - `--profile Lightweight|Full` — Select installation profile non-interactively.
-- `--migrate-legacy` — Opt-in import of `settings.json` and `data\rom\` media from older `v0.1.x` installations into `v0.2.4`.
+- `--migrate-legacy` — Opt-in import of `settings.json` and `data\rom\` media from older `v0.1.x` installations into `v0.2.5`.
 - `--confirm-legacy-cleanup` — Explicit confirmation flag to remove stranded non-ROM legacy artifacts only after preserving `data\rom\` and `settings.json`.
-- `--uninstall` — Removes the `v0.2.4` engine track cleanly without touching your `data\rom\` backups or other side-by-side `0.1.x` tracks.
+- `--uninstall` — Removes the `v0.2.5` engine track cleanly without touching your `data\rom\` backups or other side-by-side `0.1.x` tracks.
 
 ---
 
@@ -87,7 +87,7 @@ Press **`F1`** (or pass `--open-settings` / click **Open Settings** inside the `
 - **"Missing Offline Toolchain" on `.decomp` export:** You selected `Lightweight` profile or did not place an offline Ghidra + OpenJDK bundle inside `reEngine`'s `toolchain\` directory. Reinstall or copy the offline toolchain bundle for `.decomp` authoring; normal `.recomp` gameplay only needs local `.NET` AOT and works in `Lightweight`.
 - **OpenGL reverted to Software automatically:** Your display adapter or driver does not expose an `OpenGL 3.3 Core` context (`Video` tab banner shows the exact reason). `Software` rendering continues cleanly without crashing.
 - **Game prompts for disc / media on startup:** Ensure your verified disc image or PS-X binary resides in `<InstallDir>\data\rom\` and matches the module's expected media SHA-256 or disc serial.
-- **Cache rebuild after engine update:** Each `<Game>.Generated.dll` under `data\cache\` is keyed by module ID, ROM SHA-256, and engine version (`v0.2.4`), so stale caches from older versions are automatically replaced and evicted cleanly.
+- **Cache rebuild after engine update:** Each `<Game>.Generated.dll` under `data\cache\` is keyed by module ID, ROM SHA-256, and engine version (`v0.2.5`), so stale caches from older versions are automatically replaced and evicted cleanly.
 
 ---
 

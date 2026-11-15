@@ -22,11 +22,11 @@ public static class PsxInterpreter
             if (masked is 0xA0U or 0xB0U or 0xC0U) { cpu.Bios.HandleVectorCall(masked); pc = cpu.R[31]; continue; }
             uint canonPc = 0x80000000U | masked;
             IRecompModule? mod = cpu.ResolveModule(canonPc);
-            if (mod is not null && mod.TryExecuteFunction(cpu, canonPc))
+            if (mod is not null && cpu.TryExecuteCompiledModule(mod, canonPc, out bool hasTail, out uint tailPc))
             {
                 if (cpu.ExitRequested || cpu.PendingQuickLoadSlot >= 0 || (cpu.ShouldUnwind && cpu.Pc == IReStationCpu.ReturnSentinelPc)) break;
                 cpu.ShouldUnwind = false;
-                pc = cpu.R[31];
+                pc = hasTail ? tailPc : cpu.R[31];
                 continue;
             }
             cpu.Pc = pc;
@@ -44,33 +44,49 @@ public static class PsxInterpreter
 
     public static void ExecuteUntilReturnOrCompiled(PsxCpu cpu, uint startPc, IRecompModule? module)
     {
+        if (ExecuteUntilReturnOrCompiled(cpu, startPc, module, out uint pendingTailJumpPc))
+            cpu.Call(pendingTailJumpPc);
+    }
+
+    internal static bool ExecuteUntilReturnOrCompiled(PsxCpu cpu, uint startPc, IRecompModule? module, out uint pendingTailJumpPc)
+    {
         ArgumentNullException.ThrowIfNull(cpu);
+        pendingTailJumpPc = 0U;
         uint pc = startPc, stopRa = cpu.R[31];
         for (int steps = 0; steps < 50_000_000; steps++)
         {
-            if (cpu.ShouldUnwind || cpu.ExitRequested || cpu.PendingQuickLoadSlot >= 0) return;
+            if (cpu.ShouldUnwind || cpu.ExitRequested || cpu.PendingQuickLoadSlot >= 0) return false;
             if (pc == cpu.UnwindTargetPc || pc == IReStationCpu.ReturnSentinelPc)
             {
-                cpu.Pc = pc; cpu.ShouldUnwind = true; return;
+                cpu.Pc = pc; cpu.ShouldUnwind = true; return false;
             }
             uint masked = pc & 0x1FFFFFFFU;
             if (masked is 0xA0U or 0xB0U or 0xC0U)
             {
                 cpu.Bios.HandleVectorCall(masked);
                 pc = cpu.R[31];
-                if (pc == stopRa) return;
+                if (pc == stopRa) return false;
                 continue;
             }
             uint canonPc = 0x80000000U | masked;
             IRecompModule? targetMod = steps > 0 ? cpu.ResolveModule(canonPc) : module;
-            if (steps > 0 && targetMod is not null && canonPc >= targetMod.TextStart && canonPc < targetMod.TextEnd && targetMod.TryExecuteFunction(cpu, canonPc))
-                return;
+            if (steps > 0 && targetMod is not null && canonPc >= targetMod.TextStart && canonPc < targetMod.TextEnd &&
+                cpu.TryExecuteCompiledModule(targetMod, canonPc, out bool hasTail, out uint tailPc))
+            {
+                if (hasTail && !cpu.ShouldUnwind && !cpu.ExitRequested && cpu.PendingQuickLoadSlot < 0)
+                {
+                    pendingTailJumpPc = tailPc;
+                    return true;
+                }
+                return false;
+            }
             cpu.Pc = pc;
-            if (!StepOne(cpu, ref pc)) return;
+            if (!StepOne(cpu, ref pc)) return false;
             cpu.R[0] = 0;
             cpu.TotalCycles += 2;
             if (cpu.TotalCycles >= cpu.NextEventCycle) cpu.PollEvents();
         }
+        return false;
     }
 
     private static bool StepOne(PsxCpu cpu, ref uint pc)

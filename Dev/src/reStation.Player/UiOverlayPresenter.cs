@@ -41,6 +41,7 @@ internal sealed class UiOverlayPresenter
     private string? _lastListeningModern;
 
     public bool IsCompactHudStripActive { get; private set; }
+    internal int LastHudBoxRightEdge { get; private set; }
     public ReadOnlySpan<byte> UiPixels => _uiCanvas.Buffer;
     public ReadOnlySpan<byte> ActiveOverlayPixels => IsCompactHudStripActive ? _hudStripCanvas.Buffer : _uiCanvas.Buffer;
     public int ActiveOverlayWidth => IsCompactHudStripActive ? HudStripWidth : OverlayWidth;
@@ -125,8 +126,9 @@ internal sealed class UiOverlayPresenter
             Buffer.BlockCopy(_drawerCacheCanvas.Buffer, 0, _uiCanvas.Buffer, 0, _uiCanvas.Buffer.Length);
             if (settings.IsFpsOverlayEnabled)
             {
-                int maxW = drawer.IsOpen ? (drawer.ActiveTab == 2 ? 492 : 652) : HudStripWidth;
+                int maxW = drawer.IsOpen ? (drawer.ActiveTab == 2 ? 452 : 652) : HudStripWidth;
                 DrawHudBox(_uiCanvas, HudStripDstX, HudStripDstY, maxW, hudText);
+                LastHudBoxRightEdge = HudStripDstX + ComputeHudBoxWidth(maxW, hudText);
             }
         }
 
@@ -163,9 +165,11 @@ internal sealed class UiOverlayPresenter
         return true;
     }
 
+    internal static int ComputeHudBoxWidth(int maxW, string hudText) => Math.Clamp(UiPaint.TextWidth(hudText) + 24, 240, maxW);
+
     private static void DrawHudBox(PixelOverlayCanvas canvas, int x, int y, int maxW, string hudText)
     {
-        int boxW = Math.Clamp(UiPaint.TextWidth(hudText) + 24, 240, maxW);
+        int boxW = ComputeHudBoxWidth(maxW, hudText);
         var box = new UiRect(x, y, boxW, HudStripHeight);
         UiPaint.BorderRect(canvas, box, UiPaint.HudFill, UiPaint.Accent);
         string fit = hudText.Length * 12 > boxW - 20 ? hudText[..Math.Max(1, (boxW - 24) / 12)] : hudText;

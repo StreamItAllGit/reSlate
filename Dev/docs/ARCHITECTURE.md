@@ -1,6 +1,6 @@
-# reStation v0.2.4 — System Architecture & Symbol Map
+# reStation v0.2.5 — System Architecture & Symbol Map
 
-- **Version:** `v0.2.4` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
+- **Version:** `v0.2.5` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
 - **Maintained By:** `@devv` (Technical Truth) & `@tessa` (Clarity) · **Enforcer:** `@dean` (Gate 2)
 - **Spoke Reference:** [`v0.2.0-ps1-decomp-and-aot.md`](architecture/v0.2.0-ps1-decomp-and-aot.md)
 
@@ -57,8 +57,8 @@ flowchart LR
     CMP["reStation.Compiler.exe (net8.0)"]
     PLY["reStation.Player.exe (net8.0-windows)"]
     LNC["reStation.Launcher.exe (net8.0-windows)"]
-    INS["reStation-Setup-v0.2.4-win-x64.exe (net8.0-windows)"]
-    TST["reStation.Tests.dll (xUnit, 170 tests)"]
+    INS["reStation-Setup-v0.2.5-win-x64.exe (net8.0-windows)"]
+    TST["reStation.Tests.dll (xUnit, 173 tests)"]
 
     EXT --> CON
     EXT --> CORE
@@ -100,13 +100,13 @@ flowchart LR
 3. [`ModuleAssemblyLoader`](../src/reStation.Player/ModuleAssemblyLoader.cs#L53-L252) attaches `concreteManifest.AotRecipeSpec ??= aotRecipe` and `LoadedFromLocalAotCache = true`, preloads [`CompanionAssembly`](../src/reStation.Player/ModuleAssemblyLoader.cs#L78) (`PreloadCompanionAssembly`) into the collectible `AssemblyLoadContext` (`isCollectible: true`), and clears the companion reference on `Unloading` (`ClearLoadedCompanion`) for zero-leak `WaitForUnload` reclamation. If `--jit-bringup` or `--force-zero-rwx` is active, [`MipsIrLowerer`](../src/reStation.Core/Ir/MipsIrLowerer.cs), [`RamPageEpochTable`](../src/reStation.Core/Jit/RamPageEpochTable.cs), [`Tier3ExecutionCoordinator`](../src/reStation.Core/Jit/Tier3ExecutionCoordinator.cs), and [`JitBringupRecorder`](../src/reStation.Core/Bringup/JitBringupRecorder.cs) (`ExitCode = 5` spin guard) operate as an opt-in diagnostic fallback.
 
 ### C. Runtime Frame, `T7` Input & GPU Backend Flow
-1. [`ReStationHost`](../src/reStation.Player/ReStationHost.cs) + [`ReStationHost.QuickSave`](../src/reStation.Player/ReStationHost.QuickSave.cs) queue `F5`/`F9` requests cleanly at VBlank boundaries; mid-stack `F9` restores dispatch through [`PsxCpu.DispatchFunction`](../src/reStation.Core/Cpu/PsxCpu.cs#L160-L171) -> [`PsxInterpreter.ResumeFromSnapshot`](../src/reStation.Core/Cpu/PsxInterpreter.cs#L13-L43) whenever `R[31] != ReturnSentinelPc`, while [`PsxCpu.HasCompiledEntry`](../src/reStation.Core/Cpu/PsxCpu.Scheduling.cs#L73-L80) resolves `IRecompCompiledEntryLookup`.
+1. [`ReStationHost`](../src/reStation.Player/ReStationHost.cs) + [`ReStationHost.QuickSave`](../src/reStation.Player/ReStationHost.QuickSave.cs) queue `F5`/`F9` requests cleanly at VBlank boundaries; mid-stack `F9` restores dispatch through [`PsxCpu.DispatchFunction`](../src/reStation.Core/Cpu/PsxCpu.cs#L163-L174) -> [`PsxInterpreter.ResumeFromSnapshot`](../src/reStation.Core/Cpu/PsxInterpreter.cs#L13-L43) whenever `R[31] != ReturnSentinelPc`, while [`PsxCpu.HasCompiledEntry`](../src/reStation.Core/Cpu/PsxCpu.Scheduling.cs#L79-L86) resolves `IRecompCompiledEntryLookup`.
 2. [`PsxJoypadPort`](../src/reStation.Core/Hardware/PsxJoypadPort.cs) drives finite `~96`-cycle `/ACK` pulses, `_irqPending` (`0x200`), and DualShock `0x73` packets; [`PsxTimersAndDma`](../src/reStation.Core/Hardware/PsxTimersAndDma.cs) calls `TickTo(_cpu.TotalCycles)` on reads/writes; [`ModernInputController`](../src/reStation.Core/Input/ModernInputController.cs) + [`HostInputMapper`](../src/reStation.Player/HostInputMapper.cs) dispatch `[1st, 2nd, 3rd]` KBM (including SDL3 USB HID Numpad `Num/`..`Num.` + `Ins`/`Home`/`End`/`RAlt` labels in [`KeyBindingsConfig`](../src/reStation.Core/Input/KeyBindingsConfig.cs#L115-L147)) + mouse/wheel (`1001..1007`) + controller (`2001..2032`) + `Schema B` `controllerDpadMode` / `isometricMoveMode` with `!gameplay` Arrow fallback.
 3. [`Program.FrameLoop`](../src/reStation.Player/Program.FrameLoop.cs) preserves `float` mouse deltas, commits live `host.SetTargetFps` and [`PsxGpu.SetBackend`](../src/reStation.Core/Gpu/PsxGpu.cs) / [`HostVideoSurface.TrySwitchBackend`](../src/reStation.Player/HostVideoSurface.Switch.cs) swaps at frame boundary (reverting to `software` with banner on GL error), enforces `4:3` default aspect unless enabled + module-approved via `IRecompWidescreenProvider`, and renders the `1060x34` HUD strip (`F3`) or widened `800px` (`actW = 304 px`) 5-column `Action | 1st | 2nd | 3rd | Gamepad` `Keybinds` drawer (`F1`) over GPU-composited layers.
 
 ---
 
-## 4. File & Symbol Lookup Registry (`145` Tracked Files — Max `375` Lines)
+## 4. File & Symbol Lookup Registry (`146` Tracked Files — Max `375` Lines)
 
 | File | Lines | CodeSLOC | Primary Exports & Responsibility |
 | :--- | ---: | ---: | :--- |
@@ -136,7 +136,7 @@ flowchart LR
 | `Dev/src/reStation.Contracts/IReStationCpuEx.cs` | 29 | 13 | `IReStationCpuEx` sub-tick, `HasCompiledEntry`, `TryAdvanceToNextVBlank` |
 | `Dev/src/reStation.Contracts/IReStationDecompProvider.cs` | 237 | 136 | `ReStationExecutionTierModes`, `AotRecipeSpec`, `AotRecipeExecutableSpec`, `IReStationDecompProvider` |
 | `Dev/src/reStation.Contracts/IReStationHostEx.cs` | 29 | 13 | `IReStationHostEx` headless/target-FPS/mouse-look host interface |
-| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 209 | 139 | `ReStationEngineInfo` (`0.2.4`), `IReStationModuleManifest`, `ReStationModuleManifest` |
+| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 209 | 139 | `ReStationEngineInfo` (`0.2.5`), `IReStationModuleManifest`, `ReStationModuleManifest` |
 | `Dev/src/reStation.Contracts/ISubTickFrameHook.cs` | 25 | 11 | `ISubTickFrameHook` enhanced 60 FPS sub-tick callbacks |
 | `Dev/src/reStation.Contracts/PsxTelemetrySnapshot.cs` | 61 | 30 | `PsxTelemetrySnapshot` heartbeat & HUD telemetry snapshot |
 | `Dev/src/reStation.Core/Aot/IRecompCompiledEntryLookup.cs` | 22 | 12 | `IRecompCompiledEntryLookup`, `LocalAotLoadOptions` |
@@ -156,9 +156,9 @@ flowchart LR
 | `Dev/src/reStation.Core/Core/RecompSettings.cs` | 286 | 251 | `RecompSettings` (`Clamp` preserves consumer `AppId`/`SchemaVersion`), `ModernBindingsJsonConverter`, `IsWidescreen16By9 = false`, `Schema A`/`B` keys |
 | `Dev/src/reStation.Core/Core/ReStationLogger.cs` | 143 | 116 | `ReStationLogger` + `TryResolveDevLogsDirectory` (`RS-06`) + `<=15s` heartbeats |
 | `Dev/src/reStation.Core/Cpu/PsxCpu.Bus.cs` | 95 | 78 | `PsxCpu` IO/RAM/DMA read-write dispatch partial |
-| `Dev/src/reStation.Core/Cpu/PsxCpu.cs` | 300 | 268 | `PsxCpu` R3000A registers, mid-stack `DispatchFunction` resume (`RS-07`), `Break` logging |
-| `Dev/src/reStation.Core/Cpu/PsxCpu.Scheduling.cs` | 217 | 192 | `PsxCpu` `HasCompiledEntry` (`IRecompCompiledEntryLookup`), `RunSlice`, VBlank scheduler |
-| `Dev/src/reStation.Core/Cpu/PsxInterpreter.cs` | 217 | 202 | `PsxInterpreter.ResumeFromSnapshot` & fallback MIPS step loop |
+| `Dev/src/reStation.Core/Cpu/PsxCpu.cs` | 358 | 325 | `PsxCpu` R3000A registers, O(1)-stack tail-jump trampoline (`TryExecuteCompiledModule`), `DispatchFunction` (`RS-07`), `Break` logging |
+| `Dev/src/reStation.Core/Cpu/PsxCpu.Scheduling.cs` | 223 | 198 | `PsxCpu` `HasCompiledEntry` (`IRecompCompiledEntryLookup`), `RunSlice` trampoline/unwind guard, VBlank scheduler |
+| `Dev/src/reStation.Core/Cpu/PsxInterpreter.cs` | 233 | 217 | `PsxInterpreter.ResumeFromSnapshot` & `ExecuteUntilReturnOrCompiled` trampoline handoff fallback loop |
 | `Dev/src/reStation.Core/Cpu/PsxMemoryBus.cs` | 284 | 245 | `PsxMemoryBus` 2 MB KUSEG/KSEG0/KSEG1 + scratchpad |
 | `Dev/src/reStation.Core/DiscIngestion/DiscManifest.cs` | 93 | 68 | `DiscManifest` verified ROM metadata |
 | `Dev/src/reStation.Core/DiscIngestion/DiscVerifierAndExtractor.cs` | 208 | 178 | `DiscVerifierAndExtractor` SHA-256 + `7z` extraction |
@@ -230,11 +230,12 @@ flowchart LR
 | `Dev/src/reStation.Player/Sdl3Native.cs` | 266 | 214 | `Sdl3Native` P/Invoke bindings for SDL3 window/renderer/textures/gamepad |
 | `Dev/src/reStation.Player/Sdl3Native.OpenGl.cs` | 71 | 53 | `Sdl3Native` `SDL_GL_*` context creation & VSync P/Invoke helpers |
 | `Dev/src/reStation.Player/SlideOverSettingsDrawer.cs` | 315 | 269 | `SlideOverSettingsDrawer` dirty-cached `F1` drawer (`Video`, `Audio`, `Controls`, `Keybinds`) |
-| `Dev/src/reStation.Player/UiOverlayPresenter.cs` | 325 | 286 | `UiOverlayPresenter` `1060x34` compact HUD strip, `250 ms` HUD throttle, `4:3`/`16:9` aspect |
+| `Dev/src/reStation.Player/UiOverlayPresenter.cs` | 329 | 289 | `UiOverlayPresenter` `1060x34` HUD strip (`maxW = 452` `Keybinds` clamp `<= 466 px`), `250 ms` HUD throttle, `4:3`/`16:9` aspect |
 | `Dev/src/reStation.Player/UiPaint.cs` | 96 | 75 | `UiPaint` bitmap UI primitive & pill drawing helpers |
 | `Dev/src/reStation.Player/VisibleTestHarness.cs` | 105 | 88 | `VisibleTestHarness` centered topmost GUI harness |
 | `Dev/src/reStation.Tests/CliAndSettingsTests.cs` | 367 | 313 | Settings defaults & `Clamp()` preservation, Standard 18/19 keys, CLI containment, `RS-06` `Dev\logs\` test |
 | `Dev/src/reStation.Tests/CompilerAndModuleLoaderTests.cs` | 274 | 231 | `--emit-clean-room`, `PlayerLocalAotCompiler`, `AotCacheManager`, collectible unload tests |
+| `Dev/src/reStation.Tests/CpuTailJumpTrampolineTests.cs` | 154 | 134 | `v0.2.5` `200,000`-bounce O(1) tail-jump trampoline, `0xA0` BIOS tail dispatch & Keybinds `F3` HUD clamp tests |
 | `Dev/src/reStation.Tests/DiscIngestionAndPreloadTests.cs` | 188 | 155 | ISO-9660 extraction & `data\rom\` preload discovery tests |
 | `Dev/src/reStation.Tests/InstallerAndSandboxContainmentTests.cs` | 266 | 226 | `AllowAutoStart = false`, `--uninstall` normalization, fail-closed sandbox path checks |
 | `Dev/src/reStation.Tests/InstallerMigrationAndLauncherTests.cs` | 134 | 110 | `LauncherArgsHelper` `%LOCALAPPDATA%`, `--migrate-legacy`, `--confirm-legacy-cleanup` tests |
@@ -264,7 +265,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | `<dataDir>\settings.json` (`Dev\data\settings.example.json`) | `RecompSettings` + `ReStationLegacyMigrationHelper` | `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`, `backendId`, `resolutionScale`, `isWidescreen16By9`, `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `inputProfileMode`, `controlMode`, `modernActionBindings`, `modernControllerBindings`, `controllerDpadMode`, `isometricMoveMode` |
 | `<dataDir>\settings.controls.json` | `GlobalControllerProfile` | Global PS1 1:1 scancode bindings |
-| `<dataDir>\cache\<moduleId>\<romSha256_16>-reStation-0.2.4-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
+| `<dataDir>\cache\<moduleId>\<romSha256_16>-reStation-0.2.5-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
 | `<dataDir>\saves\*.rst1` | `QuickSaveManager` + `QuickSaveTrailer` | Version 1 binary snapshot + `"RSTX"` additive sections |
 | `<dataDir>\memcards\*.mcr` | `MemCardMcrStore` | Raw 128 KB PS1 memory cards |
 | `Dev\logs\` (`RS-06`) & `Sandbox\logs\` | `ReStationLogger` | `runtime.log` (`<=15s` heartbeats), `crashes\crash_*.json`, `screenshots\` |
@@ -283,7 +284,7 @@ flowchart LR
 
 ## 7. Security & Privacy Model
 
-- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.4\` (`LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
+- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.5\` (`LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
 - **No Auto-Start / No Telemetry:** `AllowAutoStart = false`; zero background listeners or network sockets.
 - **Human-Gated Legacy Cleanup:** Stranded `v0.1.1` cleanup requires explicit `--migrate-legacy` + `--confirm-legacy-cleanup` (or interactive modal `Yes`) and always preserves `data\rom\`.
 
@@ -291,7 +292,7 @@ flowchart LR
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore` (`170/170` passing across all `22` test files, `0` warnings, `0` skipped, verifying `.decomp` D0–D5, cold/warm AOT cache, recipe `ExeId` ordering + `<container>#<slice>` overlay lifting, `generatedCacheAssemblyName` PE identity + collectible `CompanionAssembly` unload, `MipsLifter` `.rodata` dynamic-switch compilation, `RecompSettings.Clamp()` consumer preservation, Tier 3 IR/JIT/SMC/bringup + `ResolveLoopExitCode` `--jit-bringup` `ExitCode = 5` preservation, installer containment & legacy migration, multi-bind `Schema A`/`B` input + Numpad/Nav labels + widened Keybinds grid, and `T7` runtime fixes, plus `InstallerWizardAutoSortTests` Setup Wizard auto-sort verification).
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore` (`173/173` passing across all `23` test files, `0` warnings, `0` skipped, verifying `.decomp` D0–D5, cold/warm AOT cache, recipe `ExeId` ordering + `<container>#<slice>` overlay lifting, `generatedCacheAssemblyName` PE identity + collectible `CompanionAssembly` unload, `MipsLifter` `.rodata` dynamic-switch compilation, iterative O(1)-stack `PsxCpu` tail-jump trampoline + `UiOverlayPresenter` Keybinds F3 HUD clamp, `RecompSettings.Clamp()` consumer preservation, Tier 3 IR/JIT/SMC/bringup + `ResolveLoopExitCode` `--jit-bringup` `ExitCode = 5` preservation, installer containment & legacy migration, multi-bind `Schema A`/`B` input + Numpad/Nav labels + widened Keybinds grid, and `T7` runtime fixes, plus `InstallerWizardAutoSortTests` Setup Wizard auto-sort verification).
 - **Live GUI Acceptance (`Sandbox\`):** `--visible-test --test-mode --data-dir Sandbox\data --log-dir Sandbox\logs` paired with `--input-script` captures & screenshot inspection (`read_file`) plus 3-tier log sweep.
 
 ---

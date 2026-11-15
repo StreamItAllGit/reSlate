@@ -4,6 +4,14 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-15
+### Fixed
+- **O(1)-Stack CPU Tail-Jump Trampoline (`PsxCpu.cs`, `PsxCpu.Scheduling.cs`, `PsxInterpreter.cs`):** Replaced synchronous tail-jump recursion in `PsxCpu.JumpIndirect` -> `Call` with an iterative trampoline loop (`TryExecuteCompiledModule` + `PsxInterpreter.ExecuteUntilReturnOrCompiled`), eliminating `0xC00000FD` (`STATUS_STACK_OVERFLOW`) across mutual/indirect tail-jump chains while preserving `ISubTickFrameHook.OnAfterCall`, BIOS vector dispatch (`0xA0`/`0xB0`/`0xC0`), and `RunSlice` unwind isolation without breaking public contracts.
+- **Keybinds `F3` HUD Strip Clamp (`UiOverlayPresenter.cs`):** Clamped `F3` HUD overlay `maxW` to `452` px when the `800 px` `Keybinds` drawer (`ActiveTab == 2`, `x = 480..1280`) is open so the right edge stays `<= 466` px clear of `"Settings"`.
+
+### Added
+- **`v0.2.5` Regression Suite (`173/173` Passing Under `/warnaserror` — [`CpuTailJumpTrampolineTests.cs`](Dev/src/reStation.Tests/CpuTailJumpTrampolineTests.cs)):** Added 3 unit tests covering `200,000` mutual `JumpIndirect` tail bounces in constant stack with `OnAfterCall` cleanup, `0xA0` BIOS tail dispatch, and `UiOverlayPresenter` `Keybinds` HUD box width clamping, and updated version metadata pins to `0.2.5`.
+
 ## [0.2.4] - 2026-11-15
 ### Fixed
 - **Setup Wizard Auto-Sort & `reEngine.Core` `v0.2.1` SDK Sync (`ReStationWizardPathNormalizer.cs`, `reStation.Installer`):** Added live Setup Wizard folder auto-sorting so picking a generic parent folder (`Misc`) automatically resolves `--reengine-dir` into `<parent>\reEngine` and `reStation` into `<reEngineDir>\engines\reStation\v0.2.4`, while preserving explicit CLI `--install-dir` paths and companion `<reEngineDir>\engines\` layout rules via `reEngine.Core` `v0.2.1`.

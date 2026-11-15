@@ -28,7 +28,10 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     private bool _ramWriteHooked;
     private readonly ushort[] _padButtons = new ushort[2];
     private readonly byte[] _padAxes = new byte[8];
-    private readonly Stack<(bool ShouldUnwind, uint UnwindTarget, bool InSubTickRender)> _unwindStack = new();
+    private readonly Stack<(bool ShouldUnwind, uint UnwindTarget, bool InSubTickRender, bool InCompiledTrampoline, bool HasPendingTailJump, uint PendingTailJumpPc)> _unwindStack = new();
+    private bool _inCompiledTrampoline;
+    private bool _hasPendingTailJump;
+    private uint _pendingTailJumpPc;
 
     public PsxCpu(RecompSettings settings, string dataDirectory, IPsxRenderBackend renderBackend, ReStationLogger? logger = null)
     {
@@ -172,40 +175,89 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
 
     public void Call(uint targetPc)
     {
-        if (ExitRequested || PendingQuickLoadSlot >= 0) { ShouldUnwind = true; return; }
-        uint masked = targetPc & 0x1FFFFFFFU;
-        if (masked is 0xA0U or 0xB0U or 0xC0U) { Bios.HandleVectorCall(masked); return; }
-        if (targetPc == UnwindTargetPc || targetPc == IReStationCpu.ReturnSentinelPc)
-        {
-            Pc = targetPc;
-            ShouldUnwind = true;
-            return;
-        }
-        uint canonPc = 0x80000000U | masked;
-        if (InSubTickRender)
-        {
-            if (FramePatch is ISubTickFrameHook subHook && subHook.TryInterceptSubTickCall(this, canonPc)) return;
-        }
-        else if (FramePatch is not null && FramePatch.TryInterceptCall(this, canonPc))
-        {
-            return;
-        }
-        IRecompModule? module = ResolveModule(canonPc);
+        uint entryCanonPc = 0U;
+        uint lastBodyCanonPc = 0U;
+        bool ranAnyBody = false;
         try
         {
-            if (module is not null && module.TryExecuteFunction(this, canonPc))
+            while (true)
             {
-                CompiledDispatchCount++;
+                if (ExitRequested || PendingQuickLoadSlot >= 0) { ShouldUnwind = true; return; }
+                uint masked = targetPc & 0x1FFFFFFFU;
+                if (masked is 0xA0U or 0xB0U or 0xC0U) { Bios.HandleVectorCall(masked); return; }
+                if (targetPc == UnwindTargetPc || targetPc == IReStationCpu.ReturnSentinelPc)
+                {
+                    Pc = targetPc;
+                    ShouldUnwind = true;
+                    return;
+                }
+                uint canonPc = 0x80000000U | masked;
+                if (InSubTickRender)
+                {
+                    if (FramePatch is ISubTickFrameHook subHook && subHook.TryInterceptSubTickCall(this, canonPc)) return;
+                }
+                else if (FramePatch is not null && FramePatch.TryInterceptCall(this, canonPc))
+                {
+                    return;
+                }
+                if (!ranAnyBody)
+                {
+                    entryCanonPc = canonPc;
+                    ranAnyBody = true;
+                }
+                lastBodyCanonPc = canonPc;
+                IRecompModule? module = ResolveModule(canonPc);
+                if (module is not null && TryExecuteCompiledModule(module, canonPc, out bool hasTailJump, out uint tailTargetPc))
+                {
+                    if (hasTailJump && !ShouldUnwind && !ExitRequested && PendingQuickLoadSlot < 0)
+                    {
+                        targetPc = tailTargetPc;
+                        continue;
+                    }
+                    return;
+                }
+                if (InterpreterFallbackCount < 5) Logger?.Warn("CPU", $"Interpreter fallback #{InterpreterFallbackCount + 1} pc=0x{canonPc:X8} exe={ActiveExeId}");
+                InterpreterFallbackCount++;
+                if (PsxInterpreter.ExecuteUntilReturnOrCompiled(this, canonPc, module, out uint interpTailPc))
+                {
+                    targetPc = interpTailPc;
+                    continue;
+                }
                 return;
             }
-            if (InterpreterFallbackCount < 5) Logger?.Warn("CPU", $"Interpreter fallback #{InterpreterFallbackCount + 1} pc=0x{canonPc:X8} exe={ActiveExeId}");
-            InterpreterFallbackCount++;
-            PsxInterpreter.ExecuteUntilReturnOrCompiled(this, canonPc, module);
         }
         finally
         {
-            if (!InSubTickRender && FramePatch is ISubTickFrameHook afterHook)
-                afterHook.OnAfterCall(this, canonPc);
+            if (ranAnyBody && !InSubTickRender && FramePatch is ISubTickFrameHook afterHook)
+            {
+                if (lastBodyCanonPc != entryCanonPc)
+                    afterHook.OnAfterCall(this, lastBodyCanonPc);
+                afterHook.OnAfterCall(this, entryCanonPc);
+            }
+        }
+    }
+
+    internal bool TryExecuteCompiledModule(IRecompModule module, uint canonPc, out bool hasTailJump, out uint tailTargetPc)
+    {
+        bool prevInTrampoline = _inCompiledTrampoline;
+        bool prevHasTail = _hasPendingTailJump;
+        uint prevTailPc = _pendingTailJumpPc;
+        _inCompiledTrampoline = true;
+        _hasPendingTailJump = false;
+        _pendingTailJumpPc = 0U;
+        try
+        {
+            bool executed = module.TryExecuteFunction(this, canonPc);
+            if (executed) CompiledDispatchCount++;
+            hasTailJump = executed && _hasPendingTailJump;
+            tailTargetPc = hasTailJump ? _pendingTailJumpPc : 0U;
+            return executed;
+        }
+        finally
+        {
+            _inCompiledTrampoline = prevInTrampoline;
+            _hasPendingTailJump = prevHasTail;
+            _pendingTailJumpPc = prevTailPc;
         }
     }
 
@@ -215,6 +267,12 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         {
             Pc = targetPc;
             ShouldUnwind = true;
+            return;
+        }
+        if (_inCompiledTrampoline)
+        {
+            _hasPendingTailJump = true;
+            _pendingTailJumpPc = targetPc;
             return;
         }
         Call(targetPc);
