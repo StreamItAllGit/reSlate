@@ -174,7 +174,12 @@ public static partial class MipsLifter
         {
             for (int i = 0; i < insns.Length; i++)
             {
-                if (insns[i].IsUnconditionalExitOrBranch && i + 2 < insns.Length) targets.Add(insns[i + 2].Addr);
+                if (insns[i].IsUnconditionalExitOrBranch && i + 2 < insns.Length)
+                {
+                    uint tgt = insns[i + 2].Addr;
+                    targets.Add(tgt);
+                    if (IsDelaySlot(insns, fnStart, tgt)) delayTargets.Add(tgt);
+                }
                 if (insns[i].IsBranchOrJump) i++;
             }
         }

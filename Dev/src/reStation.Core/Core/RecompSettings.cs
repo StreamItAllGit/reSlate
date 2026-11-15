@@ -69,8 +69,8 @@ public sealed class RecompSettings
     /// <summary>Normalizes every field into its legal range (called after load and before save).</summary>
     public void Clamp()
     {
-        SchemaVersion = CurrentSchemaVersion;
-        AppId = ReStationEngineInfo.AppId;
+        SchemaVersion = SchemaVersion >= CurrentSchemaVersion ? SchemaVersion : CurrentSchemaVersion;
+        AppId = string.IsNullOrWhiteSpace(AppId) ? ReStationEngineInfo.AppId : AppId.Trim();
         ResolutionScale = ResolutionScale <= 1 ? 1 : ResolutionScale <= 2 ? 2 : ResolutionScale <= 4 ? 4 : 8;
         BackendId = string.Equals(BackendId, PsxRenderBackendIds.Software, StringComparison.OrdinalIgnoreCase)
             ? PsxRenderBackendIds.Software

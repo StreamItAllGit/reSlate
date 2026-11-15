@@ -7,8 +7,8 @@
   "containerTier": "Tier A (6-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.0",
-  "activeMilestone": "0.2.0",
+  "version": "0.2.1",
+  "activeMilestone": "0.2.1",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-15",
   "lastVersionDate": "2026-11-15",
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Shipped v0.2.0 cleanly (Gate 2 PASS, 161/161 tests under /warnaserror, 0 warnings/skipped, max 375 lines/file, Sandbox PASS): clean-room MPL-2.0 reStation.Decomp (PS1 D0-D5 + R3000A_GTE .slaspec), player-PC <dataDir>\\cache\\ AOT + collectible ModuleAssemblyLoader + opt-in Tier 3 IR/Jit fallback, %LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine\\engines\\reStation\\v0.2.0\\ 4-pillar installer (--profile Lightweight|Full, --reengine-dir, opt-in --migrate-legacy), T7 runtime fixes (RS-07..RS-16 + Standard 09 Sec 8 multi-bind & Schema B controller modes), RS-06 Dev\\logs\\ support, pre-scrub Archive\\pre-scrub-v0.2.0.7z + git-filter-repo history scrub, Quartet/Manual Shelf/GitHub Release v0.2.0 synced.",
-  "updatedAtUtc": "2026-11-15T12:00:00.000Z"
+  "notes": "Shipped v0.2.1 PATCH+1 cleanly (Gate 2 PASS, 163/163 passing xUnit tests under /warnaserror, 0 warnings/skipped, DEFECT-01 MipsLifter dynamic-switch delay-slot labels + CS0162/CS0164 .rodata tail tolerance + DEFECT-03 RecompSettings.Clamp consumer appId/schemaVersion preservation): build_release.ps1 + audit_installer.ps1 PASS (0 findings, signed reStation-Setup-v0.2.1-win-x64.exe, SharedLibs\\reStation\\v0.2.1\\, Archive\\reStation-v0.2.1-src.7z), @inspecter Sandbox PASS (0.2.1.2026-11-15.-.sandbox-verification.md, v021-visible-test.png, 0 host mutations/lingering procs), Quartet/AGENTS.md/Manual Shelf/.gitignore synced.",
+  "updatedAtUtc": "2026-11-15T14:20:00.000Z"
 }

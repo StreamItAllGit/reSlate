@@ -74,10 +74,10 @@ public sealed class CliAndSettingsTests : IDisposable
     [Fact]
     public void RecompSettings_Clamp_NormalizesOutOfRangeAndNonFiniteValues()
     {
-        var settings = new RecompSettings
+        var invalidIdentity = new RecompSettings
         {
-            SchemaVersion = 999,
-            AppId = "rogue",
+            SchemaVersion = 0,
+            AppId = "   ",
             ResolutionScale = 5,
             BackendId = "DirectX",
             MouseSensitivity = double.NaN,
@@ -85,15 +85,24 @@ public sealed class CliAndSettingsTests : IDisposable
             TargetFps = 999
         };
 
-        settings.Clamp();
+        invalidIdentity.Clamp();
 
-        Assert.Equal(RecompSettings.CurrentSchemaVersion, settings.SchemaVersion);
-        Assert.Equal(ReStationEngineInfo.AppId, settings.AppId);
-        Assert.Equal(8, settings.ResolutionScale);
-        Assert.Equal(PsxRenderBackendIds.OpenGl, settings.BackendId);
-        Assert.Equal(1.0, settings.MouseSensitivity);
-        Assert.Equal(1.0, settings.MasterVolume);
-        Assert.Equal(500, settings.TargetFps);
+        Assert.Equal(RecompSettings.CurrentSchemaVersion, invalidIdentity.SchemaVersion);
+        Assert.Equal(ReStationEngineInfo.AppId, invalidIdentity.AppId);
+        Assert.Equal(8, invalidIdentity.ResolutionScale);
+        Assert.Equal(PsxRenderBackendIds.OpenGl, invalidIdentity.BackendId);
+        Assert.Equal(1.0, invalidIdentity.MouseSensitivity);
+        Assert.Equal(1.0, invalidIdentity.MasterVolume);
+        Assert.Equal(500, invalidIdentity.TargetFps);
+
+        var consumerSettings = new RecompSettings
+        {
+            SchemaVersion = 2,
+            AppId = "  crowndepths-recomp  "
+        };
+        consumerSettings.Clamp();
+        Assert.Equal(2, consumerSettings.SchemaVersion);
+        Assert.Equal("crowndepths-recomp", consumerSettings.AppId);
     }
 
     [Fact]
@@ -266,9 +275,9 @@ public sealed class CliAndSettingsTests : IDisposable
     [Fact]
     public void CliOptions_HelpTextAndEngineInfo_Reflect020Track()
     {
-        Assert.Equal("0.2.0", ReStationEngineInfo.Version);
+        Assert.Equal("0.2.1", ReStationEngineInfo.Version);
         Assert.Equal("0.2.x", ReStationEngineInfo.CompatibleEngineTrack);
-        Assert.Contains("reStation v0.2.0", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Contains("reStation v0.2.1", CliOptions.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]

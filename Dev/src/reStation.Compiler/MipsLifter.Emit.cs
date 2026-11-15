@@ -85,7 +85,7 @@ public static partial class MipsLifter
                 MipsInsn delay = i + 1 < insns.Length ? insns[i + 1] : MipsDecoder.Decode(ins.Addr + 4U, readWord(ins.Addr + 4U));
                 bool closed = MipsEmitHelpers.EmitBranchOrJump(lines, ins, delay, insns[0].Addr, insns[^1].Addr + 4U,
                     rangeStart, rangeEnd, isChunked, fnTargets);
-                if (i + 1 < endIdx && a.DelaySlotTargets.Contains(delay.Addr))
+                if (i + 1 < endIdx && (a.DelaySlotTargets.Contains(delay.Addr) || localTargets.Contains(delay.Addr)))
                 {
                     // The delay slot is itself a branch target: re-emit it behind its own label.
                     if (!closed) lines.Add($"        goto L_after_{delay.Addr:X8};");
@@ -145,7 +145,7 @@ public static partial class MipsLifter
             MipsInsn ins = insns[i];
             if (reach is not null && !reach[i])
             {
-                if (ins.IsBranchOrJump) i++;
+                if (ins.IsBranchOrJump && i + 1 < endIdx && !fnTargets.Contains(insns[i + 1].Addr)) i++;
                 continue;
             }
             if (ins.Op is 1 or 4 or 5 or 6 or 7) hasCondBranch = true;
@@ -161,7 +161,7 @@ public static partial class MipsLifter
                 if (!localTargets.Contains(next.Addr) && !fnTargets.Contains(next.Addr) &&
                     next.ReadsReg(ins.Rt) && !next.IsBranchOrJump) hasLoadDelay = true;
             }
-            if (ins.IsBranchOrJump) i++;
+            if (ins.IsBranchOrJump && i + 1 < endIdx && !fnTargets.Contains(insns[i + 1].Addr)) i++;
         }
     }
 

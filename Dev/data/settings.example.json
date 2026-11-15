@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "appId": "restation",
+  "installProfile": "lightweight",
+  "reEngineInstallDir": "%LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine\\reEngine",
+  "suiteInstallDir": "%LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine",
+  "umbrellaSubpath": "StreamItAll\\reEngine\\engines\\reStation\\v0.2.1",
+  "decompSchemaVersion": "1.0.0",
+  "goalDecompTier": "D3",
+  "executionTierMode": "aotWithJitFallback",
+  "backendId": "software",
+  "targetFps": 30,
+  "isVsyncEnabled": true,
+  "isWidescreen16By9": false,
+  "isFpsOverlayEnabled": false,
+  "controllerDpadMode": "quickActions",
+  "isometricMoveMode": "cropGrid"
+}

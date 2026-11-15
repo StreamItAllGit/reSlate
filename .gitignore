@@ -6,7 +6,8 @@ Releases/
 Sandbox/
 .agents/
 Dev/logs/
-Dev/data/
+Dev/data/*
+!Dev/data/settings.example.json
 *.pdb
 .venv/
 venv/

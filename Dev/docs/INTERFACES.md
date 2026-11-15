@@ -1,6 +1,6 @@
-# reStation v0.2.0 — Interfaces, Public Contracts & Schemas
+# reStation v0.2.1 — Interfaces, Public Contracts & Schemas
 
-- **Version:** `v0.2.0` (`SupportedEngineTracks: ["0.2.x", "0.1.x"]`)
+- **Version:** `v0.2.1` (`SupportedEngineTracks: ["0.2.x", "0.1.x"]`)
 - **Pinned Upstream Dependencies:** `Foundation v0.4.0` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`) & `reEngine v0.2.0` (`reEngine.Core`)
 
 ---
@@ -32,7 +32,7 @@
 - `AotRecipeExecutableSpec`: `BootExePath`, `Sha256`, `LoadAddress`, `EntryAddress`, `GlobalPointer`, `TextSizeBytes`, `SleighLanguageId`.
 
 #### Manifest, CPU, Host & GPU Contracts
-- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "restation"`, `EngineId = "reStation"`, `Version = "0.2.0"`, `CompatibleEngineTrack = "0.2.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.2.x", "0.1.x"]`.
+- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "restation"`, `EngineId = "reStation"`, `Version = "0.2.1"`, `CompatibleEngineTrack = "0.2.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.2.x", "0.1.x"]`.
 - `IReStationModuleManifest : IRecompModuleManifest` (`ReStationModuleManifest`): `SerialNumber`, `EntryAssembly`, `DefaultBootExecutable`, `ModuleTypeName`, `EngineVersion`, `CompatibleEngineTrack`, `PreloadRomDir`, `SaveStateFixtures`, `SupportedEngineTracks`, `ExecutionTierMode`, `AotRecipe`, `AotRecipeSpec`, `LoadFromFile(string manifestPath)`, `SaveToFile(string manifestPath)`, `Validate(string sourceLabel)`.
 - `IRecompModule` / `IOverlayRecompModule : IRecompModule` (`ExeId`, `ExeName`, `TextStart`, `TextEnd`, `TryExecuteFunction(IReStationCpu, uint pc)`, plus overlay `LoadRamAddress`, `ContentSizeBytes`, `ContentSha256Hex`).
 - `IReStationCpu` / `IReStationCpuEx`: Register/bus/GTE/MDEC accessors plus `UnwindTargetPc`, `SkipPolygonRasterization`, `BeginSubTickFrame()`, `bool HasCompiledEntry(uint canonPc)`, `void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false)`, `bool TryAdvanceToNextVBlank()`.
@@ -68,7 +68,7 @@
 - `PlayerLocalAotCompiler`: `ResolveEffectiveDataDir(string, LocalAotLoadOptions?)`, `ValidateCleanRoomPackage(string, string)`, `EnsureCompiledInCacheAsync(ReStationModuleManifest, AotRecipeSpec, string, LocalAotLoadOptions?, string?)`, `ResolveCompilerToolPath(string?)`.
 - `PlayerMediaResolver`: `TryLoadRecipe`, `ResolveAndVerifyMedia`, `ComputeFileSha256Hex`.
 - `Tier3ExecutionCoordinator` / `RamPageEpochTable` / `MipsIrLowerer` / `JitBringupRecorder`: `SmcDemotionThreshold = 8`, `ExecuteBlock`, `TryInvalidateRamRange`, `CaptureStamp`, `IsStampValid`, `InvalidateRamRange`, `LowerBlock`, `WriteProfileAtomic`.
-- `RecompSettings`: `IsWidescreen16By9` (`false` default), `ControllerDpadMode` (`"quickActions"`), `IsometricMoveMode` (`"cropGrid"`), `ModernBindingsJsonConverter` (reads legacy scalar `int` or `int[<=3]` arrays), `GetModernActionBindings`, `GetModernControllerBindings`, `SetModernActionSlot`, `SetModernControllerSlot`, `ClearModernActionSlot`.
+- `RecompSettings`: `IsWidescreen16By9` (`false` default), `ControllerDpadMode` (`"quickActions"`), `IsometricMoveMode` (`"cropGrid"`), `Clamp()` (preserves consumer `SchemaVersion >= CurrentSchemaVersion` and trimmed non-empty `AppId`), `ModernBindingsJsonConverter` (reads legacy scalar `int` or `int[<=3]` arrays), `GetModernActionBindings`, `GetModernControllerBindings`, `SetModernActionSlot`, `SetModernControllerSlot`, `ClearModernActionSlot`.
 - `KeyBindingsConfig`: `MaxScancode = 511`, `MouseLeft = 1001`, `MouseRight = 1002`, `MouseMiddle = 1003`, `MouseX1 = 1004`, `MouseX2 = 1005`, `MouseWheelUp = 1006`, `MouseWheelDown = 1007`, `MaxMouseCode = 1007`.
 - `ReStationLogger`: `TryResolveDevLogsDirectory()` (`RS-06` dev-mode `Dev\logs\` discovery), `TryHeartbeat(PsxTelemetrySnapshot, bool force = false)`.
 - `PsxGpu`: `SetBackend(IPsxRenderBackend)` (preserves `1024x512` VRAM, texture window & PGXP), `EffectiveWidescreen`.
@@ -88,10 +88,10 @@
 ## 4. File Contracts & Manifests
 - **`aot-recipe.json`:** `schemaVersion` (`1`), `platformId` (`"ps1"`), `moduleId`, `discSerial`, `executionTierMode`, `sleighSpecId` (`"MIPS:LE:32:R3000A_GTE"`), `targetArchitecture` (`"R3000A"`), `littleEndian` (`true`), `primaryBootExecutable`, `executables[]`, `entryAddresses[]`, `cleanRoomArtifacts[]`, `generatedCacheAssemblyName`.
 - **`module.recomp.json`:** Supports `supportedEngineTracks: ["0.2.x", "0.1.x"]`, `executionTierMode`, `aotRecipe` (`"aot-recipe.json"`), and zero bundled `*.Generated.dll` entries inside clean-room `.recomp` archives.
-- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` advertising `0.2.0` + `supportedEngineTracks: ["0.2.x", "0.1.x"]`.
+- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` advertising `0.2.1` + `supportedEngineTracks: ["0.2.x", "0.1.x"]`.
 - **Save Format:** Binary `QuickSaveManager` `"RST1"` (`SchemaVersion = 1`) + additive `"RSTX"` trailer blocks.
 
 ---
 
 ## 5. Versioning & Compatibility Notes
-- **Backward Compatibility:** `v0.2.0` adds additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor` keeping scalar overload, `SupportedEngineTracks: ["0.2.x", "0.1.x"]`) so existing pinned `0.1.x` `.recomp` packages continue executing cleanly alongside new `0.2.0` clean-room local AOT modules.
+- **Backward Compatibility:** `v0.2.0` introduced additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor` keeping scalar overload, `SupportedEngineTracks: ["0.2.x", "0.1.x"]`) so existing pinned `0.1.x` `.recomp` packages continue executing cleanly alongside clean-room local AOT modules; `v0.2.1` is a strictly non-breaking `PATCH+1` release on the `0.2.x` track (`MipsLifter` `.rodata` dynamic-switch label fix + `RecompSettings.Clamp()` consumer identity/schema preservation).

@@ -237,6 +237,7 @@ public static class ModuleManifestEmitter
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS0162;CS0164</NoWarn>
     <Deterministic>true</Deterministic>
     <AssemblyName>{safeAsm}</AssemblyName>
     <RootNamespace>{safeNs}</RootNamespace>

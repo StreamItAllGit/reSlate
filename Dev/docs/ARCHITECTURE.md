@@ -1,6 +1,6 @@
-# reStation v0.2.0 — System Architecture & Symbol Map
+# reStation v0.2.1 — System Architecture & Symbol Map
 
-- **Version:** `v0.2.0` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
+- **Version:** `v0.2.1` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
 - **Maintained By:** `@devv` (Technical Truth) & `@tessa` (Clarity) · **Enforcer:** `@dean` (Gate 2)
 - **Spoke Reference:** [`v0.2.0-ps1-decomp-and-aot.md`](architecture/v0.2.0-ps1-decomp-and-aot.md)
 
@@ -57,8 +57,8 @@ flowchart LR
     CMP["reStation.Compiler.exe (net8.0)"]
     PLY["reStation.Player.exe (net8.0-windows)"]
     LNC["reStation.Launcher.exe (net8.0-windows)"]
-    INS["reStation-Setup-v0.2.0-win-x64.exe (net8.0-windows)"]
-    TST["reStation.Tests.dll (xUnit, 161 tests)"]
+    INS["reStation-Setup-v0.2.1-win-x64.exe (net8.0-windows)"]
+    TST["reStation.Tests.dll (xUnit, 163 tests)"]
 
     EXT --> CON
     EXT --> CORE
@@ -106,7 +106,7 @@ flowchart LR
 
 ---
 
-## 4. File & Symbol Lookup Registry (`140` Tracked Files — Max `375` Lines)
+## 4. File & Symbol Lookup Registry (`141` Tracked Files — Max `375` Lines)
 
 | File | Lines | CodeSLOC | Primary Exports & Responsibility |
 | :--- | ---: | ---: | :--- |
@@ -118,9 +118,9 @@ flowchart LR
 | `Dev/src/reStation.Compiler/FunctionChunkEmitter.cs` | 280 | 256 | `FunctionChunkEmitter` chunked C# + `IOverlayRecompModule` codegen |
 | `Dev/src/reStation.Compiler/MipsDecoder.cs` | 129 | 103 | `MipsDecoder` R3000A instruction decoding |
 | `Dev/src/reStation.Compiler/MipsEmitHelpers.cs` | 203 | 176 | `MipsEmitHelpers` COP0/COP2/branch emitter helpers |
-| `Dev/src/reStation.Compiler/MipsLifter.cs` | 190 | 161 | `LiftedUnit`, `MipsLifter` MIPS-to-C# function lifter |
-| `Dev/src/reStation.Compiler/MipsLifter.Emit.cs` | 215 | 197 | `MipsLifter` ALU/memory opcode emission partial |
-| `Dev/src/reStation.Compiler/ModuleManifestEmitter.cs` | 279 | 250 | `ModuleManifestEmitter` `module.recomp.json` + clean-room packaging |
+| `Dev/src/reStation.Compiler/MipsLifter.cs` | 195 | 166 | `LiftedUnit`, `MipsLifter` MIPS-to-C# function lifter (`dynSwitch` delay-slot fix in `v0.2.1`) |
+| `Dev/src/reStation.Compiler/MipsLifter.Emit.cs` | 215 | 197 | `MipsLifter` ALU/memory/delay-slot label emission + `ScanRangeFeatures` `fnTargets` guard |
+| `Dev/src/reStation.Compiler/ModuleManifestEmitter.cs` | 280 | 251 | `ModuleManifestEmitter` `module.recomp.json`, clean-room packaging & `<NoWarn>CS0162;CS0164</NoWarn>` `.rodata` tail tolerance |
 | `Dev/src/reStation.Compiler/Program.cs` | 42 | 33 | CLI entry (`--disc`, `--emit-clean-room`, `--execution-tier`, `--profile`) |
 | `Dev/src/reStation.Compiler/RecompCompilerPipeline.cs` | 294 | 256 | `RecompCompilerOptions`, `RecompCompileResult`, `RecompCompilerPipeline` |
 | `Dev/src/reStation.Contracts/GamepadBindingCode.cs` | 187 | 105 | `GamepadBindingCode` (`2001..2032`, `FormatLabel`, SDL button mapping) |
@@ -135,7 +135,7 @@ flowchart LR
 | `Dev/src/reStation.Contracts/IReStationCpuEx.cs` | 29 | 13 | `IReStationCpuEx` sub-tick, `HasCompiledEntry`, `TryAdvanceToNextVBlank` |
 | `Dev/src/reStation.Contracts/IReStationDecompProvider.cs` | 237 | 136 | `ReStationExecutionTierModes`, `AotRecipeSpec`, `AotRecipeExecutableSpec`, `IReStationDecompProvider` |
 | `Dev/src/reStation.Contracts/IReStationHostEx.cs` | 29 | 13 | `IReStationHostEx` headless/target-FPS/mouse-look host interface |
-| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 209 | 139 | `ReStationEngineInfo` (`0.2.0`), `IReStationModuleManifest`, `ReStationModuleManifest` |
+| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 209 | 139 | `ReStationEngineInfo` (`0.2.1`), `IReStationModuleManifest`, `ReStationModuleManifest` |
 | `Dev/src/reStation.Contracts/ISubTickFrameHook.cs` | 25 | 11 | `ISubTickFrameHook` enhanced 60 FPS sub-tick callbacks |
 | `Dev/src/reStation.Contracts/PsxTelemetrySnapshot.cs` | 61 | 30 | `PsxTelemetrySnapshot` heartbeat & HUD telemetry snapshot |
 | `Dev/src/reStation.Core/Aot/IRecompCompiledEntryLookup.cs` | 22 | 12 | `IRecompCompiledEntryLookup`, `LocalAotLoadOptions` |
@@ -152,7 +152,7 @@ flowchart LR
 | `Dev/src/reStation.Core/CdRom/PsxCdRom.Media.cs` | 170 | 149 | `PsxCdRom` `.cue`/`.bin`/`.chd`/`.iso` backing media |
 | `Dev/src/reStation.Core/CdRom/PsxCdRomTiming.cs` | 48 | 24 | `PsxCdRomTiming` deterministic sector/seek latency constants |
 | `Dev/src/reStation.Core/Core/CliOptions.cs` | 249 | 221 | `CliOptions` parser + sandbox containment + `--jit-bringup` / `--profile` flags |
-| `Dev/src/reStation.Core/Core/RecompSettings.cs` | 286 | 251 | `RecompSettings`, `ModernBindingsJsonConverter`, `IsWidescreen16By9 = false`, `Schema A`/`B` keys |
+| `Dev/src/reStation.Core/Core/RecompSettings.cs` | 286 | 251 | `RecompSettings` (`Clamp` preserves consumer `AppId`/`SchemaVersion`), `ModernBindingsJsonConverter`, `IsWidescreen16By9 = false`, `Schema A`/`B` keys |
 | `Dev/src/reStation.Core/Core/ReStationLogger.cs` | 143 | 116 | `ReStationLogger` + `TryResolveDevLogsDirectory` (`RS-06`) + `<=15s` heartbeats |
 | `Dev/src/reStation.Core/Cpu/PsxCpu.Bus.cs` | 95 | 78 | `PsxCpu` IO/RAM/DMA read-write dispatch partial |
 | `Dev/src/reStation.Core/Cpu/PsxCpu.cs` | 300 | 268 | `PsxCpu` R3000A registers, mid-stack `DispatchFunction` resume (`RS-07`), `Break` logging |
@@ -231,7 +231,7 @@ flowchart LR
 | `Dev/src/reStation.Player/UiOverlayPresenter.cs` | 325 | 286 | `UiOverlayPresenter` `1060x34` compact HUD strip, `250 ms` HUD throttle, `4:3`/`16:9` aspect |
 | `Dev/src/reStation.Player/UiPaint.cs` | 96 | 75 | `UiPaint` bitmap UI primitive & pill drawing helpers |
 | `Dev/src/reStation.Player/VisibleTestHarness.cs` | 105 | 88 | `VisibleTestHarness` centered topmost GUI harness |
-| `Dev/src/reStation.Tests/CliAndSettingsTests.cs` | 358 | 305 | Settings defaults, Standard 18/19 keys, CLI containment, `RS-06` `Dev\logs\` test |
+| `Dev/src/reStation.Tests/CliAndSettingsTests.cs` | 367 | 313 | Settings defaults & `Clamp()` preservation, Standard 18/19 keys, CLI containment, `RS-06` `Dev\logs\` test |
 | `Dev/src/reStation.Tests/CompilerAndModuleLoaderTests.cs` | 274 | 231 | `--emit-clean-room`, `PlayerLocalAotCompiler`, `AotCacheManager`, collectible unload tests |
 | `Dev/src/reStation.Tests/DiscIngestionAndPreloadTests.cs` | 188 | 155 | ISO-9660 extraction & `data\rom\` preload discovery tests |
 | `Dev/src/reStation.Tests/InstallerAndSandboxContainmentTests.cs` | 266 | 226 | `AllowAutoStart = false`, `--uninstall` normalization, fail-closed sandbox path checks |
@@ -248,6 +248,7 @@ flowchart LR
 | `Dev/src/reStation.Tests/Wave2CliAndFixtureTests.cs` | 289 | 252 | Fixture spec & headless/visible runner tests |
 | `Dev/src/reStation.Tests/Wave2CoreSeamTests.cs` | 375 | 330 | `v0.1.1` seam, `RSTX` trailer, `memcard`, `ReStationEngineInfo` compatibility tests |
 | `Dev/src/reStation.Tests/Wave2LauncherAndGlQueueTests.cs` | 276 | 243 | GL `ArrayPool` coalescing queue, `build_release.ps1` & dual manifest parity tests |
+| `Dev/src/reStation.Tests/Wave3Patch021RegressionTests.cs` | 190 | 158 | `v0.2.1` `DEFECT-01` `MipsLifter` `.rodata` delay-slot AOT compile & `DEFECT-03` `RecompSettings` preservation tests |
 | `Dev/src/reStation.Tests/Wave3PlaytestAndCartridgeTests.cs` | 234 | 202 | Sub-tick `T:01`, PGXP clear, ZIP `.recomp` loading tests |
 | `Dev/src/reStation.Tests/Wave3RuntimeFixesTests.cs` | 213 | 175 | `T7` (`RS-07`–`RS-15`) mid-stack `F9`, GL hot-swap fallback, `1060x34` strip, `4:3` aspect, `/ACK` & timer `TickTo` tests |
 
@@ -259,7 +260,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | `<dataDir>\settings.json` (`Dev\data\settings.example.json`) | `RecompSettings` + `ReStationLegacyMigrationHelper` | `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`, `backendId`, `resolutionScale`, `isWidescreen16By9`, `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `inputProfileMode`, `controlMode`, `modernActionBindings`, `modernControllerBindings`, `controllerDpadMode`, `isometricMoveMode` |
 | `<dataDir>\settings.controls.json` | `GlobalControllerProfile` | Global PS1 1:1 scancode bindings |
-| `<dataDir>\cache\<moduleId>\<romSha256_16>-reStation-0.2.0-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
+| `<dataDir>\cache\<moduleId>\<romSha256_16>-reStation-0.2.1-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
 | `<dataDir>\saves\*.rst1` | `QuickSaveManager` + `QuickSaveTrailer` | Version 1 binary snapshot + `"RSTX"` additive sections |
 | `<dataDir>\memcards\*.mcr` | `MemCardMcrStore` | Raw 128 KB PS1 memory cards |
 | `Dev\logs\` (`RS-06`) & `Sandbox\logs\` | `ReStationLogger` | `runtime.log` (`<=15s` heartbeats), `crashes\crash_*.json`, `screenshots\` |
@@ -278,7 +279,7 @@ flowchart LR
 
 ## 7. Security & Privacy Model
 
-- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.0\` (`LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
+- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.1\` (`LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
 - **No Auto-Start / No Telemetry:** `AllowAutoStart = false`; zero background listeners or network sockets.
 - **Human-Gated Legacy Cleanup:** Stranded `v0.1.1` cleanup requires explicit `--migrate-legacy` + `--confirm-legacy-cleanup` (or interactive modal `Yes`) and always preserves `data\rom\`.
 
@@ -286,7 +287,7 @@ flowchart LR
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore` (`161/161` passing across all 19 test classes, `0` warnings, `0` skipped, verifying `.decomp` D0–D5, cold/warm AOT cache, collectible unload, Tier 3 IR/JIT/SMC/bringup, installer containment & legacy migration, multi-bind `Schema A`/`B` input, and `T7` runtime fixes).
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore` (`163/163` passing across all 20 test files, `0` warnings, `0` skipped, verifying `.decomp` D0–D5, cold/warm AOT cache, `MipsLifter` `.rodata` dynamic-switch compilation, `RecompSettings.Clamp()` consumer preservation, collectible unload, Tier 3 IR/JIT/SMC/bringup, installer containment & legacy migration, multi-bind `Schema A`/`B` input, and `T7` runtime fixes).
 - **Live GUI Acceptance (`Sandbox\`):** `--visible-test --test-mode --data-dir Sandbox\data --log-dir Sandbox\logs` paired with `--input-script` captures & screenshot inspection (`read_file`) plus 3-tier log sweep.
 
 ---

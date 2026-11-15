@@ -1,6 +1,6 @@
-# reStation (`v0.2.0`)
+# reStation (`v0.2.1`)
 
-- **Active Version:** `v0.2.0` (`2026-11-15`, pre-1.0 `0.2.x` track)
+- **Active Version:** `v0.2.1` (`2026-11-15`, pre-1.0 `0.2.x` track)
 - **Lifecycle State:** `active` ([`active.state`](active.state))
 - **Group / Scope:** `Personal/reStation` (`Engine Tier A`, `reEngine v0.2.0`, `Foundation v0.4.0`)
 - **Logo Assets:** [`Dev\assets\reStation.svg`](Dev/assets/reStation.svg) | [`Dev\assets\reStation.png`](Dev/assets/reStation.png) | [`Dev\assets\reStation.ico`](Dev/assets/reStation.ico)
@@ -8,7 +8,7 @@
 ---
 
 ## 1. What It Is & Core Goal
-`reStation` is a clean-room **PlayStation 1 (`PS1`) Static Recompilation Engine, `.decomp` Lifter, Player-PC Local AOT Compiler, Opt-In Shared-IR/RyuJIT Diagnostic Translator & Modular BYO-Media Player**—**not** a generic compatibility emulator. Routed via `reEngine` (`v0.2.0`) and installed per-user without admin elevation under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.0\` (`--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`), `reStation` separates authoring from runtime cleanly:
+`reStation` is a clean-room **PlayStation 1 (`PS1`) Static Recompilation Engine, `.decomp` Lifter, Player-PC Local AOT Compiler, Opt-In Shared-IR/RyuJIT Diagnostic Translator & Modular BYO-Media Player**—**not** a generic compatibility emulator. Routed via `reEngine` (`v0.2.0`) and installed per-user without admin elevation under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.1\` (`--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`), `reStation` separates authoring from runtime cleanly:
 
 - **Offline Clean-Room Authoring (`reStation.Decomp`):** Implements `IDecompPlatformProvider` (`platformId: "ps1"`) under `MPL-2.0` with an original PS-X EXE + overlay Ghidra loader, R3000A + GTE COP2 `.slaspec`, C/asset normalizer, `D4` LP32 parity verifier, and `D5` MIPS byte-match verifier—emitting deterministic `aot-recipe.json` packages with zero retail media or precompiled `*.Generated.dll` blobs.
 - **Player-PC Local AOT Cache (`<dataDir>\cache\`):** On first launch with verified `data\rom\` media (`PlayerMediaResolver` + `AotCacheManager`), `PlayerLocalAotCompiler` synthesizes `<Game>.Generated.dll` locally on the player's machine and loads it via a collectible `ModuleAssemblyLoader` (`isCollectible: true`, `0`-byte unload leak), with `--jit-bringup` / `--force-zero-rwx` Shared-IR/RyuJIT/Threaded-IR available as an opt-in diagnostic fallback tier (`ExitCode = 5` non-VBlank spin watchdog).
@@ -24,7 +24,7 @@
 reStation.exe --module .\modules\kings-field\module.recomp.json --disc "D:\Roms\PS1\Kings Field (USA).chd"
 reStation.exe --test-mode --headless --frames 240 --data-dir .\Sandbox\data --log-dir .\Sandbox\logs
 reStation.exe --test-mode --visible-test --data-dir .\Sandbox\data --log-dir .\Sandbox\logs
-reStation-Setup-v0.2.0-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine"
+reStation-Setup-v0.2.1-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine"
 ```
 
 | CLI Flag | Purpose |
@@ -37,7 +37,7 @@ reStation-Setup-v0.2.0-win-x64.exe --profile Lightweight --reengine-dir "%LOCALA
 | `--reengine-dir` / `--migrate-legacy` | Override the user `reEngine` suite root or opt-in migrate preserved `data\rom\` & `settings.json` from `v0.1.x`. |
 | `--jit-bringup` / `--force-zero-rwx` | Opt-in Tier 3 CoreCLR RyuJIT bring-up profiler (`bringup.profile.json`, `ExitCode = 5`) or zero-RWX `ThreadedIrBackend` diagnostic mode (`--execution-tier`). |
 | `--input-script <spec.json>` | Execute deterministic keyboard, mouse, `F1` drawer, screenshot, and RAM-assertion scripts. |
-| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until exit (`--wait`), or print `reStation v0.2.0` (`--version`). |
+| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until exit (`--wait`), or print `reStation v0.2.1` (`--version`). |
 | `--data-dir` / `--config` / `--log-dir` | Redirect writable runtime data (`cache\`, `saves\`, `memcards\`, `settings.json`), `Dev\logs\` (`RS-06`), or fail-closed `Sandbox\` (`--test-mode`). |
 | `--headless` / `--visible-test` | Automated batch mode (`--headless`) or foreground topmost OpenGL 3.3 live verification (`--visible-test`). |
 
