@@ -16,15 +16,15 @@
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 10,
+  "completedTaskCount": 11,
   "openReportCount": 0,
   "gates": {
     "isGate0ScopePassed": true,
     "isGate1PlanPassed": true,
     "isGate2BuildPassed": true,
-    "isInspecterVerified": false,
-    "isTessaSynced": false
+    "isInspecterVerified": true,
+    "isTessaSynced": true
   },
-  "notes": "reStation v0.2.7 PATCH+1 (awaiting Gate 2 & consumer QA): kernel ToT[0]/SysEnqIntRP/SysDeqIntRP/GetC0Table + SIO0 IRQ7 poll tick, IRecompQuickSaveProvider RSTX callbacks, HostInputMapper pre-hook pad flush, PsxCpu.BringupRecorder + --jit-bringup ExitCode=5, Program.ApplyFirstLaunchTimingDefaults (LockedCap->Original), and Hotfix027RegressionTests (180/180 passing Release tests).",
-  "updatedAtUtc": "2026-11-16T00:38:00.000Z"
+  "notes": "reStation v0.2.7 PATCH+1 (Shipped & Consumer-Verified): kernel ToT[0]/SysEnqIntRP/SysDeqIntRP/GetC0Table + SIO0 IRQ7 poll tick, IRecompQuickSaveProvider RSTX callbacks, HostInputMapper pre-hook pad flush, PsxCpu.BringupRecorder + --jit-bringup ExitCode=5, Program.ApplyFirstLaunchTimingDefaults (LockedCap->Original), 180/180 passing Release tests, GitHub Release v0.2.7 live, and MeadowValley-Recomp v0.2.0-hf.1 Gate #2 isolated QA #5 PASS.",
+  "updatedAtUtc": "2026-11-16T02:20:00.000Z"
 }
