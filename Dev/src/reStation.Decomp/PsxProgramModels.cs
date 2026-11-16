@@ -1,7 +1,7 @@
 // @module: reStation.Decomp.PsxProgramModels
 // @purpose: Clean-room data records representing PS-X EXE headers, overlay descriptors, program layouts, and offline Ghidra plans.
 // @depends-on: System, System.Collections.Generic, reEngine.Core.Decomp
-// @exports: PsxExeHeader, PsxExeImage, PsxOverlayDescriptor, PsxLoadedProgramLayout, PsxGhidraHeadlessPlan
+// @exports: PsxExeHeader, PsxExeImage, PsxOverlayDescriptor, PsxLoadedProgramLayout, PsxGhidraBatchPlan
 // SPDX-License-Identifier: MPL-2.0
 
 using reEngine.Core.Decomp;
@@ -85,21 +85,21 @@ public sealed record PsxLoadedProgramLayout(
     IReadOnlyList<PsxOverlayDescriptor> Overlays,
     IReadOnlyList<PsxExeImage> AllExeImages);
 
-/// <summary>Deterministic offline Ghidra headless invocation plan and clean-room loader scripts.</summary>
+/// <summary>Deterministic offline Ghidra batch invocation plan and clean-room loader scripts.</summary>
 /// <param name="Toolchain">Resolved offline Ghidra + JDK toolchain status.</param>
 /// <param name="LayoutJsonPath">Path to generated <c>psx-layout.json</c>.</param>
 /// <param name="ScriptDirectory">Path to generated Jython script directory.</param>
 /// <param name="LoaderScriptPath">Path to generated <c>PsxCleanExeLoader.py</c>.</param>
 /// <param name="ExtensionDirectory">Path to provisioned clean-room Sleigh extension folder.</param>
 /// <param name="ExportDirectory">Path where Ghidra exports <c>functions.json</c> and C files.</param>
-/// <param name="HeadlessArguments">Deterministic offline <c>analyzeHeadless</c> argument list.</param>
-/// <param name="CommandLinePreview">Human-readable preview of the headless command line.</param>
-public sealed record PsxGhidraHeadlessPlan(
+/// <param name="BatchArguments">Deterministic offline <c>analyzeHeadless</c> argument list.</param>
+/// <param name="CommandLinePreview">Human-readable preview of the batch command line.</param>
+public sealed record PsxGhidraBatchPlan(
     OfflineToolchainStatus Toolchain,
     string LayoutJsonPath,
     string ScriptDirectory,
     string LoaderScriptPath,
     string ExtensionDirectory,
     string ExportDirectory,
-    IReadOnlyList<string> HeadlessArguments,
+    IReadOnlyList<string> BatchArguments,
     string CommandLinePreview);

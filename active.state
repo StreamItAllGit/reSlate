@@ -4,11 +4,11 @@
   "name": "reStation",
   "projectGroup": "Personal",
   "relativePath": "Personal/reStation",
-  "containerTier": "Tier A (6-Folder)",
+  "containerTier": "Tier A (5-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.6",
-  "activeMilestone": "0.2.6",
+  "version": "0.2.6-hf.1",
+  "activeMilestone": "0.2.6-hf.1",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-15",
   "lastVersionDate": "2026-11-15",
@@ -22,9 +22,9 @@
     "isGate0ScopePassed": true,
     "isGate1PlanPassed": true,
     "isGate2BuildPassed": true,
-    "isInspecterVerified": false,
-    "isTessaSynced": false
+    "isInspecterVerified": true,
+    "isTessaSynced": true
   },
-  "notes": "Hotfix v0.2.6 PATCH+1 cleared Gate 2 PASS (176/176 passing Release tests under /warnaserror): data\\gamedata fallback discovery, 2x CD-ROM VBlank wakeup loop, VBCSCompiler pipe isolation, responsive splash UI pump, and aotWithJitFallback fallback.",
-  "updatedAtUtc": "2026-11-15T21:40:00.000Z"
+  "notes": "Hotfix v0.2.6-hf.1: synced Foundation v0.4.1-hf.1 (AppEnvironment, InstallerRuntimeContext, UiPresentationMode.TrayOrBackground) and reEngine v0.2.1-hf.1, purged retired test harnesses, script runners, local test staging artifacts, and non-production CLI flags in favor of APP_ISOLATED_TEST=1 containment, and enforced canonical Tier A 5-Folder layout.",
+  "updatedAtUtc": "2026-11-15T23:59:00.000Z"
 }

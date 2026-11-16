@@ -1,5 +1,5 @@
 // @module: reStation.Installer.ReStationInstallerTheme
-// @purpose: Canonical v0.2.6 installer metadata, Suite path options, Lightweight/Full profiles, and zero-daemon AllowAutoStart = false descriptor.
+// @purpose: Canonical v0.2.6-hf.1 installer metadata, Suite path options, Lightweight/Full profiles, and zero-daemon AllowAutoStart = false descriptor.
 // @depends-on: System, System.Collections.Generic, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerTheme
 
@@ -13,11 +13,11 @@ internal static class ReStationInstallerTheme
     public const string ProductName = "reStation";
     public const string EngineId = "reStation";
     public const string AppId = "restation";
-    public const string Version = "0.2.6";
+    public const string Version = "0.2.6-hf.1";
     public const string Publisher = "StreamItAll";
     public const string StudioName = "StreamItAll";
     public const string SuiteName = "reEngine";
-    public const string UmbrellaSubpath = "StreamItAll\\reEngine\\engines\\reStation\\v0.2.6";
+    public const string UmbrellaSubpath = "StreamItAll\\reEngine\\engines\\reStation\\v0.2.6-hf.1";
     public const string DefaultInstallProfile = "lightweight";
     public const string Subtitle = "PS1 Static Recompilation Engine & .decomp Provider for reEngine";
     public const string BrandAccentHex = "#38BDF8";
@@ -44,7 +44,7 @@ internal static class ReStationInstallerTheme
             Id: "full",
             Kind: InstallerProfileKind.Full,
             Label: "Full (Offline Toolchain Suite)",
-            Description: "Registers suite affinity for full offline headless Ghidra + OpenJDK companion runs.",
+            Description: "Registers suite affinity for full offline Ghidra + OpenJDK companion runs.",
             IsDefault: false)
     ];
 

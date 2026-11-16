@@ -1,5 +1,5 @@
 // @module: reStation.Core.CliOptions
-// @purpose: Fail-closed reStation CLI flag parser delegating root resolution/containment to Foundation.Core.SandboxEnvironment.
+// @purpose: Fail-closed reStation CLI flag parser delegating root resolution/containment to Foundation.Core.AppEnvironment.
 // @depends-on: System.Globalization, Foundation.Core, reStation.Contracts
 // @exports: CliOptions
 // @owner: devv-cpu-cd (T2)
@@ -14,15 +14,14 @@ namespace reStation.Core;
 public sealed class CliOptions
 {
     public const string HelpText =
-        "reStation v" + ReStationEngineInfo.Version + " — PS1 static recompilation engine\n" +
+        "reStation v" + ReStationEngineInfo.Version + " \u2014 PS1 static recompilation engine\n" +
         "Usage: reStation.exe [--module <module.recomp.json>] [--disc <image> | --preload-media <path>] [options]\n" +
         "  --preload-media <path>      Preload optical image/archive fallback when --disc is omitted\n" +
         "  --wait                      Wait for engine completion when launched synchronously\n" +
         "  --backend opengl|software   --scale 1|2|4|8      --fps-mode original|enhanced\n" +
         "  --target-fps <n|unlocked>   --vsync [on|off]     --no-vsync   --frames <n>\n" +
-        "  --fixture <spec.json>       --input-script <spec.json>  --dump-screenshot <png>\n" +
-        "  --data-dir <dir>  --config <path>  --log-dir <dir>  --test-mode  --headless  --visible-test\n" +
-        "  --jit-bringup  --force-zero-rwx  --profile <json>\n" +
+        "  --dump-screenshot <png>     --data-dir <dir>     --config <path>  --log-dir <dir>  --port <n>\n" +
+        "  --jit-bringup  --force-zero-rwx  --profile <json>  --tray-only  --dry-run\n" +
         "  --verify  --open-settings  --enable-logs  --show-fps  --version  --help";
 
     public IReadOnlyList<string> RawArgs { get; private init; } = Array.Empty<string>();
@@ -36,15 +35,13 @@ public sealed class CliOptions
     public int? TargetFps { get; private init; }
     public bool? Vsync { get; private init; }
     public int? MaxFrames { get; private init; }
-    public string? FixturePath { get; private init; }
-    public string? InputScriptPath { get; private init; }
     public string? DumpScreenshotPath { get; private init; }
     public string? DataDir { get; private init; }
     public string? ConfigPath { get; private init; }
     public string? LogDir { get; private init; }
-    public bool TestMode { get; private init; }
-    public bool Headless { get; private init; }
-    public bool VisibleTest { get; private init; }
+    public int? Port { get; private init; }
+    public bool TrayOnly { get; private init; }
+    public bool DryRun { get; private init; }
     public bool VerifyOnly { get; private init; }
     public bool OpenSettings { get; private init; }
     public bool EnableLogs { get; private init; }
@@ -59,11 +56,11 @@ public sealed class CliOptions
     public static CliOptions Parse(IReadOnlyList<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        string? module = null, disc = null, preloadMedia = null, backend = null, fixture = null, inputScript = null, dump = null, data = null, config = null, log = null, profilePath = null;
-        int? scale = null, targetFps = null, frames = null;
+        string? module = null, disc = null, preloadMedia = null, backend = null, dump = null, data = null, config = null, log = null, profilePath = null;
+        int? scale = null, targetFps = null, frames = null, port = null;
         FrameRateMode? fpsMode = null;
         bool? vsync = null;
-        bool test = false, headless = false, visible = false, verify = false, openSettings = false, enableLogs = false, showFps = false, jitBringup = false, forceZeroRwx = false, shouldWait = false, showVersion = false, help = false;
+        bool trayOnly = false, dryRun = false, verify = false, openSettings = false, enableLogs = false, showFps = false, jitBringup = false, forceZeroRwx = false, shouldWait = false, showVersion = false, help = false;
 
         for (int i = 0; i < args.Count; i++)
         {
@@ -120,15 +117,17 @@ public sealed class CliOptions
                     break;
                 case "--no-vsync": vsync = false; break;
                 case "--frames": frames = Math.Max(1, ParseInt(Next(args, ref i, arg), arg)); break;
-                case "--fixture": fixture = Next(args, ref i, arg); break;
-                case "--input-script": inputScript = NextValidatedPath(args, ref i, arg); break;
                 case "--dump-screenshot": dump = Next(args, ref i, arg); break;
                 case "--data-dir": data = Next(args, ref i, arg); break;
                 case "--config": config = Next(args, ref i, arg); break;
                 case "--log-dir": log = Next(args, ref i, arg); break;
-                case "--test-mode": test = true; break;
-                case "--headless": headless = true; break;
-                case "--visible-test": visible = true; break;
+                case "--port":
+                    int parsedPort = ParseInt(Next(args, ref i, arg), arg);
+                    if (parsedPort is < 1 or > 65535) throw new ArgumentException("--port must be 1..65535.");
+                    port = parsedPort;
+                    break;
+                case "--tray-only": trayOnly = true; break;
+                case "--dry-run": dryRun = true; break;
                 case "--verify": verify = true; break;
                 case "--open-settings": openSettings = true; break;
                 case "--enable-logs": enableLogs = true; break;
@@ -147,58 +146,17 @@ public sealed class CliOptions
         {
             RawArgs = args.ToArray(), ModulePath = module, DiscPath = disc, PreloadMediaPath = preloadMedia,
             ShouldWait = shouldWait, BackendId = backend, ResolutionScale = scale,
-            FpsMode = fpsMode, TargetFps = targetFps, Vsync = vsync, MaxFrames = frames, FixturePath = fixture,
-            InputScriptPath = inputScript, DumpScreenshotPath = dump, DataDir = data, ConfigPath = config, LogDir = log, TestMode = test, Headless = headless,
-            VisibleTest = visible, VerifyOnly = verify, OpenSettings = openSettings, EnableLogs = enableLogs, ShowFps = showFps,
-            JitBringup = jitBringup, ForceZeroRwx = forceZeroRwx, ProfilePath = profilePath, ShowVersion = showVersion, ShowHelp = help
+            FpsMode = fpsMode, TargetFps = targetFps, Vsync = vsync, MaxFrames = frames,
+            DumpScreenshotPath = dump, DataDir = data, ConfigPath = config, LogDir = log, Port = port,
+            TrayOnly = trayOnly, DryRun = dryRun, VerifyOnly = verify, OpenSettings = openSettings,
+            EnableLogs = enableLogs, ShowFps = showFps, JitBringup = jitBringup, ForceZeroRwx = forceZeroRwx,
+            ProfilePath = profilePath, ShowVersion = showVersion, ShowHelp = help
         };
     }
 
-    /// <summary>
-    /// Resolves data/config/log roots via SandboxEnvironment; in --test-mode asserts config/logs stay contained
-    /// within the resolved sandbox boundary (<c>Sandbox\</c> parent when <c>--data-dir</c> is <c>...\Sandbox\data</c>,
-    /// sibling parent when <c>--data-dir</c> ends in <c>\data</c>, or <c>DataDirectory</c> otherwise).
-    /// </summary>
-    public SandboxEnvironment CreateSandbox(string? baseDirectoryOverride = null)
-    {
-        var sandbox = new SandboxEnvironment(ReStationEngineInfo.AppId, RawArgs, baseDirectoryOverride, "settings.json");
-        if (sandbox.TestMode && string.IsNullOrWhiteSpace(DataDir))
-            throw new InvalidOperationException("Fail-Closed Sandbox Violation: --test-mode requires an explicit --data-dir.");
-        if (sandbox.TestMode)
-        {
-            string boundary = ResolveSandboxBoundary(sandbox);
-            SandboxEnvironment.AssertPathContained(sandbox.DataDirectory, boundary);
-            SandboxEnvironment.AssertPathContained(sandbox.ConfigFilePath, boundary);
-            SandboxEnvironment.AssertPathContained(sandbox.LogDirectory, boundary);
-            if (!string.IsNullOrWhiteSpace(InputScriptPath))
-                SandboxEnvironment.AssertPathContained(InputScriptPath, boundary);
-        }
-        return sandbox;
-    }
-
-    public static string ResolveSandboxBoundary(SandboxEnvironment sandbox)
-    {
-        string fullData = Path.GetFullPath(sandbox.DataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        string? cursor = fullData;
-        while (!string.IsNullOrWhiteSpace(cursor))
-        {
-            if (string.Equals(Path.GetFileName(cursor), "Sandbox", StringComparison.OrdinalIgnoreCase))
-                return cursor;
-            cursor = Path.GetDirectoryName(cursor);
-        }
-
-        string? parent = Path.GetDirectoryName(fullData);
-        if (sandbox.TestMode &&
-            !string.IsNullOrWhiteSpace(parent) &&
-            string.Equals(Path.GetFileName(fullData), "data", StringComparison.OrdinalIgnoreCase))
-        {
-            string? root = Path.GetPathRoot(parent)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            string trimmedParent = parent.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            if (!string.Equals(root, trimmedParent, StringComparison.OrdinalIgnoreCase))
-                return parent;
-        }
-        return fullData;
-    }
+    /// <summary>Resolves data/config/log roots via <see cref="AppEnvironment"/>.</summary>
+    public AppEnvironment CreateEnvironment(string? baseDirectoryOverride = null) =>
+        new(ReStationEngineInfo.AppId, RawArgs, baseDirectoryOverride, "settings.json");
 
     /// <summary>Applies CLI overrides onto loaded settings (in-memory only; never persisted implicitly).</summary>
     public void ApplyOverrides(RecompSettings settings)
@@ -210,7 +168,7 @@ public sealed class CliOptions
         if (TargetFps is { } fps) settings.TargetFps = fps;
         if (Vsync is { } vs) settings.IsVsyncEnabled = vs;
         if (ShowFps) settings.IsFpsOverlayEnabled = true;
-        if (EnableLogs || TestMode) settings.ShouldEnableRuntimeLogs = true;
+        if (EnableLogs || !string.IsNullOrWhiteSpace(LogDir)) settings.ShouldEnableRuntimeLogs = true;
         settings.Clamp();
     }
 

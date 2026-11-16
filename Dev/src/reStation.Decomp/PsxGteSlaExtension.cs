@@ -233,8 +233,8 @@ public static class PsxGteSlaExtension
         if (!check.IsValid)
             throw new InvalidDataException(check.Summary);
 
-        string langDir = SandboxEnvironment.AssertPathContained(Path.Combine(root, "data", "languages"), root);
-        string incDir = SandboxEnvironment.AssertPathContained(Path.Combine(root, "include"), root);
+        string langDir = AppEnvironment.AssertPathContained(Path.Combine(root, "data", "languages"), root);
+        string incDir = AppEnvironment.AssertPathContained(Path.Combine(root, "include"), root);
         Directory.CreateDirectory(langDir);
         Directory.CreateDirectory(incDir);
 
@@ -250,7 +250,7 @@ public static class PsxGteSlaExtension
 
     private static void WriteContained(string candidatePath, string root, string content, List<string> written)
     {
-        string safePath = SandboxEnvironment.AssertPathContained(candidatePath, root);
+        string safePath = AppEnvironment.AssertPathContained(candidatePath, root);
         File.WriteAllText(safePath, content, new UTF8Encoding(false));
         written.Add(safePath);
     }

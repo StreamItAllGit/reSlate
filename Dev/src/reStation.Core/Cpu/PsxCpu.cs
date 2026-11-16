@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using reStation.Contracts;
 using reStation.Core.Audio;
 using reStation.Core.Bios;
+using reStation.Core.Bringup;
 using reStation.Core.CdRom;
 using reStation.Core.DiscIngestion;
 using reStation.Core.Gpu;
@@ -32,6 +33,10 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     private bool _inCompiledTrampoline;
     private bool _hasPendingTailJump;
     private uint _pendingTailJumpPc;
+    private long _lastBringupSpinCycle;
+    private readonly Dictionary<(uint Pc, int ExeId), (string Sha, uint Size)> _bringupBlockCache = new();
+
+    public JitBringupRecorder? BringupRecorder { get; set; }
 
     public PsxCpu(RecompSettings settings, string dataDirectory, IPsxRenderBackend renderBackend, ReStationLogger? logger = null)
     {
@@ -206,6 +211,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
                     ranAnyBody = true;
                 }
                 lastBodyCanonPc = canonPc;
+                RecordBringupCall(canonPc);
                 IRecompModule? module = ResolveModule(canonPc);
                 if (module is not null && TryExecuteCompiledModule(module, canonPc, out bool hasTailJump, out uint tailTargetPc))
                 {
@@ -269,6 +275,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
             ShouldUnwind = true;
             return;
         }
+        BringupRecorder?.RecordIndirectJumpTarget(Pc, targetPc);
         if (_inCompiledTrampoline)
         {
             _hasPendingTailJump = true;
@@ -301,8 +308,24 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
             Pgxp.ClearFrame();
             TimersAndDma.RaiseIrq(PsxIrq.VBlank);
             Bios.OnVBlank();
+            BringupRecorder?.ResetVBlankSpinCounter();
+            _lastBringupSpinCycle = TotalCycles;
             OnVBlankFrame?.Invoke(this);
             if (ExitRequested || PendingQuickLoadSlot >= 0) { ShouldUnwind = true; return; }
+        }
+        if (BringupRecorder is { } bringupRec)
+        {
+            long spinDelta = TotalCycles - _lastBringupSpinCycle;
+            if (spinDelta > 0L)
+            {
+                _lastBringupSpinCycle = TotalCycles;
+                if (bringupRec.AdvanceCyclesSinceVBlank(spinDelta))
+                {
+                    ExitRequested = true;
+                    ShouldUnwind = true;
+                    return;
+                }
+            }
         }
         NextEventCycle = Math.Clamp(ComputeNextWakeCycle(), TotalCycles + 256, TotalCycles + 4096);
         if (ShouldUnwind || InInterrupt || ExitRequested) return;

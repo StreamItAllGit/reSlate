@@ -8,8 +8,6 @@ namespace reStation.Contracts;
 /// <summary>Additive host surface enabling sub-tick pacing, high-Hz mouse look polling, and frame presentation from modules.</summary>
 public interface IReStationHostEx : IReStationHost
 {
-    /// <summary>True when running in headless verification mode without a visible window.</summary>
-    bool IsHeadless { get; }
     /// <summary>True when a screenshot/RGBA frame capture is pending for the current frame.</summary>
     bool HasPendingCapture { get; }
     /// <summary>Configured host presentation rate in Hz (0 = unlocked).</summary>

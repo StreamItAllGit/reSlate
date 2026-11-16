@@ -66,8 +66,15 @@ $slnxPath = Join-Path $devDir "src\reStation.slnx"
 if ($LASTEXITCODE -ne 0) { throw "dotnet build failed ($LASTEXITCODE)" }
 
 if (-not $SkipTests) {
-    & dotnet test $slnxPath -c Release --no-build --logger "console;verbosity=minimal"
-    if ($LASTEXITCODE -ne 0) { throw "dotnet test failed ($LASTEXITCODE)" }
+    $prevIsolatedTest = $env:APP_ISOLATED_TEST
+    $env:APP_ISOLATED_TEST = "1"
+    try {
+        & dotnet test $slnxPath -c Release --no-build --logger "console;verbosity=minimal"
+        if ($LASTEXITCODE -ne 0) { throw "dotnet test failed ($LASTEXITCODE)" }
+    }
+    finally {
+        $env:APP_ISOLATED_TEST = $prevIsolatedTest
+    }
 }
 
 Write-Host "[3/7] Staging portable build in Builds\v$Version..."
@@ -206,6 +213,7 @@ if (-not $builtInstaller) { throw "No installer EXE generated under $instOut" }
 $installerName = "reStation-Setup-v$Version-win-x64.exe"
 $installersDir = Join-Path $root "Installers"
 New-Item -ItemType Directory -Force $installersDir | Out-Null
+Get-ChildItem $installersDir -Filter "reStation-Setup-*.exe" -File -ErrorAction SilentlyContinue | Remove-Item -Force
 $installerPath = Join-Path $installersDir $installerName
 Copy-Item -LiteralPath $builtInstaller.FullName -Destination $installerPath -Force
 Invoke-Sign $installerPath

@@ -68,12 +68,6 @@
             Ensures generated binaries never pollute tracked Git trees or ship in release bundles.
             </summary>
         </member>
-        <member name="T:Foundation.Retro.SaveStateFixtureRunner">
-            <summary>
-            Executes deterministic multi-scene save-state fixture runs, optionally capturing final-frame PNGs
-            (RgbaPngWriter) and PCM audio (WavCaptureWriter) and asserting SHA-256 or per-channel pixel tolerances.
-            </summary>
-        </member>
         <member name="T:System.Text.RegularExpressions.Generated.CueFileLineRegex_0">
             <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the CueFileLineRegex method.</summary>
         </member>

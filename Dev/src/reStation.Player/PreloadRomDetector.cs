@@ -58,7 +58,7 @@ public static class PreloadRomDetector
         return result.DiscoveredMediaFiles.Count > 0 ? result : DiscoverInDirectory(moduleRootDir, manifest.PreloadRomDir);
     }
 
-    /// <summary>Fallback scan of <c>&lt;moduleRoot&gt;\data\rom\</c> (contained via SandboxEnvironment) for PS1 disc/archive formats.</summary>
+    /// <summary>Fallback scan of <c>&lt;moduleRoot&gt;\data\rom\</c> (contained via AppEnvironment) for PS1 disc/archive formats.</summary>
     public static PreloadRomDiscoveryResult DiscoverInDirectory(string moduleRootDirectory, string preloadRelativeDir = ReStationEngineInfo.DefaultPreloadRomDir)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleRootDirectory);
@@ -68,7 +68,7 @@ public static class PreloadRomDetector
             throw new InvalidOperationException($"Fail-Closed Containment Violation: preloadRomDir '{rel}' must be relative.");
 
         string candidate = Path.GetFullPath(Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar)));
-        string contained = SandboxEnvironment.AssertPathContained(candidate, root);
+        string contained = AppEnvironment.AssertPathContained(candidate, root);
         if (!Directory.Exists(contained)) return new PreloadRomDiscoveryResult(contained, false, Array.Empty<string>(), null);
 
         List<string> files = Directory.EnumerateFiles(contained, "*.*", SearchOption.AllDirectories)

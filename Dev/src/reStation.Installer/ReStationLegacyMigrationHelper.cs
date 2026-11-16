@@ -48,26 +48,26 @@ internal static class ReStationLegacyMigrationHelper
         };
     }
 
-    public static IReadOnlyList<string> ResolveLegacyV011EngineRoots(bool testMode, string? sandboxDataDir)
+    public static IReadOnlyList<string> ResolveLegacyV011EngineRoots(bool isolated, string? isolatedDataDir)
     {
-        if (testMode)
+        if (isolated)
         {
-            if (string.IsNullOrWhiteSpace(sandboxDataDir))
+            if (string.IsNullOrWhiteSpace(isolatedDataDir))
             {
                 return Array.Empty<string>();
             }
 
-            string fullSandbox = Path.GetFullPath(sandboxDataDir);
-            string[] sandboxCandidates =
+            string fullIsolated = Path.GetFullPath(isolatedDataDir);
+            string[] isolatedCandidates =
             [
-                SandboxEnvironment.AssertPathContained(
-                    Path.Combine(fullSandbox, "legacy-programs", ReStationInstallerTheme.SuiteName, "engines", ReStationInstallerTheme.EngineId, "v0.1.1"),
-                    fullSandbox),
-                SandboxEnvironment.AssertPathContained(
-                    Path.Combine(fullSandbox, "legacy-programs", ReStationInstallerTheme.EngineId, "v0.1.1"),
-                    fullSandbox)
+                AppEnvironment.AssertPathContained(
+                    Path.Combine(fullIsolated, "legacy-programs", ReStationInstallerTheme.SuiteName, "engines", ReStationInstallerTheme.EngineId, "v0.1.1"),
+                    fullIsolated),
+                AppEnvironment.AssertPathContained(
+                    Path.Combine(fullIsolated, "legacy-programs", ReStationInstallerTheme.EngineId, "v0.1.1"),
+                    fullIsolated)
             ];
-            return sandboxCandidates.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            return isolatedCandidates.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         }
 
         var roots = new List<string>();
@@ -102,9 +102,9 @@ internal static class ReStationLegacyMigrationHelper
     }
 
     /// <summary>Strictly read-only scan detecting stranded v0.1.1 data files and crash JSONs without modifying disk state.</summary>
-    public static LegacyV011DetectionResult DetectLegacyV011HostArtifacts(bool testMode, string? sandboxDataDir)
+    public static LegacyV011DetectionResult DetectLegacyV011HostArtifacts(bool isolated, string? isolatedDataDir)
     {
-        IReadOnlyList<string> roots = ResolveLegacyV011EngineRoots(testMode, sandboxDataDir);
+        IReadOnlyList<string> roots = ResolveLegacyV011EngineRoots(isolated, isolatedDataDir);
         var dataDirs = new List<string>();
         var crashFiles = new List<string>();
         int strandedFileCount = 0;
@@ -183,14 +183,13 @@ internal static class ReStationLegacyMigrationHelper
 
     public static LegacyMigrationResult TryMigrateLegacyHostArtifacts(
         string targetInstallDir,
-        bool testMode,
-        string? sandboxDataDir,
+        bool isolated,
+        string? isolatedDataDir,
         bool silent,
-        bool headless,
         bool dryRun,
         bool confirmCleanupFlag)
     {
-        LegacyV011DetectionResult detected = DetectLegacyV011HostArtifacts(testMode, sandboxDataDir);
+        LegacyV011DetectionResult detected = DetectLegacyV011HostArtifacts(isolated, isolatedDataDir);
         if (detected.CandidateRoots.Count == 0)
         {
             return new LegacyMigrationResult(false, 0, Array.Empty<string>(), false, "No legacy v0.1.1 host installation found.");
@@ -230,7 +229,7 @@ internal static class ReStationLegacyMigrationHelper
         var strandedPaths = detected.StrandedDataDirs.Concat(detected.StrandedCrashFiles).ToList();
         bool cleaned = false;
 
-        if (!dryRun && detected.HasStrandedArtifacts && ShouldAllowCleanup(detected, silent, headless, testMode, confirmCleanupFlag))
+        if (!dryRun && detected.HasStrandedArtifacts && ShouldAllowCleanup(detected, silent, isolated, confirmCleanupFlag))
         {
             foreach (string dataDir in detected.StrandedDataDirs)
             {
@@ -251,15 +250,14 @@ internal static class ReStationLegacyMigrationHelper
     private static bool ShouldAllowCleanup(
         LegacyV011DetectionResult detected,
         bool silent,
-        bool headless,
-        bool testMode,
+        bool isolated,
         bool confirmCleanupFlag)
     {
-        if (!silent && !headless && !testMode && OperatingSystem.IsWindows())
+        if (!silent && !isolated && OperatingSystem.IsWindows())
         {
             DialogResult choice = MessageBox.Show(
                 $"Found {detected.StrandedFileCount} stranded v0.1.1 data file(s) and {detected.StrandedCrashFiles.Count} crash JSON(s).\n\n" +
-                "Preserve your data\\rom\\ files into the v0.2.0 install and remove the stranded v0.1.1 artifacts?",
+                $"Preserve your data\\rom\\ files into the v{ReStationInstallerTheme.Version} install and remove the stranded v0.1.1 artifacts?",
                 "reStation — Human-Gated Legacy v0.1.1 Cleanup",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);

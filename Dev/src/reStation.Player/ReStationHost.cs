@@ -17,7 +17,7 @@ using reStation.Core.Saves;
 namespace reStation.Player;
 
 internal sealed record HostRuntimeContext(
-    bool IsHeadless,
+    bool IsOffscreen = false,
     Func<bool>? HasPendingCapture = null,
     Func<bool>? IsModernMouseLookActive = null,
     Func<float>? MouseSensitivity = null,
@@ -80,7 +80,6 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     public long FramesRun { get; private set; }
     public bool IsBooted => _emuThread is not null;
     public bool HasFinished => _emuFinished || _cpu.ExitRequested;
-    public bool IsHeadless => _ctx.IsHeadless;
     public bool HasPendingCapture => _ctx.HasPendingCapture?.Invoke() ?? false;
     public int TargetFps => Options.UnlockFps || Options.TargetFps <= 0 ? 0 : (int)Math.Round(Options.TargetFps);
     public bool IsEnhancedFrameRateEnabled => _ctx.IsEnhancedFrameRateEnabled?.Invoke() ?? (_cpu.Settings.FrameRateMode == FrameRateMode.Enhanced);
@@ -155,7 +154,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         foreach (string candidate in new[] { rel, exeRelativePath, Path.GetFileName(exeRelativePath) })
         {
             if (string.IsNullOrWhiteSpace(candidate)) continue;
-            string full = SandboxEnvironment.AssertPathContained(
+            string full = AppEnvironment.AssertPathContained(
                 Path.GetFullPath(Path.Combine(GameDataDirectory, candidate.Replace('/', Path.DirectorySeparatorChar))), GameDataDirectory);
             if (File.Exists(full)) return full;
         }
@@ -198,7 +197,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         long frameStartTicks = Stopwatch.GetTimestamp();
         if (parked) _cpu.Spu.RenderFrames(SamplesPerFrame);
         FramesRun++;
-        if (parked && _subTickHook is not null && !_ctx.IsHeadless)
+        if (parked && _subTickHook is not null && !_ctx.IsOffscreen)
             ForwardSubTickHook(frameStartTicks);
     }
 

@@ -14,7 +14,7 @@ internal readonly record struct UiRect(int X, int Y, int W, int H)
     public bool Contains(int px, int py) => px >= X && py >= Y && px < X + W && py < Y + H;
 }
 
-/// <summary>Shared palette + primitives so the gate, drawer, HUD, and visible-test showcase look identical.</summary>
+/// <summary>Shared palette + primitives so the media gate, settings drawer, and HUD share one dark-slate look.</summary>
 internal static class UiPaint
 {
     public const int TextScale = 2;

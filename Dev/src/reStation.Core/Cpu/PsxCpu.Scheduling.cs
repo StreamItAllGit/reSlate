@@ -4,6 +4,8 @@
 // @exports: PsxCpu (partial)
 // @owner: devv-cpu-cd (T2)
 
+using System.Buffers.Binary;
+using System.Security.Cryptography;
 using reStation.Contracts;
 
 namespace reStation.Core.Cpu;
@@ -231,4 +233,29 @@ public sealed partial class PsxCpu
     }
 
     public void SetCardIdentity(string? cardIdentity) => Bios.MemCard.SetCardIdentity(cardIdentity);
+
+    internal void ClearBringupBlockCache() => _bringupBlockCache.Clear();
+
+    private void RecordBringupCall(uint canonPc)
+    {
+        if (BringupRecorder is not { } rec) return;
+        var key = (canonPc, ActiveExeId);
+        if (!_bringupBlockCache.TryGetValue(key, out (string Sha, uint Size) info))
+        {
+            if (!Bus.TryGetRamSpan(canonPc, 64U, out Span<byte> codeSpan)) return;
+            int offset = 0;
+            while (offset + 8 <= codeSpan.Length)
+            {
+                uint word = BinaryPrimitives.ReadUInt32LittleEndian(codeSpan.Slice(offset, 4));
+                offset += 4;
+                if (word == 0x03E00008U) { offset += 4; break; }
+            }
+            uint byteSize = (uint)Math.Max(4, Math.Min(offset, codeSpan.Length));
+            Span<byte> digest = stackalloc byte[32];
+            SHA256.HashData(codeSpan[..(int)byteSize], digest);
+            info = (Convert.ToHexString(digest).ToLowerInvariant(), byteSize);
+            _bringupBlockCache[key] = info;
+        }
+        rec.RecordDiscoveredBlock(info.Sha, canonPc, info.Size, ActiveExeId);
+    }
 }

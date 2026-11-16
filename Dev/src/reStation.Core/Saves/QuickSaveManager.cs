@@ -2,7 +2,7 @@
 // @purpose: Module-aware compressed quick-save snapshots ("RST1" magic, schema v1) persisted atomically under <dataDir>\saves\.
 // @depends-on: System.IO.Compression, Foundation.Core, reStation.Core.Cpu
 // @exports: QuickSaveSlotInfo, QuickSaveManager
-// @owner: devv-audio-mdec (T3) — public surface T1-locked (Player F5/F9 + fixtures consume it).
+// @owner: devv-audio-mdec (T3) — public surface T1-locked (Player F5/F9 consume it).
 
 using System.Buffers.Binary;
 using System.IO.Compression;
@@ -15,7 +15,7 @@ namespace reStation.Core.Saves;
 /// <summary>Metadata for one populated quick-save slot.</summary>
 public sealed record QuickSaveSlotInfo(int Slot, string FilePath, long ByteLength, DateTime LastWriteUtc);
 
-/// <summary>Outcome of loading an "RST1" (and optional "RSTX" trailer) quick-save or fixture snapshot.</summary>
+/// <summary>Outcome of loading an "RST1" (and optional "RSTX" trailer) quick-save snapshot.</summary>
 public sealed record QuickSaveLoadResult(bool Success, string Format, IReadOnlyDictionary<string, byte[]>? RstxChunks = null);
 
 public static class QuickSaveManager
@@ -34,7 +34,7 @@ public static class QuickSaveManager
         string savesDir = Path.Combine(Path.GetFullPath(dataDir), "saves");
         string safeId = string.Concat(moduleId.Select(c => Path.GetInvalidFileNameChars().Contains(c) || c == '.' ? '_' : c));
         if (string.IsNullOrWhiteSpace(safeId)) safeId = "module";
-        return SandboxEnvironment.AssertPathContained(Path.Combine(savesDir, $"{safeId}_slot{slot}.rst"), savesDir);
+        return AppEnvironment.AssertPathContained(Path.Combine(savesDir, $"{safeId}_slot{slot}.rst"), savesDir);
     }
 
     public static void Save(PsxCpu cpu, string dataDir, string moduleId, int slot)

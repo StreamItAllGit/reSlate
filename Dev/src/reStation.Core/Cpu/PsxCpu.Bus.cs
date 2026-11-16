@@ -8,7 +8,7 @@ namespace reStation.Core.Cpu;
 
 public sealed partial class PsxCpu
 {
-    /// <summary>Main RAM (2 MB) — exposed for BIOS HLE EXE loading, fixtures, and tests.</summary>
+    /// <summary>Main RAM (2 MB) — exposed for BIOS HLE EXE loading and unit tests.</summary>
     public Span<byte> Ram => Bus.Ram;
 
     public byte Read8(uint address) => Bus.Read8(address);

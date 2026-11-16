@@ -367,7 +367,7 @@ public sealed class Wave2CoreSeamTests
         Assert.True(((IReStationHostEx)enhHost).IsEnhancedFrameRateEnabled);
 
         bool dynamicEnhanced = false;
-        enhHost.AttachRuntimeContext(new HostRuntimeContext(IsHeadless: true, IsEnhancedFrameRateEnabled: () => dynamicEnhanced));
+        enhHost.AttachRuntimeContext(new HostRuntimeContext(IsOffscreen: true, IsEnhancedFrameRateEnabled: () => dynamicEnhanced));
         Assert.False(enhHost.IsEnhancedFrameRateEnabled);
         dynamicEnhanced = true;
         Assert.True(enhHost.IsEnhancedFrameRateEnabled);

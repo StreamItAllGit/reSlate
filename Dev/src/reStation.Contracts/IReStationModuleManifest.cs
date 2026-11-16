@@ -19,7 +19,7 @@ public static class ReStationEngineInfo
     /// <summary>reEngine side-by-side engine identifier.</summary>
     public const string EngineId = "reStation";
     /// <summary>Current engine SemVer.</summary>
-    public const string Version = "0.2.6";
+    public const string Version = "0.2.6-hf.1";
     /// <summary>Compatible engine track advertised to reEngine.</summary>
     public const string CompatibleEngineTrack = "0.2.x";
     /// <summary>Foundation.Retro platform identifier.</summary>
@@ -51,8 +51,6 @@ public interface IReStationModuleManifest : IRecompModuleManifest
     string CompatibleEngineTrack { get; }
     /// <summary>Relative preload media directory.</summary>
     string PreloadRomDir { get; }
-    /// <summary>Deterministic multi-scene save-state fixtures.</summary>
-    IReadOnlyList<SaveStateFixtureSpec> SaveStateFixtures { get; }
     /// <summary>Engine tracks accepted by this module (defaults to <see cref="CompatibleEngineTrack"/> for v0.1.5 implementers).</summary>
     IReadOnlyList<string> SupportedEngineTracks => string.IsNullOrWhiteSpace(CompatibleEngineTrack)
         ? [ReStationEngineInfo.CompatibleEngineTrack]
@@ -121,8 +119,6 @@ public sealed class ReStationModuleManifest : IReStationModuleManifest
     [JsonPropertyName("defaultFramerateMode")] public RecompTimingMode DefaultFramerateMode { get; set; } = RecompTimingMode.LockedCap;
     /// <inheritdoc/>
     [JsonPropertyName("requiredDiscChecksums")] public IReadOnlyList<DiscChecksumEntry> RequiredDiscChecksums { get; set; } = Array.Empty<DiscChecksumEntry>();
-    /// <inheritdoc/>
-    [JsonPropertyName("saveStateFixtures")] public IReadOnlyList<SaveStateFixtureSpec> SaveStateFixtures { get; set; } = Array.Empty<SaveStateFixtureSpec>();
     /// <summary>Forward-compatible unknown keys preserved across round-trips.</summary>
     [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
     /// <summary>Foundation <see cref="RecompExecutionTierMode"/> corresponding to <see cref="ExecutionTierMode"/>.</summary>

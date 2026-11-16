@@ -12,7 +12,7 @@
         <member name="T:Foundation.Installer.InstallerEngineCore">
             <summary>
             Shared clean-root installation, upgrade, verification, and uninstallation engine (Standard 03 §5 &amp; Standard 12 §3.1).
-            Preserves user data\ and logs\ during upgrades and supports full headless --test-mode sandbox verification.
+            Preserves user data\ and logs\ during upgrades and respects isolated runtime overrides (Standard 02).
             </summary>
         </member>
         <member name="T:Foundation.Installer.InstallerProfileKind">
@@ -130,7 +130,7 @@
         <member name="T:Foundation.Installer.WindowsShortcutWriter">
             <summary>
             Pure managed C# writer for Windows Shell Link (.lnk) files and HKCU Uninstall/Startup registry keys.
-            Strictly skips live host registry mutations when running inside Sandbox / --test-mode.
+            Skips live host registry mutations when suppressed for isolated test execution (Standard 02).
             </summary>
         </member>
     </members>

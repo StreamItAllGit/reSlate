@@ -92,17 +92,12 @@ public sealed class InstallerWizardAutoSortTests : IDisposable
             {
                 InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
                 InstallerAppDescriptor descriptor = ReStationInstallerTheme.CreateDescriptor(theme);
-                var ctx = new InstallerSandboxContext(
+                var ctx = new InstallerRuntimeContext(
                     cliDataDir: Path.Combine(_tempRoot, "data"),
                     cliConfigPath: null,
                     cliLogDir: Path.Combine(_tempRoot, "logs"),
-                    testMode: true,
                     dryRun: true,
-                    headless: true,
-                    envPrefix: descriptor.EnvPrefix,
-                    fallbackTestInstallDir: Path.Combine(_tempRoot, "initial"),
-                    visibleTest: false,
-                    cliSandboxRoot: _tempRoot);
+                    envPrefix: descriptor.EnvPrefix);
                 var engine = new InstallerEngine(descriptor, ctx, typeof(Program).Assembly);
 
                 using var wizard = new InstallerWizardForm(
@@ -115,7 +110,6 @@ public sealed class InstallerWizardAutoSortTests : IDisposable
                     initialAutoStart: false,
                     initialLaunchAfter: false,
                     initialPurgeData: false,
-                    showShowcaseAutoCloseMs: 0,
                     initialProfileId: theme.DefaultProfileId,
                     initialSecondaryDir: Path.Combine(_tempRoot, "initial"),
                     secondaryFlagName: "--reengine-dir",

@@ -12,7 +12,7 @@ public static class PsxRenderBackendIds
 {
     /// <summary>Hardware OpenGL 3.3 Core backend (default).</summary>
     public const string OpenGl = "opengl";
-    /// <summary>Deterministic CPU rasterizer oracle (headless-safe).</summary>
+    /// <summary>Deterministic CPU rasterizer oracle (offscreen CPU fallback).</summary>
     public const string Software = "software";
 }
 

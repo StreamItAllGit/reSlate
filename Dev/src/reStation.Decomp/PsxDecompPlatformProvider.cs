@@ -173,12 +173,12 @@ public sealed class PsxDecompPlatformProvider : IReStationDecompProvider
     {
         if (layout is null)
         {
-            string extDir = SandboxEnvironment.AssertPathContained(Path.Combine(outDir, "ghidra_ext"), outDir);
+            string extDir = AppEnvironment.AssertPathContained(Path.Combine(outDir, "ghidra_ext"), outDir);
             _ = PsxGteSlaExtension.ProvisionExtensionDirectory(extDir);
             return (true, "Provisioned clean-room SLEIGH R3000A_GTE extension.", string.Empty);
         }
 
-        PsxGhidraHeadlessPlan plan = PsxCleanExeAndOverlayLoader.GenerateGhidraHeadlessArtifacts(layout, toolchain, outDir, options);
+        PsxGhidraBatchPlan plan = PsxCleanExeAndOverlayLoader.GenerateGhidraBatchArtifacts(layout, toolchain, outDir, options);
         bool invokeGhidra = string.Equals(GetArg(options, "invokeGhidra"), "true", StringComparison.OrdinalIgnoreCase);
         if (invokeGhidra)
         {
@@ -186,10 +186,10 @@ public sealed class PsxDecompPlatformProvider : IReStationDecompProvider
             string importTarget = mediaSource is not null && File.Exists(mediaSource)
                 ? mediaSource
                 : Path.Combine(mediaSource ?? options.DataDirectory, rel);
-            (bool ok, _, string diag) = await PsxCleanExeAndOverlayLoader.ExecuteGhidraHeadlessAsync(plan, importTarget, ct).ConfigureAwait(false);
-            if (!ok) return (false, diag, "PSX_GHIDRA_HEADLESS_FAILED");
+            (bool ok, _, string diag) = await PsxCleanExeAndOverlayLoader.ExecuteGhidraBatchAsync(plan, importTarget, ct).ConfigureAwait(false);
+            if (!ok) return (false, diag, "PSX_GHIDRA_BATCH_FAILED");
         }
-        return (true, "Generated clean-room Ghidra headless artifacts.", string.Empty);
+        return (true, "Generated clean-room Ghidra batch artifacts.", string.Empty);
     }
 
     private static void ExecuteStageD3(
@@ -283,7 +283,7 @@ public sealed class PsxDecompPlatformProvider : IReStationDecompProvider
 
     private static void WriteIntakeJson(string outDir, PsxLoadedProgramLayout layout)
     {
-        string path = SandboxEnvironment.AssertPathContained(Path.Combine(outDir, "d0-media-intake.json"), outDir);
+        string path = AppEnvironment.AssertPathContained(Path.Combine(outDir, "d0-media-intake.json"), outDir);
         File.WriteAllText(path, JsonSerializer.Serialize(new
         {
             schemaVersion = 1,

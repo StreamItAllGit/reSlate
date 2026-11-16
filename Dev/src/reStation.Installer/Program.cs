@@ -7,7 +7,6 @@ using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
-using Foundation.Core;
 using Foundation.Installer;
 using reEngine.Core.Bootstrap;
 
@@ -52,13 +51,13 @@ internal static class Program
         string profileId;
         string[] hostArgs;
         string? suiteDir, reEngineDir, dataDir;
-        bool migrateLegacy, confirmLegacyCleanup, testMode, silent, headless, dryRun, verifyOnly, uninstall;
+        bool migrateLegacy, confirmLegacyCleanup, silent, dryRun, verifyOnly, uninstall;
         string? installDir;
         try
         {
             hostArgs = ExtractHostArgs(cleanArgs, out profileId, out suiteDir, out reEngineDir,
-                out migrateLegacy, out confirmLegacyCleanup, out testMode, out silent,
-                out headless, out dryRun, out verifyOnly, out uninstall, out installDir, out dataDir);
+                out migrateLegacy, out confirmLegacyCleanup, out silent,
+                out dryRun, out verifyOnly, out uninstall, out installDir, out dataDir);
         }
         catch (ArgumentException ex)
         {
@@ -76,32 +75,32 @@ internal static class Program
             return StandardInstallerHost.Run(descriptor, hostArgs, typeof(Program).Assembly);
         }
 
-        bool showShowcase = cli.VisibleTest && !cli.Silent && !cli.Headless && OperatingSystem.IsWindows();
-        bool isInteractiveGui = !cli.ShowVersion && !cli.ShowHelp && !cli.Silent && !cli.Headless &&
-                                !cli.TestMode && !cli.DryRun && !cli.VerifyOnly &&
+        bool isolatedTest = ReStationInstallerBootstrap.IsIsolatedTestEnabled();
+        bool isInteractiveGui = !cli.ShowVersion && !cli.ShowHelp && !cli.Silent &&
+                                !isolatedTest && !cli.DryRun && !cli.VerifyOnly &&
                                 string.IsNullOrWhiteSpace(cli.InstallDir) && OperatingSystem.IsWindows();
 
-        if (showShowcase || isInteractiveGui)
+        if (isInteractiveGui)
         {
             return RunInteractiveWizard(descriptor, theme, cli, suiteDir, reEngineDir,
-                migrateLegacy, confirmLegacyCleanup, showShowcase ? 3000 : 0);
+                migrateLegacy, confirmLegacyCleanup);
         }
 
         int prepared = ReStationInstallerBootstrap.Prepare(hostArgs, typeof(Program).Assembly, descriptor.UninstallerExeName, out string[] effectiveArgs);
         if (prepared != 0) return prepared;
 
         int exitCode = StandardInstallerHost.Run(descriptor, effectiveArgs, typeof(Program).Assembly);
-        if (exitCode == 0 && !verifyOnly && !uninstall && !dryRun && !cli.VisibleTest)
+        if (exitCode == 0 && !verifyOnly && !uninstall && !dryRun)
         {
             string? resolvedInstall = ReStationInstallerBootstrap.ReadInstallDir(effectiveArgs) ?? installDir;
             string effectiveInstall = !string.IsNullOrWhiteSpace(resolvedInstall)
                 ? Path.GetFullPath(resolvedInstall)
                 : theme.DefaultInstallDir;
-            string? sandboxRoot = testMode ? ReStationInstallerBootstrap.TryResolveSandboxRoot(effectiveArgs) : null;
-            string effectiveReEngineDir = ResolveEffectiveReEngineDir(reEngineDir, suiteDir, sandboxRoot, testMode);
+            string? isolatedRoot = isolatedTest ? ReStationInstallerBootstrap.TryResolveIsolatedDataRoot(effectiveArgs) : null;
+            string effectiveReEngineDir = ResolveEffectiveReEngineDir(reEngineDir, suiteDir, isolatedRoot, isolatedTest);
             string? effectiveSuiteDir = ResolveEffectiveSuiteDir(suiteDir, effectiveReEngineDir);
             ApplyPostInstallActions(effectiveInstall, profileId, effectiveSuiteDir, effectiveReEngineDir,
-                migrateLegacy, confirmLegacyCleanup, testMode, sandboxRoot ?? dataDir, silent, headless);
+                migrateLegacy, confirmLegacyCleanup, isolatedTest, isolatedRoot ?? dataDir, silent);
         }
 
         return exitCode;
@@ -114,14 +113,11 @@ internal static class Program
         string? suiteDir,
         string? reEngineDir,
         bool migrateLegacy,
-        bool confirmLegacyCleanup,
-        int showcaseAutoCloseMs)
+        bool confirmLegacyCleanup)
     {
-        var ctx = new InstallerSandboxContext(
+        var ctx = new InstallerRuntimeContext(
             cliDataDir: cli.DataDir, cliConfigPath: cli.ConfigPath, cliLogDir: cli.LogDir,
-            testMode: cli.TestMode, dryRun: cli.DryRun, headless: cli.Headless,
-            envPrefix: descriptor.EnvPrefix, fallbackTestInstallDir: cli.InstallDir,
-            visibleTest: cli.VisibleTest, cliSandboxRoot: cli.SandboxRoot);
+            dryRun: cli.DryRun, envPrefix: descriptor.EnvPrefix);
 
         var guiEngine = new InstallerEngine(descriptor, ctx, typeof(Program).Assembly);
         Application.EnableVisualStyles();
@@ -131,10 +127,10 @@ internal static class Program
         string initialProfile = !string.IsNullOrWhiteSpace(cli.ProfileId)
             ? ReStationLegacyMigrationHelper.NormalizeProfileId(cli.ProfileId)
             : theme.DefaultProfileId;
-        string initialReEngineDir = ResolveEffectiveReEngineDir(reEngineDir, suiteDir, ctx.DataDirectory, cli.TestMode);
+        string initialReEngineDir = ResolveEffectiveReEngineDir(reEngineDir, suiteDir, ctx.DataDirectory, ctx.IsIsolatedTestProcess);
         string initialInstallDir = !string.IsNullOrWhiteSpace(cli.InstallDir)
             ? Path.GetFullPath(cli.InstallDir)
-            : (cli.TestMode
+            : (ctx.IsIsolatedTestProcess
                 ? ReStationInstallerBootstrap.ComputeSideBySideDir(initialReEngineDir)
                 : theme.DefaultInstallDir);
 
@@ -148,7 +144,6 @@ internal static class Program
             initialAutoStart: false,
             initialLaunchAfter: !cli.NoLaunch,
             initialPurgeData: cli.PurgeData,
-            showShowcaseAutoCloseMs: showcaseAutoCloseMs,
             initialProfileId: initialProfile,
             initialSecondaryDir: initialReEngineDir,
             secondaryFlagName: "--reengine-dir",
@@ -161,7 +156,7 @@ internal static class Program
         }
 
         Application.Run(wizard);
-        if (wizard.ExitCode == 0 && !cli.Uninstall && showcaseAutoCloseMs == 0)
+        if (wizard.ExitCode == 0 && !cli.Uninstall)
         {
             string rawInstallDir = string.IsNullOrWhiteSpace(wizard.InstallDirTextBox.Text)
                 ? initialInstallDir
@@ -174,8 +169,8 @@ internal static class Program
             string? chosenSuiteDir = ResolveEffectiveSuiteDir(suiteDir, chosenReEngineDir);
 
             ApplyPostInstallActions(chosenInstallDir, chosenProfile, chosenSuiteDir, chosenReEngineDir,
-                wizard.MigrateLegacyChecked, confirmLegacyCleanup, testMode: false, dataDir: cli.DataDir,
-                silent: false, headless: false);
+                wizard.MigrateLegacyChecked, confirmLegacyCleanup, isolatedTest: false, dataDir: cli.DataDir,
+                silent: false);
         }
 
         return wizard.ExitCode;
@@ -183,14 +178,14 @@ internal static class Program
 
     private static void ApplyPostInstallActions(
         string installDir, string profileId, string? suiteDir, string? reEngineDir,
-        bool migrateLegacy, bool confirmLegacyCleanup, bool testMode, string? dataDir, bool silent, bool headless)
+        bool migrateLegacy, bool confirmLegacyCleanup, bool isolatedTest, string? dataDir, bool silent)
     {
         if (!Directory.Exists(installDir)) return;
 
         if (migrateLegacy)
         {
             LegacyMigrationResult migration = ReStationLegacyMigrationHelper.TryMigrateLegacyHostArtifacts(
-                installDir, testMode, dataDir, silent, headless, dryRun: false, confirmLegacyCleanup);
+                installDir, isolatedTest, dataDir, silent, dryRun: false, confirmLegacyCleanup);
             Console.WriteLine(migration.Summary);
         }
 
@@ -210,14 +205,14 @@ internal static class Program
 
     internal static string[] ExtractHostArgs(
         string[] clean, out string profileId, out string? suiteDir, out string? reEngineDir,
-        out bool migrateLegacy, out bool confirmLegacyCleanup, out bool testMode, out bool silent,
-        out bool headless, out bool dryRun, out bool verifyOnly, out bool uninstall,
+        out bool migrateLegacy, out bool confirmLegacyCleanup, out bool silent,
+        out bool dryRun, out bool verifyOnly, out bool uninstall,
         out string? installDir, out string? dataDir)
     {
         profileId = ReStationInstallerTheme.DefaultInstallProfile;
         suiteDir = null; reEngineDir = null; installDir = null; dataDir = null;
-        migrateLegacy = false; confirmLegacyCleanup = false; testMode = false;
-        silent = false; headless = false; dryRun = false; verifyOnly = false; uninstall = false;
+        migrateLegacy = false; confirmLegacyCleanup = false;
+        silent = false; dryRun = false; verifyOnly = false; uninstall = false;
 
         var forwarded = new List<string>(clean.Length);
         for (int i = 0; i < clean.Length; i++)
@@ -240,9 +235,7 @@ internal static class Program
                 case "--install-dir" or "--target-dir" when i + 1 < clean.Length: installDir = clean[i + 1]; break;
                 case "--data-dir" when i + 1 < clean.Length: dataDir = clean[i + 1]; break;
                 case "--migrate-legacy": migrateLegacy = true; break;
-                case "--test-mode": testMode = true; break;
                 case "--silent" or "--quiet": silent = true; break;
-                case "--headless": headless = true; break;
                 case "--dry-run": dryRun = true; break;
                 case "--verify": verifyOnly = true; break;
                 case "--uninstall": uninstall = true; break;
@@ -252,14 +245,14 @@ internal static class Program
     }
 
     private static string ResolveEffectiveReEngineDir(
-        string? reEngineDir, string? suiteDir, string? sandboxRoot, bool testMode)
+        string? reEngineDir, string? suiteDir, string? isolatedRoot, bool isolatedTest)
     {
         string? explicitDir = !string.IsNullOrWhiteSpace(reEngineDir)
             ? Path.GetFullPath(reEngineDir.Trim())
             : (!string.IsNullOrWhiteSpace(suiteDir)
                 ? Path.Combine(Path.GetFullPath(suiteDir.Trim()), ReStationInstallerTheme.SuiteName)
                 : null);
-        return ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitDir, sandboxRoot, testMode);
+        return ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitDir, isolatedRoot, isolatedTest);
     }
 
     private static string? ResolveEffectiveSuiteDir(string? explicitSuiteDir, string reEngineInstallDir) =>

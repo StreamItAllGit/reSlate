@@ -154,7 +154,15 @@ public sealed class PsxTimersAndDma
     }
 
     // ---- Interrupt controller -----------------------------------------------------------------------------------
-    public uint ReadIrqReg(uint p) => p == 0x1F801070U ? InterruptStatus : InterruptMask;
+    public uint ReadIrqReg(uint p)
+    {
+        if (p == 0x1F801070U)
+        {
+            if (_cpu.Joypad.NextWakeCycle <= _cpu.TotalCycles) _cpu.Joypad.TickTo(_cpu.TotalCycles);
+            return InterruptStatus;
+        }
+        return InterruptMask;
+    }
 
     public void WriteIrqReg(uint p, uint val)
     {

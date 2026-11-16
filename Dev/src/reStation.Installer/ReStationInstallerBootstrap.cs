@@ -1,5 +1,5 @@
 // @module: reStation.Installer.ReStationInstallerBootstrap
-// @purpose: Side-by-side engines\reStation\v0.2.0 target resolution, --reengine-dir/--suite-dir support, and fail-closed --test-mode containment without nested Setup bloat.
+// @purpose: Side-by-side engines\reStation\v0.2.6-hf.1 target resolution, --reengine-dir/--suite-dir support, and fail-closed APP_ISOLATED_TEST=1 containment without nested Setup bloat.
 // @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Reflection, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerBootstrap
 
@@ -13,7 +13,14 @@ namespace reStation.Installer;
 internal static class ReStationInstallerBootstrap
 {
     private static readonly string[] SkipExactArgs =
-        { "--help", "-h", "/?", "help", "--version", "-v", "--verify", "--dry-run", "--uninstall", "--visible-test" };
+        { "--help", "-h", "/?", "help", "--version", "-v", "--verify", "--dry-run", "--uninstall" };
+
+    internal static bool IsIsolatedTestEnabled()
+    {
+        string? raw = Environment.GetEnvironmentVariable("APP_ISOLATED_TEST");
+        return string.Equals(raw?.Trim(), "1", StringComparison.Ordinal) ||
+               string.Equals(raw?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+    }
 
     internal static bool ShouldSkip(IReadOnlyList<string> args, string? processPath, string uninstallerExeName) =>
         string.Equals(Path.GetFileName(processPath), uninstallerExeName, StringComparison.OrdinalIgnoreCase) ||
@@ -68,17 +75,16 @@ internal static class ReStationInstallerBootstrap
         return candidates.FirstOrDefault(HasDirectInstallation);
     }
 
-    internal static string? TryResolveSandboxRoot(IReadOnlyList<string> args)
+    internal static string? TryResolveIsolatedDataRoot(IReadOnlyList<string> args)
     {
-        string? raw = ReadValue(args, "--sandbox-root")
-            ?? ReadValue(args, "--data-dir")
+        string? raw = ReadValue(args, "--data-dir")
             ?? Environment.GetEnvironmentVariable("RESTATION_DATA_DIR")
             ?? Environment.GetEnvironmentVariable("DATA_DIR")
             ?? Environment.GetEnvironmentVariable("APP_HOME");
         if (!string.IsNullOrWhiteSpace(raw)) return Path.GetFullPath(raw.Trim());
 
         string? explicitInstall = ReadInstallDir(args);
-        return !string.IsNullOrWhiteSpace(explicitInstall) && InstallerSandboxContext.IsSafeTestInstallDirectory(explicitInstall)
+        return !string.IsNullOrWhiteSpace(explicitInstall) && InstallerRuntimeContext.IsSafeIsolatedInstallDirectory(explicitInstall)
             ? Path.GetFullPath(explicitInstall)
             : null;
     }
@@ -89,13 +95,13 @@ internal static class ReStationInstallerBootstrap
     internal static string[] NormalizeUninstallArgs(IReadOnlyList<string> args, out string? resolvedDefaultLeafForEnv)
     {
         resolvedDefaultLeafForEnv = null;
-        bool testMode = args.Any(a => string.Equals(a.Trim(), "--test-mode", StringComparison.OrdinalIgnoreCase));
-        string? sandboxRoot = testMode ? TryResolveSandboxRoot(args) : null;
+        bool isolatedTest = IsIsolatedTestEnabled();
+        string? isolatedRoot = isolatedTest ? TryResolveIsolatedDataRoot(args) : null;
         string? rawInstall = ReadInstallDir(args);
         string? rawReEngine = ReadValue(args, "--reengine-dir");
 
-        if (testMode && string.IsNullOrWhiteSpace(sandboxRoot))
-            throw new InvalidOperationException("Fail-Closed Sandbox Violation: --test-mode --uninstall requires explicit --data-dir.");
+        if (isolatedTest && string.IsNullOrWhiteSpace(isolatedRoot))
+            throw new InvalidOperationException("Fail-Closed Isolation Violation: APP_ISOLATED_TEST=1 --uninstall requires explicit --data-dir.");
 
         string targetLeaf;
         if (!string.IsNullOrWhiteSpace(rawInstall))
@@ -107,10 +113,10 @@ internal static class ReStationInstallerBootstrap
         {
             targetLeaf = ComputeSideBySideDir(Path.GetFullPath(rawReEngine));
         }
-        else if (testMode && sandboxRoot is not null)
+        else if (isolatedTest && isolatedRoot is not null)
         {
-            string defRe = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(null, sandboxRoot, true);
-            targetLeaf = TryResolveSideBySideLeaf(sandboxRoot) ?? ComputeSideBySideDir(defRe);
+            string defRe = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(null, isolatedRoot, true);
+            targetLeaf = TryResolveSideBySideLeaf(isolatedRoot) ?? ComputeSideBySideDir(defRe);
         }
         else
         {
@@ -118,7 +124,7 @@ internal static class ReStationInstallerBootstrap
             resolvedDefaultLeafForEnv = targetLeaf;
         }
 
-        if (testMode && sandboxRoot is not null) targetLeaf = SandboxEnvironment.AssertPathContained(targetLeaf, sandboxRoot);
+        if (isolatedTest && isolatedRoot is not null) targetLeaf = AppEnvironment.AssertPathContained(targetLeaf, isolatedRoot);
 
         var updated = new List<string>(args.Count + 2);
         bool replaced = false;
@@ -139,7 +145,7 @@ internal static class ReStationInstallerBootstrap
             }
         }
 
-        if (!replaced && (!string.IsNullOrWhiteSpace(rawInstall) || testMode || !string.IsNullOrWhiteSpace(rawReEngine)))
+        if (!replaced && (!string.IsNullOrWhiteSpace(rawInstall) || isolatedTest || !string.IsNullOrWhiteSpace(rawReEngine)))
         {
             updated.Add("--install-dir");
             updated.Add(targetLeaf);
@@ -148,17 +154,17 @@ internal static class ReStationInstallerBootstrap
     }
 
     internal static string[] RewriteContainedArgs(
-        string[] args, bool testMode, string? sandboxRoot, string sideBySideDir, string? explicitInstall)
+        string[] args, bool isolatedTest, string? isolatedRoot, string sideBySideDir, string? explicitInstall)
     {
         var updated = new List<string>(args.Length + 4);
         bool hasData = false;
         for (int i = 0; i < args.Length; i++)
         {
             string t = args[i].Trim();
-            if (string.Equals(t, "--data-dir", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length && sandboxRoot is not null)
+            if (string.Equals(t, "--data-dir", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length && isolatedRoot is not null)
             {
                 updated.Add("--data-dir");
-                updated.Add(sandboxRoot);
+                updated.Add(isolatedRoot);
                 i++;
                 hasData = true;
             }
@@ -167,7 +173,7 @@ internal static class ReStationInstallerBootstrap
             {
                 string val = Path.GetFullPath(args[i + 1].Trim());
                 updated.Add("--install-dir");
-                updated.Add(sandboxRoot is not null ? SandboxEnvironment.AssertPathContained(val, sandboxRoot) : val);
+                updated.Add(isolatedRoot is not null ? AppEnvironment.AssertPathContained(val, isolatedRoot) : val);
                 i++;
             }
             else
@@ -176,11 +182,11 @@ internal static class ReStationInstallerBootstrap
             }
         }
 
-        if (testMode && !hasData && sandboxRoot is not null) { updated.Add("--data-dir"); updated.Add(sandboxRoot); }
+        if (isolatedTest && !hasData && isolatedRoot is not null) { updated.Add("--data-dir"); updated.Add(isolatedRoot); }
         if (string.IsNullOrWhiteSpace(explicitInstall))
         {
             updated.Add("--install-dir");
-            updated.Add(sandboxRoot is not null ? SandboxEnvironment.AssertPathContained(sideBySideDir, sandboxRoot) : sideBySideDir);
+            updated.Add(isolatedRoot is not null ? AppEnvironment.AssertPathContained(sideBySideDir, isolatedRoot) : sideBySideDir);
         }
         return updated.ToArray();
     }
@@ -198,7 +204,7 @@ internal static class ReStationInstallerBootstrap
             : Path.Combine(fullSuite, ReStationInstallerTheme.SuiteName);
     }
 
-    private static string? FindSiblingExternalReEngineInstaller(bool testMode, string? sandboxRoot)
+    private static string? FindSiblingExternalReEngineInstaller(bool isolatedTest, string? isolatedRoot)
     {
         string? selfPath = Environment.ProcessPath;
         string? selfDir = string.IsNullOrWhiteSpace(selfPath) ? null : Path.GetDirectoryName(Path.GetFullPath(selfPath));
@@ -207,9 +213,9 @@ internal static class ReStationInstallerBootstrap
         string? candidate = Directory.EnumerateFiles(selfDir, "reEngine-Setup-*.exe", SearchOption.TopDirectoryOnly)
             .OrderByDescending(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault();
-        if (candidate is not null && testMode && sandboxRoot is not null)
+        if (candidate is not null && isolatedTest && isolatedRoot is not null)
         {
-            string fullRoot = Path.GetFullPath(sandboxRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string fullRoot = Path.GetFullPath(isolatedRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
             if (!Path.GetFullPath(candidate).StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase)) return null;
         }
         return candidate;
@@ -235,33 +241,33 @@ internal static class ReStationInstallerBootstrap
 
         if (ShouldSkip(args, Environment.ProcessPath, uninstallerExeName)) return 0;
 
-        bool testMode = args.Any(a => string.Equals(a.Trim(), "--test-mode", StringComparison.OrdinalIgnoreCase));
+        bool isolatedTest = IsIsolatedTestEnabled();
         string? explicitInstall = ReadInstallDir(args);
         try
         {
-            string? sandboxRoot = null;
-            if (testMode)
+            string? isolatedRoot = null;
+            if (isolatedTest)
             {
-                sandboxRoot = TryResolveSandboxRoot(args) ?? throw new InvalidOperationException(
-                    "Fail-Closed Sandbox Violation: --test-mode requires explicit --data-dir or contained sandbox path.");
+                isolatedRoot = TryResolveIsolatedDataRoot(args) ?? throw new InvalidOperationException(
+                    "Fail-Closed Isolation Violation: APP_ISOLATED_TEST=1 requires explicit --data-dir or safe isolated path.");
             }
             string? explicitReEngineDir = ResolveExplicitReEngineDir(args);
-            if (testMode && sandboxRoot is not null && !string.IsNullOrWhiteSpace(explicitReEngineDir))
-                explicitReEngineDir = SandboxEnvironment.AssertPathContained(explicitReEngineDir, sandboxRoot);
+            if (isolatedTest && isolatedRoot is not null && !string.IsNullOrWhiteSpace(explicitReEngineDir))
+                explicitReEngineDir = AppEnvironment.AssertPathContained(explicitReEngineDir, isolatedRoot);
 
-            string targetReEngineDir = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitReEngineDir, sandboxRoot, testMode);
-            string? siblingInstaller = FindSiblingExternalReEngineInstaller(testMode, sandboxRoot);
+            string targetReEngineDir = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitReEngineDir, isolatedRoot, isolatedTest);
+            string? siblingInstaller = FindSiblingExternalReEngineInstaller(isolatedTest, isolatedRoot);
             if (!string.IsNullOrWhiteSpace(siblingInstaller))
             {
                 ReEngineBootstrapResult res = ReEngineBootstrapHelper
-                    .EnsureReEngineInstalledAsync(siblingInstaller, targetReEngineDir, !testMode, testMode, sandboxRoot)
+                    .EnsureReEngineInstalledAsync(siblingInstaller, targetReEngineDir, !isolatedTest, isolatedTest, isolatedRoot)
                     .GetAwaiter().GetResult();
                 if (!res.Success) { Console.Error.WriteLine(res.DiagnosticMessage); return 1; }
                 targetReEngineDir = res.ReEngineInstallDir;
             }
 
             string sideBySide = ComputeSideBySideDir(targetReEngineDir);
-            effectiveArgs = RewriteContainedArgs(args, testMode, sandboxRoot, sideBySide, explicitInstall);
+            effectiveArgs = RewriteContainedArgs(args, isolatedTest, isolatedRoot, sideBySide, explicitInstall);
             return 0;
         }
         catch (InvalidOperationException ex) { Console.Error.WriteLine(ex.Message); return 3; }

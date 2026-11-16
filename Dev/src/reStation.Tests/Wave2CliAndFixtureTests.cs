@@ -1,5 +1,5 @@
 // @module: reStation.Tests.Wave2CliAndFixtureTests
-// @purpose: Wave 2 Slice 2 verification for CLI --preload-media/--wait, priority/containment, BLINDSPOT-01/02, corrupt RST1, IReStationHostEx, VisibleTestHarness, and >12 overlays.
+// @purpose: Wave 2 Slice 2 verification for CLI --preload-media/--wait, priority/containment, BLINDSPOT-01/02, IReStationHostEx, and >12 overlays.
 // @depends-on: Xunit, System.Buffers.Binary, System.Diagnostics, System.Text, System.Text.Json, Foundation.Core, Foundation.Retro, reStation.Compiler, reStation.Contracts, reStation.Core, reStation.Player
 // @exports: Wave2CliAndFixtureTests
 
@@ -52,8 +52,8 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
     {
         string modDir = Path.Combine(_tempRoot, "mod");
         string romDir = Path.Combine(modDir, "data", "rom");
-        string sandboxDir = Path.Combine(_tempRoot, "Sandbox");
-        string dataDir = Path.Combine(sandboxDir, "data");
+        string isoDir = Path.Combine(_tempRoot, "isolated");
+        string dataDir = Path.Combine(isoDir, "data");
         Directory.CreateDirectory(romDir);
         Directory.CreateDirectory(dataDir);
 
@@ -72,8 +72,8 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
         CliOptions neither = CliOptions.Parse(Array.Empty<string>());
         Assert.Equal(romFallback, PlayerProgram.ResolveMediaCandidate(neither, manifest, modDir, null));
 
-        string logDir = Path.Combine(sandboxDir, "logs");
-        int verifyExit = PlayerProgram.RunMain(new[] { "--verify", "--preload-media", preload, "--scale", "4", "--backend", "software", "--test-mode", "--data-dir", dataDir, "--log-dir", logDir, "--enable-logs" });
+        string logDir = Path.Combine(isoDir, "logs");
+        int verifyExit = PlayerProgram.RunMain(new[] { "--verify", "--preload-media", preload, "--scale", "4", "--backend", "software", "--data-dir", dataDir, "--log-dir", logDir, "--enable-logs" });
         Assert.Equal(0, verifyExit);
         string logText = File.ReadAllText(Path.Combine(logDir, "runtime.log"));
         Assert.Contains("[HEARTBEAT]", logText, StringComparison.Ordinal);
@@ -81,60 +81,49 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
     }
 
     [Fact]
-    public void Program_RunMain_ContainmentViolationReturnsExit3_MissingMediaReturnsExit4()
+    public void Program_RunMain_MissingMediaReturnsExit4_AndPathTraversalRejected()
     {
-        string sandboxDir = Path.Combine(_tempRoot, "Sandbox");
-        string dataDir = Path.Combine(sandboxDir, "data");
-        string logDir = Path.Combine(sandboxDir, "logs");
+        string isoDir = Path.Combine(_tempRoot, "isolated");
+        string dataDir = Path.Combine(isoDir, "data");
+        string logDir = Path.Combine(isoDir, "logs");
         Directory.CreateDirectory(dataDir);
         string outside = Path.Combine(_tempRoot, "outside.cue");
         File.WriteAllText(outside, "FILE \"outside.bin\" BINARY\n");
 
-        int exitEscaping = PlayerProgram.RunMain(new[] { "--preload-media", outside, "--test-mode", "--data-dir", dataDir, "--log-dir", logDir, "--headless", "--wait", "--enable-logs" });
-        Assert.Equal(3, exitEscaping);
-        Assert.Contains("[ERROR] [SANDBOX]", File.ReadAllText(Path.Combine(logDir, "runtime.log")), StringComparison.Ordinal);
-        Assert.Empty(Directory.GetFiles(logDir, "*crash*"));
+        Assert.ThrowsAny<Exception>(() => AppEnvironment.AssertPathContained(outside, dataDir));
 
         string missingInside = Path.Combine(dataDir, "missing.cue");
-        int exitMissing = PlayerProgram.RunMain(new[] { "--preload-media", missingInside, "--test-mode", "--data-dir", dataDir, "--log-dir", logDir, "--headless", "--wait" });
+        int exitMissing = PlayerProgram.RunMain(new[] { "--preload-media", missingInside, "--data-dir", dataDir, "--log-dir", logDir, "--tray-only", "--wait", "--enable-logs" });
         Assert.Equal(4, exitMissing);
+        Assert.Contains("[ERROR] [DISC]", File.ReadAllText(Path.Combine(logDir, "runtime.log")), StringComparison.Ordinal);
+        Assert.Empty(Directory.GetFiles(logDir, "*crash*"));
     }
 
     [Fact]
-    public void HostVideoSurface_HeadlessOverGl_LogsBlindspot02FallbackAndForcesSoftware()
+    public void HostVideoSurface_OffscreenOverGl_LogsOffscreenAndForcesSoftware()
     {
         string logDir = Path.Combine(_tempRoot, "logs-gl");
         using var logger = new ReStationLogger(logDir, enabled: true);
-        using HostVideoSurface surface = HostVideoSurface.Create("Test", new RecompSettings { BackendId = "opengl" }, headless: true, foreground: false, logger);
+        using HostVideoSurface surface = HostVideoSurface.CreateOffscreen(new RecompSettings { BackendId = "opengl" }, logger, "tray-or-background");
         Assert.Equal(PsxRenderBackendIds.Software, surface.Backend.BackendId);
-        Assert.Contains(logger.GetRecentLines(), static l => l.Contains("[WARN] [GL_FALLBACK] reason=headless forced=software", StringComparison.Ordinal));
+        Assert.Contains(logger.GetRecentLines(), static l => l.Contains("Offscreen surface backend=software", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task FixtureRunnerHost_Blindspot01AndCorruptRst1_IsolatesFailuresWithoutCrashBundle()
+    public void QuickSaveManager_CorruptRst1_RejectsWithoutCrashBundle()
     {
-        string dataDir = Path.Combine(_tempRoot, "fix-data");
-        string outDir = Path.Combine(_tempRoot, "fix-out");
-        string logDir = Path.Combine(_tempRoot, "fix-logs");
+        string dataDir = Path.Combine(_tempRoot, "save-data");
+        string logDir = Path.Combine(_tempRoot, "save-logs");
         Directory.CreateDirectory(dataDir);
-
-        string specOk = Path.Combine(_tempRoot, "ok.json");
-        File.WriteAllText(specOk, JsonSerializer.Serialize(new[] { new SaveStateFixtureSpec("f1", "Cold", "", 3) }));
-        using var logger = new ReStationLogger(logDir, enabled: true);
-        int okExit = await FixtureRunnerHost.RunWithEngineAsync(specOk, outDir, null, null, dataDir, new RecompSettings { BackendId = "opengl", ResolutionScale = 2 }, logger, headless: true);
-        Assert.Equal(0, okExit);
-        IReadOnlyList<string> lines = logger.GetRecentLines();
-        Assert.Single(lines, static l => l.Contains("[WARN] [GL_FALLBACK] reason=headless forced=software", StringComparison.Ordinal));
-        Assert.Contains(lines, static l => l.Contains("[HEARTBEAT]", StringComparison.Ordinal) && l.Contains("1/3 (", StringComparison.Ordinal) && l.Contains("resolutionScale=2 backend=software", StringComparison.Ordinal));
-        Assert.DoesNotContain(lines, static l => l.Contains("/0 (", StringComparison.Ordinal));
-
         string corruptRst = Path.Combine(dataDir, "corrupt.rst");
         File.WriteAllBytes(corruptRst, new byte[] { 0x52, 0x53, 0x54, 0x31, 0x00, 0x00 });
-        string specBad = Path.Combine(_tempRoot, "bad.json");
-        File.WriteAllText(specBad, JsonSerializer.Serialize(new[] { new SaveStateFixtureSpec("bad-rst", "Corrupt", corruptRst, 1) }));
-        int failExit = await FixtureRunnerHost.RunWithEngineAsync(specBad, outDir, null, null, dataDir, new RecompSettings { BackendId = "software" }, logger, headless: true);
-        Assert.Equal(1, failExit);
-        Assert.Contains(logger.GetRecentLines(), static l => l.Contains("[ERROR] [FIXTURE]", StringComparison.Ordinal));
+
+        using var backend = new SoftwareCpuRenderBackend();
+        backend.Initialize(320, 240, 1);
+        using var logger = new ReStationLogger(logDir, enabled: true);
+        using var cpu = new PsxCpu(new RecompSettings(), dataDir, backend, logger);
+
+        Assert.ThrowsAny<Exception>(() => QuickSaveManager.LoadFromFile(cpu, corruptRst));
         Assert.Empty(Directory.GetFiles(logDir, "*crash*"));
     }
 
@@ -156,7 +145,7 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
 
         int subPresents = 0;
         host.AttachRuntimeContext(new HostRuntimeContext(
-            IsHeadless: false, HasPendingCapture: () => true, IsModernMouseLookActive: () => true,
+            IsOffscreen: false, HasPendingCapture: () => true, IsModernMouseLookActive: () => true,
             MouseSensitivity: () => 1.75f, PollSubTickLook: () => (2f, -3f, 0.5f, 0f), PresentSubTickFrame: () => subPresents++));
 
         uint notifiedAddr = 0, notifiedLen = 0;
@@ -170,7 +159,6 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
         host.RegisterModule(mod);
         host.SetFramePatch(hook);
         IReStationHostEx hostEx = host;
-        Assert.False(hostEx.IsHeadless);
         Assert.True(hostEx.HasPendingCapture);
         Assert.Equal(120, hostEx.TargetFps);
         Assert.True(hostEx.IsModernMouseLookActive);
@@ -221,9 +209,9 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
     }
 
     [Fact]
-    public void VisibleTestHarness_AndCompilerMoreThan12OverlaysAndEmitter011()
+    public void TelemetrySnapshot_AndCompilerMoreThan12OverlaysAndEmitter011()
     {
-        PsxTelemetrySnapshot snap = VisibleTestHarness.CreateTelemetrySnapshot(4, 1.25, 0.85, 13.9, 60.0, 16.6, 4, PsxRenderBackendIds.OpenGl);
+        var snap = new PsxTelemetrySnapshot(1, 1.25, 0.85, 13.9, 60.0, 16.6, 4, PsxRenderBackendIds.OpenGl, 0, 0, 0, 0, 0, 0);
         string metrics = snap.ToHeartbeatMetrics();
         Assert.Contains("cpuMs=1.25 gpuMs=0.85 waitMs=13.90", metrics, StringComparison.Ordinal);
         Assert.Contains("resolutionScale=4 backend=opengl", metrics, StringComparison.Ordinal);

@@ -37,7 +37,7 @@ public static class DiscVerifierAndExtractor
             return Fail(logger, $"Disc file was not found: '{fullInput}'.");
 
         string gameDataDir = DiscManifest.GetGameDataDir(dataDir);
-        string discDir = SandboxEnvironment.AssertPathContained(Path.Combine(gameDataDir, "disc"), gameDataDir);
+        string discDir = AppEnvironment.AssertPathContained(Path.Combine(gameDataDir, "disc"), gameDataDir);
         var options = new MediaExtractionOptions(
             ToolsBaseDirectory: toolsBaseDirectory ?? AppContext.BaseDirectory,
             CopyDirectMediaToDestination: true,
@@ -108,7 +108,7 @@ public static class DiscVerifierAndExtractor
         var map = new Dictionary<string, VerifiedFileInfo>(StringComparer.OrdinalIgnoreCase);
         foreach (string file in result.ExtractedFiles)
         {
-            string safe = SandboxEnvironment.AssertPathContained(file, discDir);
+            string safe = AppEnvironment.AssertPathContained(file, discDir);
             string rel = Path.GetRelativePath(discDir, safe).Replace('\\', '/');
             if (!result.Sha256ByRelativePath.TryGetValue(rel, out string? sha)) continue;
             long len = new FileInfo(safe).Length;
@@ -131,7 +131,7 @@ public static class DiscVerifierAndExtractor
         foreach (Iso9660Entry entry in iso.Entries)
         {
             ct.ThrowIfCancellationRequested();
-            string outPath = SandboxEnvironment.AssertPathContained(
+            string outPath = AppEnvironment.AssertPathContained(
                 Path.Combine(gameDataDir, entry.FullPath.Replace('/', Path.DirectorySeparatorChar)),
                 gameDataDir);
             Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);

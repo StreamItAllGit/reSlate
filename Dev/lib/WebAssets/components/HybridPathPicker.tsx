@@ -112,7 +112,7 @@ export const HybridPathPicker: React.FC<FoundationHybridPathPickerProps> = ({
         />
         <StyledTooltip
           title="Browse Host Path"
-          body="Open native Windows Explorer picker on local host (falls back to remote tree over LAN/VPN)."
+          body="Open native Windows Explorer picker on local host (falls back to remote tree over LAN/Tailscale)."
         >
           <button
             type="button"

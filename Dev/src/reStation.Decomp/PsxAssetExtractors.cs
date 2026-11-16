@@ -27,7 +27,7 @@ public sealed record PsxAssetExtractSummary(
 
 /// <summary>
 /// Clean-room PS1 TIM/VAB/SEQ binary parsers and local cache extractors.
-/// Refuses to write outside gitignored <c>&lt;dataDir&gt;\cache\</c> or <c>Sandbox\</c> directories.
+/// Refuses to write outside gitignored <c>&lt;dataDir&gt;\cache\</c> directories.
 /// </summary>
 public static class PsxAssetExtractors
 {
@@ -35,7 +35,7 @@ public static class PsxAssetExtractors
     private static readonly byte[] SeqMagic = "pQES"u8.ToArray();
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    /// <summary>Asserts that <paramref name="targetDir"/> resolves strictly inside gitignored <c>cache\</c> or <c>Sandbox\</c>.</summary>
+    /// <summary>Asserts that <paramref name="targetDir"/> resolves strictly inside gitignored <c>cache\</c>.</summary>
     public static string AssertGitignoredCacheTarget(string targetDir, string dataDir)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetDir);
@@ -51,14 +51,7 @@ public static class PsxAssetExtractors
         }
 
         string allowedCache = Path.Combine(fullData, "cache");
-        string? sandboxRoot = SandboxEnvironment.ResolveSiblingSandboxRoot(fullData);
-        if (sandboxRoot is not null &&
-            fullTarget.StartsWith(sandboxRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            return SandboxEnvironment.AssertPathContained(fullTarget, sandboxRoot);
-        }
-
-        return SandboxEnvironment.AssertPathContained(fullTarget, allowedCache);
+        return AppEnvironment.AssertPathContained(fullTarget, allowedCache);
     }
 
     /// <summary>Extracts a PS1 TIM texture (<c>0x10</c> magic) into a lossless PNG + metadata JSON inside cache.</summary>
@@ -103,8 +96,8 @@ public static class PsxAssetExtractors
         byte[] rgba = DecodeTimToRgba(bppMode, width, height, pixData, clut);
         Directory.CreateDirectory(safeDir);
         string stem = SanitizeFileStem(assetName);
-        string pngPath = SandboxEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.png"), safeDir);
-        string metaPath = SandboxEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.tim.json"), safeDir);
+        string pngPath = AppEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.png"), safeDir);
+        string metaPath = AppEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.tim.json"), safeDir);
 
         RgbaPngWriter.WritePng(pngPath, width, height, rgba);
         File.WriteAllText(metaPath, JsonSerializer.Serialize(new
@@ -133,13 +126,13 @@ public static class PsxAssetExtractors
 
         Directory.CreateDirectory(safeDir);
         string stem = SanitizeFileStem(assetName);
-        string metaPath = SandboxEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.vab.json"), safeDir);
+        string metaPath = AppEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.vab.json"), safeDir);
         var outputs = new List<string> { metaPath };
 
         int headerEst = 32 + 128 * 16 + programs * 16 * 32 + 512;
         if (vabBytes.Length > headerEst && waveSize > 0)
         {
-            string vbPath = SandboxEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.vb.cache"), safeDir);
+            string vbPath = AppEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.vb.cache"), safeDir);
             int copyLen = (int)Math.Min(waveSize, (uint)(vabBytes.Length - headerEst));
             File.WriteAllBytes(vbPath, vabBytes.Slice(headerEst, copyLen).ToArray());
             outputs.Add(vbPath);
@@ -170,8 +163,8 @@ public static class PsxAssetExtractors
 
         Directory.CreateDirectory(safeDir);
         string stem = SanitizeFileStem(assetName);
-        string metaPath = SandboxEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.seq.json"), safeDir);
-        string bodyPath = SandboxEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.seq.events.bin"), safeDir);
+        string metaPath = AppEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.seq.json"), safeDir);
+        string bodyPath = AppEnvironment.AssertPathContained(Path.Combine(safeDir, $"{stem}.seq.events.bin"), safeDir);
         File.WriteAllBytes(bodyPath, seqBytes[15..].ToArray());
         File.WriteAllText(metaPath, JsonSerializer.Serialize(new
         {

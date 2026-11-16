@@ -248,7 +248,7 @@ public static class ModernInputController
         cpu.SetControllerState(port, (ushort)input.Buttons, ToAxis(input.LeftStickX), ToAxis(input.LeftStickY), ToAxis(rx), ToAxis(ry));
     }
 
-    /// <summary>Parses a scripted frame-range token list (<c>start[-end]:up,cross;...</c>) for deterministic fixtures and tests.</summary>
+    /// <summary>Parses a scripted frame-range token list (<c>start[-end]:up,cross;...</c>) for deterministic unit tests.</summary>
     public static HostInputState ParseScriptForFrame(string? script, long frame)
     {
         var state = new HostInputState();

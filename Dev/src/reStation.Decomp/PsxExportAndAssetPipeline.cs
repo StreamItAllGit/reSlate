@@ -106,8 +106,8 @@ public static partial class PsxExportAndAssetPipeline
         }
 
         List<PsxNormalizedFunction> sorted = fnMap.Values.OrderBy(f => f.EntryAddress).ToList();
-        string normCPath = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "normalized-export.c"), fullOut);
-        string fnOutPath = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "normalized-functions.json"), fullOut);
+        string normCPath = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "normalized-export.c"), fullOut);
+        string fnOutPath = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "normalized-functions.json"), fullOut);
         File.WriteAllText(normCPath, cCombined, new UTF8Encoding(false));
         File.WriteAllText(fnOutPath, JsonSerializer.Serialize(new { schemaVersion = 1, functions = sorted }, JsonOptions), new UTF8Encoding(false));
 
@@ -177,7 +177,7 @@ public static partial class PsxExportAndAssetPipeline
         {
             string fullOut = Path.GetFullPath(outputDir);
             Directory.CreateDirectory(fullOut);
-            string recipePath = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "aot-recipe.json"), fullOut);
+            string recipePath = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "aot-recipe.json"), fullOut);
             File.WriteAllText(recipePath, JsonSerializer.Serialize(recipe, JsonOptions), new UTF8Encoding(false));
         }
         return recipe;

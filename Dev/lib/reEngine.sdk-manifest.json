@@ -2,24 +2,24 @@
     "schemaVersion":  1,
     "appId":  "reengine",
     "displayName":  "reEngine",
-    "sdkVersion":  "0.2.1",
-    "version":  "0.2.1",
-    "updatedAtUtc":  "2026-11-15T20:34:25.818Z",
+    "sdkVersion":  "0.2.1-hf.1",
+    "version":  "0.2.1-hf.1",
+    "updatedAtUtc":  "2026-11-16T00:10:49.123Z",
     "artifacts":  [
                       {
                           "fileName":  "reEngine.Core.dll",
-                          "fileSizeBytes":  134144,
-                          "sha256Hex":  "fc765686791080985656cf692bef93f8961a1836c69feec0fd82aabd7fcbed05"
+                          "fileSizeBytes":  134656,
+                          "sha256Hex":  "55abf39e6eada37fa0ced10cc418ba3ae276130cd390ff39a0606e15e2511ffb"
                       },
                       {
                           "fileName":  "reEngine.Core.xml",
-                          "fileSizeBytes":  49959,
-                          "sha256Hex":  "71437b2d34529fc7442e6abd9f3812ea3772d973f12d339e674433711920c1a8"
+                          "fileSizeBytes":  50095,
+                          "sha256Hex":  "ff31795f86f7cac4dcc79226be5f72fb5fde425ae37997e7f9c4b63e1c47e79f"
                       },
                       {
                           "fileName":  "reEngine.Core.deps.json",
-                          "fileSizeBytes":  1211,
-                          "sha256Hex":  "3bdba17c6cd1c4f8ae30f4a08bc074bd0cb897ceeddf1ec7a9decc1c01551d31"
+                          "fileSizeBytes":  1221,
+                          "sha256Hex":  "2d6f68f3f9fa0456f39809fa52f24432cf40e6aa32bdef8455f7f980f06eb1bf"
                       },
                       {
                           "fileName":  "LICENSE",
@@ -27,9 +27,9 @@
                           "sha256Hex":  "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
                       },
                       {
-                          "fileName":  "reEngine-Setup-v0.2.1-win-x64.exe",
-                          "fileSizeBytes":  72539216,
-                          "sha256Hex":  "e03b3b960a0ede9f3c47e1f9ae42513c649740d3129bce10365b884500c45c6e"
+                          "fileName":  "reEngine-Setup-v0.2.1-hf.1-win-x64.exe",
+                          "fileSizeBytes":  72526432,
+                          "sha256Hex":  "21364159268f81303d45f1e80ac8ed1b999f4921912455a31aadcb63cd0d1808"
                       }
                   ]
 }

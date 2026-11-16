@@ -1,5 +1,5 @@
 # @module: foundation_core.cli
-# @purpose: Standard 02 & Standard 10 CLI flag parser (--data-dir, --config, --log-dir, --test-mode, --version, --help) with fail-closed sandbox checks.
+# @purpose: Standard 02 & Standard 10 CLI flag parser (--data-dir, --config, --log-dir, --version, --help) with fail-closed path containment checks.
 # @depends-on: argparse, dataclasses, pathlib
 # @exports: StandardCliOptions, parse_standard_cli_flags, assert_path_contained
 
@@ -17,7 +17,7 @@ def assert_path_contained(candidate_path: str | Path, allowed_root: str | Path) 
     resolved_root = Path(allowed_root).resolve()
     if resolved_candidate != resolved_root and resolved_root not in resolved_candidate.parents:
         raise ValueError(
-            f"Fail-Closed Sandbox Violation: '{resolved_candidate}' escapes allowed root '{resolved_root}'."
+            f"Fail-Closed Path Containment Violation: '{resolved_candidate}' escapes allowed root '{resolved_root}'."
         )
     return resolved_candidate
 
@@ -27,7 +27,6 @@ class StandardCliOptions:
     data_dir: Path
     config_path: Path
     log_dir: Path
-    test_mode: bool
     extra_args: list[str]
 
 
@@ -43,7 +42,6 @@ def parse_standard_cli_flags(
     parser.add_argument("--data-dir", type=Path, default=base / "data", help="Isolated data directory")
     parser.add_argument("--config", type=Path, default=None, help="Explicit primary config file path")
     parser.add_argument("--log-dir", type=Path, default=base / "logs", help="Isolated log directory")
-    parser.add_argument("--test-mode", action="store_true", help="Enable fail-closed sandbox test mode")
 
     known, unknown = parser.parse_known_args(argv)
     data_dir = Path(known.data_dir).resolve()
@@ -58,6 +56,5 @@ def parse_standard_cli_flags(
         data_dir=data_dir,
         config_path=config_path,
         log_dir=log_dir,
-        test_mode=bool(known.test_mode),
         extra_args=list(unknown),
     )

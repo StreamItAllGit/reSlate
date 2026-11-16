@@ -37,11 +37,8 @@ function Get-InternalLeakPattern {
         'task_graph\.json',
         'audit_(?:installer|dossier)\.ps1',
         'Dev[\\/](?:src|tests|docs|scripts|lib|assets|version\.txt|app\.manifest\.json)',
-        'Sandbox[\\/]',
         'SharedLibs[\\/]',
         'Foundation[\\/]Dev',
-        '--test-mode',
-        '--visible-test',
         '[CD]:[\\/](?:Projects|Users|Programs)[\\/]',
         'collection://[0-9a-f-]+',
         '\b4[0-9a-f]{7}-5a45-[0-9a-f-]{14,}\b'
@@ -113,11 +110,15 @@ function Prune-VersionDirectories(
 ) {
     if (-not (Test-Path -LiteralPath $ParentDir)) { return }
     $versionDirs = Get-ChildItem $ParentDir -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^v\d+\.\d+\.\d+' } |
+        Where-Object { $_.Name -match '^v(\d+)\.(\d+)\.(\d+)(?:-(.+))?$' } |
         Sort-Object {
-            $verText = ($_.Name -replace '^v', '') -replace '-.*$', ''
-            $parsed = [version]'0.0.0'
-            if ([version]::TryParse($verText, [ref]$parsed)) { $parsed } else { [version]'0.0.0' }
+            $m = [regex]::Match($_.Name, '^v(\d+)\.(\d+)\.(\d+)(?:-(.+))?$')
+            $maj = [int]$m.Groups[1].Value
+            $min = [int]$m.Groups[2].Value
+            $pat = [int]$m.Groups[3].Value
+            $suf = $m.Groups[4].Value
+            $rank = if ([string]::IsNullOrWhiteSpace($suf)) { 500 } elseif ($suf -match '^hf\.(\d+)$') { 1000 + [int]$matches[1] } else { 0 }
+            ($maj * 100000000L) + ($min * 1000000L) + ($pat * 10000L) + $rank
         } -Descending
     foreach ($old in ($versionDirs | Select-Object -Skip $KeepCount)) {
         if (-not [string]::IsNullOrWhiteSpace($KeepVersionName) -and ($old.Name -eq $KeepVersionName)) { continue }

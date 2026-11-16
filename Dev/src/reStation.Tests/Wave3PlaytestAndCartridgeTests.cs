@@ -112,7 +112,7 @@ public sealed class Wave3PlaytestAndCartridgeTests : IDisposable
         using var host = new ReStationHost(cpu, new ReStationModuleManifest { ModuleId = "subtick-marshal" }, dataDir, new RecompHostOptions(), pacer, new ReStationLogger(logDir, enabled: false));
 
         host.AttachRuntimeContext(new HostRuntimeContext(
-            IsHeadless: false,
+            IsOffscreen: false,
             PollSubTickLook: () => { lookThreadId = Environment.CurrentManagedThreadId; return (1f, -1f, 0f, 0f); },
             PresentSubTickFrame: () => presentThreadId = Environment.CurrentManagedThreadId));
 

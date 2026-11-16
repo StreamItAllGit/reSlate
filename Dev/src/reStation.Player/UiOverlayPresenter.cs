@@ -1,5 +1,5 @@
 // @module: reStation.Player.UiOverlayPresenter
-// @purpose: 1280x720 PixelOverlayCanvas UI layer (F1 drawer + F3 telemetry HUD), viewport mapping, screenshot compositing, and --visible-test showcase render.
+// @purpose: 1280x720 PixelOverlayCanvas UI layer (F1 drawer + F3 telemetry HUD), viewport mapping, and screenshot compositing.
 // @depends-on: Foundation.Core, reStation.Contracts, reStation.Core
 // @exports: UiOverlayPresenter
 // @owner: devv-player-ui (T6)
@@ -11,7 +11,7 @@ using reStation.Core;
 
 namespace reStation.Player;
 
-/// <summary>Maintains the 1280x720 UI RGBA layer, composites over game video, and renders the --visible-test scene.</summary>
+/// <summary>Maintains the 1280x720 UI RGBA layer and composites HUD/drawer surfaces over game video.</summary>
 internal sealed class UiOverlayPresenter
 {
     public const int OverlayWidth = 1280, OverlayHeight = 720;
@@ -287,43 +287,4 @@ internal sealed class UiOverlayPresenter
     public static (int X, int Y) WindowToOverlayCoords(float mx, float my, int winW, int winH) =>
         (Math.Clamp((int)(mx * OverlayWidth / Math.Max(1, winW)), 0, OverlayWidth - 1),
          Math.Clamp((int)(my * OverlayHeight / Math.Max(1, winH)), 0, OverlayHeight - 1));
-
-    /// <summary>Renders the dark #0E0E10 1280x720 PS1 showcase scene + Visible Test HUD onto <paramref name="canvas"/>.</summary>
-    public static void RenderShowcaseScene(
-        PixelOverlayCanvas canvas, long frame, RecompSettings settings, string backendId, double fps, long elapsedMs, long durationMs)
-    {
-        canvas.Clear(UiPaint.Background);
-        canvas.FillRect(0, 0, OverlayWidth, 64, UiPaint.Panel);
-        canvas.FillRect(0, 62, OverlayWidth, 2, UiPaint.Accent);
-
-        UiPaint.Text(canvas, 32, 18, $"reStation v{ReStationEngineInfo.Version} \u2014 Visible Test", UiPaint.AccentText, 3);
-        string right = $"Backend: {backendId.ToUpperInvariant()}  Scale: {settings.ResolutionScale}x";
-        UiPaint.Text(canvas, OverlayWidth - UiPaint.TextWidth(right) - 32, 24, right, UiPaint.Muted);
-
-        var stage = new UiRect(120, 100, 1040, 480);
-        UiPaint.BorderRect(canvas, stage, new RgbaColor(0x11, 0x13, 0x19), UiPaint.Border);
-
-        // Animated PS1 scanline-grid + Gouraud-shaded showcase geometry inside the dark stage.
-        int phase = (int)((frame * 4) % 160);
-        for (int gx = stage.X + 24; gx < stage.X + stage.W - 24; gx += 48)
-            canvas.FillRect(gx, stage.Y + 24, 1, stage.H - 48, new RgbaColor(0x1D, 0x24, 0x33));
-        for (int gy = stage.Y + 24; gy < stage.Y + stage.H - 24; gy += 48)
-            canvas.FillRect(stage.X + 24, gy, stage.W - 48, 1, new RgbaColor(0x1D, 0x24, 0x33));
-
-        int cx = stage.X + (stage.W / 2) + (int)MathF.Round(MathF.Sin(frame * 0.06f) * 140f);
-        int cy = stage.Y + (stage.H / 2) - 20;
-        for (int layer = 0; layer < 5; layer++)
-        {
-            int size = 160 - (layer * 24);
-            byte r = (byte)Math.Clamp(40 + layer * 28 + (phase / 4), 0, 255);
-            byte g = (byte)Math.Clamp(115 + layer * 22, 0, 255);
-            byte b = (byte)Math.Clamp(190 + layer * 12, 0, 255);
-            UiPaint.BorderRect(canvas, new UiRect(cx - size / 2, cy - size / 2, size, size),
-                new RgbaColor(r, g, b, 200), UiPaint.AccentText);
-        }
-
-        string status = $"PS1 R3000A + GPU Showcase | Frame {frame} | {fps:F1} FPS | Auto-exit {Math.Max(0, durationMs - elapsedMs)} ms";
-        UiPaint.BorderRect(canvas, new UiRect(120, 608, 1040, 56), UiPaint.Panel, UiPaint.Border);
-        UiPaint.TextCentered(canvas, new UiRect(120, 608, 1040, 56), status, UiPaint.TextPrimary);
-    }
 }

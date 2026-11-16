@@ -1,11 +1,12 @@
 // @module: reStation.Player.HostInputMapper
 // @purpose: Aggregates SDL3 keyboard, mouse delta/buttons, and gamepad axes/buttons into reStation HostInputState.
-// @depends-on: reStation.Contracts, reStation.Core, reStation.Core.Input
+// @depends-on: reStation.Contracts, reStation.Core, reStation.Core.Cpu, reStation.Core.Input
 // @exports: HostInputMapper
 // @owner: devv-player-ui (T6)
 
 using reStation.Contracts;
 using reStation.Core;
+using reStation.Core.Cpu;
 using reStation.Core.Input;
 
 namespace reStation.Player;
@@ -31,9 +32,7 @@ internal static unsafe class HostInputMapper
         ISet<string> prevNativeActions,
         List<string> activeNativeBuffer,
         List<string> pressedNativeBuffer,
-        out bool releaseMouseCapture,
-        ReadOnlySpan<byte> scriptKeys = default,
-        uint scriptMouseMask = 0u)
+        out bool releaseMouseCapture)
     {
         if (drawerOpen)
         {
@@ -41,6 +40,8 @@ internal static unsafe class HostInputMapper
             dy = 0f;
             releaseMouseCapture = false;
             prevNativeActions.Clear();
+            if (cpu is PsxCpu drawerCpu)
+                ModernInputController.ApplyToCpu(drawerCpu, default, settings);
             return default;
         }
 
@@ -56,12 +57,7 @@ internal static unsafe class HostInputMapper
         Span<byte> mergedKeys = stackalloc byte[KeyBindingsConfig.MaxScancode + 1];
         int liveCopy = Math.Min(liveKeys.Length, mergedKeys.Length);
         liveKeys[..liveCopy].CopyTo(mergedKeys);
-        int scriptCopy = Math.Min(scriptKeys.Length, mergedKeys.Length);
-        for (int i = 0; i < scriptCopy; i++)
-        {
-            if (scriptKeys[i] != 0) mergedKeys[i] = 1;
-        }
-        uint mergedMouseMask = liveMouseMask | scriptMouseMask;
+        uint mergedMouseMask = liveMouseMask;
         bool controllerConnected = sdlAvailable && gamepad != IntPtr.Zero;
         float rawLx = controllerConnected ? ReadRawAxis(gamepad, 0) : 0f;
         float rawLy = controllerConnected ? ReadRawAxis(gamepad, 1) : 0f;
@@ -87,6 +83,9 @@ internal static unsafe class HostInputMapper
         {
             ApplyDirectControllerFallback(gamepad, ref st);
         }
+
+        if (cpu is PsxCpu livePsxCpu)
+            ModernInputController.ApplyToCpu(livePsxCpu, in st, settings);
 
         ModernInputController.ApplyNativeGameActions(
             mergedKeys, mergedMouseMask, in st, cpu, settings, profileProvider,

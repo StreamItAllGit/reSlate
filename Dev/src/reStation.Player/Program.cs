@@ -1,5 +1,5 @@
 // @module: reStation.Player.Program
-// @purpose: reStation.Player entry point: AttachConsole, CLI parse, fail-closed SandboxEnvironment, crash bundles, preload/disc verification, and host launch.
+// @purpose: reStation.Player entry point: AttachConsole, CLI parse, fail-closed AppEnvironment, crash bundles, preload/disc verification, and host launch.
 // @depends-on: System.Runtime.InteropServices, Foundation.Core, Foundation.Retro, reStation.Contracts, reStation.Core, reStation.Core.Cpu, reStation.Core.DiscIngestion
 // @exports: Program
 // @owner: devv-player-ui (T6)
@@ -11,6 +11,7 @@ using reEngine.Core.Manifests;
 using reStation.Contracts;
 using reStation.Core;
 using reStation.Core.Aot;
+using reStation.Core.Bringup;
 using reStation.Core.Cpu;
 using reStation.Core.DiscIngestion;
 
@@ -49,37 +50,37 @@ internal static partial class Program
         if (options.ShowHelp) { Console.WriteLine(CliOptions.HelpText); return 0; }
         if (options.ShowVersion) { Console.WriteLine($"reStation v{ReStationEngineInfo.Version}"); return 0; }
 
-        SandboxEnvironment sandbox;
-        try { sandbox = options.CreateSandbox(); }
+        AppEnvironment env;
+        try { env = options.CreateEnvironment(); }
         catch (InvalidOperationException ex) { Console.Error.WriteLine(ex.Message); return 3; }
 
-        RecompSettings settings = RecompSettings.Load(sandbox.ConfigFilePath).Value;
+        bool hadConfigFile = File.Exists(env.ConfigFilePath);
+        RecompSettings settings = RecompSettings.Load(env.ConfigFilePath).Value;
         options.ApplyOverrides(settings);
-        using var logger = new ReStationLogger(sandbox.LogDirectory, settings.ShouldEnableRuntimeLogs);
-        CrashBundleService.RegisterGlobalHandlers(sandbox.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, logger.GetRecentLines);
-        logger.Info("BOOT", $"reStation v{ReStationEngineInfo.Version} testMode={sandbox.TestMode} headless={options.Headless} visibleTest={options.VisibleTest} wait={options.ShouldWait} backend={settings.BackendId} scale={settings.ResolutionScale}x");
+        using var logger = new ReStationLogger(env.LogDirectory, settings.ShouldEnableRuntimeLogs);
+        CrashBundleService.RegisterGlobalHandlers(env.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, logger.GetRecentLines);
+        logger.Info("BOOT", $"reStation v{ReStationEngineInfo.Version} mode={env.PresentationMode} tray={options.TrayOnly} dryRun={env.DryRun} wait={options.ShouldWait} backend={settings.BackendId} scale={settings.ResolutionScale}x");
 
         try
         {
-            ValidateSandboxContainment(options, sandbox);
-            return RunApplication(options, sandbox, settings, logger);
+            return RunApplication(options, env, settings, hadConfigFile, logger);
         }
-        catch (InvalidOperationException ex) when (IsSandboxViolation(ex.Message))
+        catch (InvalidOperationException ex) when (IsContainmentViolation(ex.Message))
         {
-            logger.Error("SANDBOX", ex.Message);
+            logger.Error("CONTAINMENT", ex.Message);
             Console.Error.WriteLine(ex.Message);
             return 3;
         }
         catch (Exception ex)
         {
             logger.Error("FATAL", $"{ex.GetType().Name}: {ex.Message}");
-            CrashBundleService.TryWriteCrashBundle(sandbox.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, ex, logger.GetRecentLines());
+            CrashBundleService.TryWriteCrashBundle(env.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, ex, logger.GetRecentLines());
             Console.Error.WriteLine(ex.Message);
             return 1;
         }
     }
 
-    private static int RunApplication(CliOptions options, SandboxEnvironment sandbox, RecompSettings settings, ReStationLogger logger)
+    private static int RunApplication(CliOptions options, AppEnvironment env, RecompSettings settings, bool hadConfigFile, ReStationLogger logger)
     {
         ReStationModuleManifest? manifest = null;
         string? moduleDir = null;
@@ -89,49 +90,30 @@ internal static partial class Program
             manifest = ReStationModuleManifest.LoadFromFile(fullModule);
             moduleDir = RecompPackageReader.ResolveModuleRootDirectory(fullModule);
             logger.Info("MODULE", $"Loaded manifest '{manifest.ModuleId}' ({manifest.DisplayName}) serial={manifest.SerialNumber}.");
+            if (!hadConfigFile && options.FpsMode is null && manifest.DefaultFramerateMode == RecompTimingMode.LockedCap)
+                settings.FrameRateMode = FrameRateMode.Original;
         }
 
         if (options.VerifyOnly)
-            return RunVerify(options, sandbox, settings, manifest, moduleDir, logger);
+            return RunVerify(options, env, settings, manifest, moduleDir, logger);
 
-        if (!string.IsNullOrWhiteSpace(options.FixturePath))
-        {
-            string fixtureOut = Path.Combine(sandbox.LogDirectory, "fixtures");
-            bool fixtureHeadless = options.Headless && !options.VisibleTest;
-            return FixtureRunnerHost.RunWithEngineAsync(options.FixturePath, fixtureOut, manifest, moduleDir, sandbox.DataDirectory, settings, logger, fixtureHeadless)
-                .GetAwaiter().GetResult();
-        }
-
-        DiscManifest? discManifest = DiscManifest.TryLoad(sandbox.DataDirectory);
-        int mediaExit = TryResolveAndIngestMedia(options, sandbox, settings, manifest, moduleDir, logger, ref discManifest);
+        DiscManifest? discManifest = DiscManifest.TryLoad(env.DataDirectory);
+        int mediaExit = TryResolveAndIngestMedia(options, env, settings, manifest, moduleDir, logger, ref discManifest);
         if (mediaExit != 0) return mediaExit;
 
-        bool hasUiScriptOrSettings = options.OpenSettings || !string.IsNullOrWhiteSpace(options.InputScriptPath);
-        if (options.VisibleTest && manifest is null && discManifest is null && !hasUiScriptOrSettings)
-        {
-            string shotPath = string.IsNullOrWhiteSpace(options.DumpScreenshotPath)
-                ? Path.Combine(sandbox.LogDirectory, "screenshots", "visible-test.png")
-                : Path.GetFullPath(options.DumpScreenshotPath);
-            var harness = new VisibleTestHarness(settings, logger);
-            bool ok = harness.RunVisibleTestAsync(new VisibleTestShowcaseOptions(3000, true, shotPath)).GetAwaiter().GetResult();
-            return ok ? 0 : 1;
-        }
+        bool isTray = env.PresentationMode == UiPresentationMode.TrayOrBackground || options.TrayOnly;
+        bool needsGate = !isTray && (manifest is null || discManifest is null);
+        string winTitle = $"reStation v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD";
+        using HostVideoSurface video = isTray
+            ? HostVideoSurface.CreateOffscreen(settings, logger, "tray-or-background")
+            : HostVideoSurface.Create(winTitle, settings, foreground: true, logger);
 
-        bool runHeadless = options.Headless && !options.VisibleTest;
-        bool needsGate = !runHeadless && !(options.VisibleTest && hasUiScriptOrSettings) && (manifest is null || discManifest is null);
-        string winTitle = options.VisibleTest
-            ? $"reStation v{ReStationEngineInfo.Version} \u2014 Visible Live Test | F1 Settings | F3 HUD"
-            : $"reStation v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD";
-        using HostVideoSurface video = runHeadless
-            ? HostVideoSurface.Create($"reStation v{ReStationEngineInfo.Version}", settings, headless: true, foreground: false, logger)
-            : HostVideoSurface.Create(winTitle, settings, headless: false, foreground: true, logger, alwaysOnTop: options.VisibleTest);
-
-        if (needsGate && !RunFirstRunMediaGate(video, sandbox, settings, logger, ref manifest, ref moduleDir, ref discManifest, options))
+        if (needsGate && !RunFirstRunMediaGate(video, env, settings, logger, ref manifest, ref moduleDir, ref discManifest, options))
             return 0;
 
-        if (runHeadless && manifest is not null && discManifest is null)
+        if (isTray && manifest is not null && discManifest is null)
         {
-            logger.Warn("BOOT", "Headless session started without a verified disc image or data\\rom preload; exiting cleanly.");
+            logger.Warn("BOOT", "Tray/background session started without a verified disc image or data\\rom preload; exiting cleanly.");
             PsxTelemetrySnapshot idleSnap = PsxTelemetrySnapshot.Empty with { FrameNumber = 1, ResolutionScale = settings.ResolutionScale, BackendId = video.Backend.BackendId };
             logger.TryHeartbeat(1, 1, idleSnap.ToHeartbeatMetrics(), force: true);
             return 0;
@@ -141,10 +123,11 @@ internal static partial class Program
         {
             ModuleId = "restation-idle", Title = "reStation", DisplayName = "reStation"
         };
-        var cpu = new PsxCpu(settings, sandbox.DataDirectory, video.Backend, logger);
+        var cpu = new PsxCpu(settings, env.DataDirectory, video.Backend, logger);
         if (discManifest is not null) cpu.AttachDisc(discManifest);
 
-        double initialFps = ComputeTargetFps(settings, runHeadless);
+        bool isOffscreen = !video.HasWindow;
+        double initialFps = ComputeTargetFps(settings, isOffscreen);
         using var pacer = new HighResFramePacer(initialFps);
         var hostOptions = new RecompHostOptions
         {
@@ -153,7 +136,7 @@ internal static partial class Program
             ScaleFactor = settings.ResolutionScale,
             EnableHudOverlay = settings.IsFpsOverlayEnabled
         };
-        using var host = new ReStationHost(cpu, effectiveManifest, sandbox.DataDirectory, hostOptions, pacer, logger)
+        using var host = new ReStationHost(cpu, effectiveManifest, env.DataDirectory, hostOptions, pacer, logger)
         {
             CdSectorsPerSecProvider = () => cpu.CdSectorsPerSec
         };
@@ -162,8 +145,8 @@ internal static partial class Program
         ModuleAssemblyLoader? moduleAlc = null;
         if (manifest is not null && moduleDir is not null && !string.IsNullOrWhiteSpace(manifest.EntryAssembly))
         {
-            LocalAotLoadOptions aotOptions = BuildLocalAotLoadOptions(options, sandbox, settings);
-            gameModule = LoadGameModuleWithUiPump(manifest, moduleDir, aotOptions, video, runHeadless, out moduleAlc, out bool quitDuringLoad);
+            LocalAotLoadOptions aotOptions = BuildLocalAotLoadOptions(options, env, settings);
+            gameModule = LoadGameModuleWithUiPump(manifest, moduleDir, aotOptions, video, isOffscreen, out moduleAlc, out bool quitDuringLoad);
             if (quitDuringLoad)
             {
                 GC.KeepAlive(moduleAlc);
@@ -172,17 +155,32 @@ internal static partial class Program
             if (!string.IsNullOrWhiteSpace(moduleAlc?.AotFallbackWarning))
                 logger.Warn("AOT", moduleAlc.AotFallbackWarning);
             cpu.WidescreenProvider = gameModule as IRecompWidescreenProvider;
+            host.QuickSaveProvider = gameModule as IRecompQuickSaveProvider;
             logger.Info("MODULE", $"Loaded '{manifest.ModuleId}' tier={moduleAlc!.ResolvedExecutionTierMode} localAot={moduleAlc.LoadedFromLocalAotCache} cacheHit={moduleAlc.AotCacheHit} zeroRwx={moduleAlc.ForceZeroRwx} bringup={moduleAlc.JitBringupEnabled}.");
             gameModule.InitializeAsync(host, CancellationToken.None).GetAwaiter().GetResult();
         }
 
-        int loopExit = RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, sandbox, settings, pacer, logger);
+        if (options.JitBringup)
+        {
+            string bringupPath = !string.IsNullOrWhiteSpace(options.ProfilePath)
+                ? Path.GetFullPath(options.ProfilePath)
+                : AotCacheLayoutHelper.ResolveBringupProfilePath(
+                    env.DataDirectory,
+                    effectiveManifest.ModuleId,
+                    moduleAlc?.CacheVersionSegment ?? effectiveManifest.Version);
+            cpu.BringupRecorder = new JitBringupRecorder(
+                effectiveManifest.ModuleId,
+                moduleAlc?.ResolvedExecutionTierMode ?? ReStationExecutionTierModes.JitBringup,
+                bringupProfilePath: bringupPath);
+        }
+
+        int loopExit = RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, env, settings, pacer, logger);
         GC.KeepAlive(moduleAlc);
         return loopExit;
     }
 
     private static LocalAotLoadOptions BuildLocalAotLoadOptions(
-        CliOptions options, SandboxEnvironment sandbox, RecompSettings settings)
+        CliOptions options, AppEnvironment env, RecompSettings settings)
     {
         string? preloadDir = null;
         if (!string.IsNullOrWhiteSpace(options.PreloadMediaPath))
@@ -199,7 +197,7 @@ internal static partial class Program
             ? null
             : Path.GetFullPath(options.ProfilePath);
         return new LocalAotLoadOptions(
-            DataDir: sandbox.DataDirectory,
+            DataDir: env.DataDirectory,
             PreloadRomDir: preloadDir,
             JitBringup: options.JitBringup,
             ForceZeroRwx: options.ForceZeroRwx,
@@ -216,23 +214,12 @@ internal static partial class Program
         return null;
     }
 
-    internal static void ValidateSandboxContainment(CliOptions options, SandboxEnvironment sandbox)
-    {
-        if (!sandbox.TestMode) return;
-        string boundary = CliOptions.ResolveSandboxBoundary(sandbox);
-        foreach (string? raw in new[] { options.DiscPath, options.PreloadMediaPath, options.FixturePath, options.DumpScreenshotPath, options.InputScriptPath, options.ProfilePath })
-        {
-            if (!string.IsNullOrWhiteSpace(raw))
-                _ = SandboxEnvironment.AssertPathContained(Path.GetFullPath(raw), boundary);
-        }
-    }
-
-    private static bool IsSandboxViolation(string? message) =>
+    private static bool IsContainmentViolation(string? message) =>
         !string.IsNullOrWhiteSpace(message) &&
-        (message.Contains("Sandbox Violation", StringComparison.OrdinalIgnoreCase) ||
-         message.Contains("Containment Violation", StringComparison.OrdinalIgnoreCase));
+        (message.Contains("Containment Violation", StringComparison.OrdinalIgnoreCase) ||
+         message.Contains("Path traversal blocked", StringComparison.OrdinalIgnoreCase));
 
-    private static int TryResolveAndIngestMedia(CliOptions options, SandboxEnvironment sandbox, RecompSettings settings,
+    private static int TryResolveAndIngestMedia(CliOptions options, AppEnvironment env, RecompSettings settings,
         ReStationModuleManifest? manifest, string? moduleDir, ReStationLogger logger, ref DiscManifest? discManifest)
     {
         string? candidateMedia = ResolveMediaCandidate(options, manifest, moduleDir, discManifest);
@@ -250,11 +237,11 @@ internal static partial class Program
         if (manifest is null)
         {
             var opts = new MediaExtractionOptions(AppContext.BaseDirectory, CopyDirectMediaToDestination: false, ComputeSha256: false);
-            MediaExtractionResult verify = MediaContainerExtractor.ExtractOrVerifyAsync(fullMedia, sandbox.DataDirectory, opts).GetAwaiter().GetResult();
+            MediaExtractionResult verify = MediaContainerExtractor.ExtractOrVerifyAsync(fullMedia, env.DataDirectory, opts).GetAwaiter().GetResult();
             if (!verify.Success)
             {
-                bool containment = sandbox.TestMode && IsSandboxViolation(verify.DiagnosticMessage);
-                logger.Error(containment ? "SANDBOX" : "DISC", verify.DiagnosticMessage);
+                bool containment = IsContainmentViolation(verify.DiagnosticMessage);
+                logger.Error(containment ? "CONTAINMENT" : "DISC", verify.DiagnosticMessage);
                 Console.Error.WriteLine(verify.DiagnosticMessage);
                 return containment ? 3 : 4;
             }
@@ -263,26 +250,26 @@ internal static partial class Program
         }
 
         DiscIngestResult ingest = DiscVerifierAndExtractor
-            .IngestAsync(fullMedia, sandbox.DataDirectory, manifest, logger, AppContext.BaseDirectory)
+            .IngestAsync(fullMedia, env.DataDirectory, manifest, logger, AppContext.BaseDirectory)
             .GetAwaiter().GetResult();
         if (!ingest.Success)
         {
-            bool containment = sandbox.TestMode && IsSandboxViolation(ingest.Message);
-            logger.Error(containment ? "SANDBOX" : "DISC", ingest.Message);
+            bool containment = IsContainmentViolation(ingest.Message);
+            logger.Error(containment ? "CONTAINMENT" : "DISC", ingest.Message);
             Console.Error.WriteLine(ingest.Message);
             return containment ? 3 : 4;
         }
 
         discManifest = ingest.Manifest;
         settings.LastDiscPath = Path.GetFileName(fullMedia);
-        settings.Save(sandbox.ConfigFilePath);
+        settings.Save(env.ConfigFilePath);
         return 0;
     }
 
-    private static int RunVerify(CliOptions options, SandboxEnvironment sandbox, RecompSettings settings,
+    private static int RunVerify(CliOptions options, AppEnvironment env, RecompSettings settings,
         ReStationModuleManifest? manifest, string? moduleDir, ReStationLogger logger)
     {
-        DiscManifest? disc = DiscManifest.TryLoad(sandbox.DataDirectory);
+        DiscManifest? disc = DiscManifest.TryLoad(env.DataDirectory);
         string? candidate = ResolveMediaCandidate(options, manifest, moduleDir, disc);
         bool cliMediaExists = !string.IsNullOrWhiteSpace(candidate) && File.Exists(Path.GetFullPath(candidate));
         bool ok = disc is not null || cliMediaExists;
@@ -301,6 +288,6 @@ internal static partial class Program
         return ok ? 0 : 1;
     }
 
-    private static double ComputeTargetFps(RecompSettings settings, bool headless) =>
-        headless ? 0.0 : settings.FrameRateMode == FrameRateMode.Original ? 60.0 : settings.TargetFps <= 0 ? 0.0 : settings.TargetFps;
+    private static double ComputeTargetFps(RecompSettings settings, bool isOffscreen) =>
+        isOffscreen ? 0.0 : settings.FrameRateMode == FrameRateMode.Original ? 60.0 : settings.TargetFps <= 0 ? 0.0 : settings.TargetFps;
 }

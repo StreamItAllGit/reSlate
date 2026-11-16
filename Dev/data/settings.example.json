@@ -4,7 +4,7 @@
   "installProfile": "lightweight",
   "reEngineInstallDir": "%LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine\\reEngine",
   "suiteInstallDir": "%LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine",
-  "umbrellaSubpath": "StreamItAll\\reEngine\\engines\\reStation\\v0.2.6",
+  "umbrellaSubpath": "StreamItAll\\reEngine\\engines\\reStation\\v0.2.6-hf.1",
   "decompSchemaVersion": "1.0.0",
   "goalDecompTier": "D3",
   "executionTierMode": "aotWithJitFallback",

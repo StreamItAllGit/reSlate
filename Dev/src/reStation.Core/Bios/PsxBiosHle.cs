@@ -44,6 +44,7 @@ public sealed partial class PsxBiosHle
     {
         _cpu = cpu ?? throw new ArgumentNullException(nameof(cpu));
         MemCard = new MemCardMcrStore(dataDir, cardIdentity);
+        EnsureKernelTables();
     }
 
     public MemCardMcrStore MemCard { get; }
@@ -95,6 +96,7 @@ public sealed partial class PsxBiosHle
         if (copyLen <= 0) return false;
         Array.Copy(exe, 0x800, _cpu.Bus.Ram, (int)tAddr, copyLen);
         _cpu.Bus.NotifyRamWriteRange(tAddr, (uint)copyLen);
+        _cpu.ClearBringupBlockCache();
         _lastLoadedExeName = NormalizeDiscPath(discName);
         return true;
     }
@@ -190,14 +192,20 @@ public sealed partial class PsxBiosHle
             case 0x40 or 0x41: MemCard.Format(); _cpu.R[2] = 1; break;
             case 0x45: _cpu.R[2] = MemCard.Erase(ReadCString(_cpu.R[4])) ? 1U : 0U; break;
             case 0x4A or 0x4B or 0x55 or 0x5B: _cpu.R[2] = 1; break;
-            case 0x4C or 0x4E or 0x4F or 0x56: DeliverCardIoEnd(); _cpu.R[2] = 1; break;
+            case 0x4C or 0x4E or 0x4F: DeliverCardIoEnd(); _cpu.R[2] = 1; break;
+            case 0x56: EnsureKernelTables(); _cpu.R[2] = C0TableAddr; break;
             default: _cpu.R[2] = 0; break;
         }
     }
 
     private void HandleC0(uint fn)
     {
-        if (fn == 0x0AU) _cpu.R[2] = 1;
+        switch (fn)
+        {
+            case 0x02U: SysEnqIntRp(_cpu.R[4], _cpu.R[5]); _cpu.R[2] = 1U; break;
+            case 0x03U: SysDeqIntRp(_cpu.R[4], _cpu.R[5]); _cpu.R[2] = 1U; break;
+            case 0x0AU: _cpu.R[2] = 1U; break;
+        }
     }
 
     private static ushort SwapPadBytes(ushort raw) => (ushort)((raw << 8) | (raw >> 8));

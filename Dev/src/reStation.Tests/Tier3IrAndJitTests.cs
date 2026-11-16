@@ -171,8 +171,8 @@ public sealed class Tier3IrAndJitTests : IDisposable
     [Fact]
     public void PlayerLoopExitCodeAndLauncherSyncWait_PreserveJitBringupExitCode5()
     {
-        Assert.Equal(JitBringupRecorder.SpinWatchdogExitCode, reStation.Player.Program.ResolveLoopExitCode(null, preservedExitCode: JitBringupRecorder.SpinWatchdogExitCode));
-        Assert.Equal(0, reStation.Player.Program.ResolveLoopExitCode(null, preservedExitCode: 0));
+        Assert.Equal(JitBringupRecorder.SpinWatchdogExitCode, reStation.Player.Program.ResolveLoopExitCode(preservedExitCode: JitBringupRecorder.SpinWatchdogExitCode));
+        Assert.Equal(0, reStation.Player.Program.ResolveLoopExitCode(preservedExitCode: 0));
         Assert.True(reStation.Launcher.LauncherArgsHelper.RequiresSyncWait(["--jit-bringup"]));
     }
 }

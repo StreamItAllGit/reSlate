@@ -35,12 +35,12 @@ public sealed class CliAndSettingsTests : IDisposable
             "--target-fps", "120",
             "--vsync", "on",
             "--frames", "180",
-            "--fixture", "boot.json",
+            "--port", "19420",
             "--dump-screenshot", "frame.png",
             "--data-dir", _tempRoot,
             "--config", Path.Combine(_tempRoot, "custom.json"),
             "--log-dir", Path.Combine(_tempRoot, "logs"),
-            "--test-mode", "--headless", "--visible-test", "--verify",
+            "--tray-only", "--dry-run", "--verify",
             "--open-settings", "--enable-logs", "--show-fps", "--version", "--help"
         });
 
@@ -52,10 +52,10 @@ public sealed class CliAndSettingsTests : IDisposable
         Assert.Equal(120, parsed.TargetFps);
         Assert.True(parsed.Vsync);
         Assert.Equal(180, parsed.MaxFrames);
-        Assert.Equal("boot.json", parsed.FixturePath);
+        Assert.Equal(19420, parsed.Port);
         Assert.Equal("frame.png", parsed.DumpScreenshotPath);
         Assert.Equal(_tempRoot, parsed.DataDir);
-        Assert.True(parsed.TestMode && parsed.Headless && parsed.VisibleTest && parsed.VerifyOnly);
+        Assert.True(parsed.TrayOnly && parsed.DryRun && parsed.VerifyOnly);
         Assert.True(parsed.OpenSettings && parsed.EnableLogs && parsed.ShowFps && parsed.ShowVersion && parsed.ShowHelp);
         Assert.Contains("--version", CliOptions.HelpText, StringComparison.Ordinal);
     }
@@ -174,60 +174,53 @@ public sealed class CliAndSettingsTests : IDisposable
     }
 
     [Fact]
-    public void CliOptions_TestModeAndLogger_EnforceSandboxContainmentAndWriteLogs()
+    public void CliOptions_EnvironmentAndLogger_WriteLogsAndRejectTraversal()
     {
-        string dataRoot = Path.Combine(_tempRoot, "sandbox_data");
+        string dataRoot = Path.Combine(_tempRoot, "isolated_data");
         string escapedLogDir = Path.Combine(_tempRoot, "outside_logs");
         Directory.CreateDirectory(dataRoot);
         Directory.CreateDirectory(escapedLogDir);
 
-        Assert.ThrowsAny<Exception>(() =>
-            CliOptions.Parse(new[] { "--test-mode", "--data-dir", dataRoot, "--log-dir", escapedLogDir }).CreateSandbox());
-        Assert.ThrowsAny<Exception>(() =>
-            CliOptions.Parse(new[] { "--test-mode" }).CreateSandbox());
+        Assert.ThrowsAny<Exception>(() => AppEnvironment.AssertPathContained(escapedLogDir, dataRoot));
 
         string containedLogs = Path.Combine(dataRoot, "logs");
-        SandboxEnvironment sbx = CliOptions.Parse(new[] { "--test-mode", "--data-dir", dataRoot, "--log-dir", containedLogs }).CreateSandbox();
-        Assert.Equal(Path.GetFullPath(containedLogs), Path.GetFullPath(sbx.LogDirectory));
+        AppEnvironment env = CliOptions.Parse(new[] { "--data-dir", dataRoot, "--log-dir", containedLogs, "--tray-only", "--port", "19421" }).CreateEnvironment();
+        Assert.Equal(Path.GetFullPath(containedLogs), Path.GetFullPath(env.LogDirectory));
+        Assert.Equal(19421, env.PortOverride);
+        Assert.Equal(UiPresentationMode.TrayOrBackground, env.PresentationMode);
 
-        using var validLogger = new ReStationLogger(sbx.LogDirectory, enabled: true);
+        using var validLogger = new ReStationLogger(env.LogDirectory, enabled: true);
         validLogger.Info("TEST", "Heartbeat ok");
         Assert.True(File.Exists(validLogger.LogFilePath));
     }
 
     [Fact]
-    public void CliOptions_TestMode_AllowsSiblingSandboxDataAndLogs_WhileRejectingEscape()
+    public void CliOptions_IsolatedOverrides_ResolveContainedPathsAndRejectEscape()
     {
-        string sbxRoot = Path.Combine(_tempRoot, "Sandbox");
-        string sbxData = Path.Combine(sbxRoot, "data");
-        string sbxLogs = Path.Combine(sbxRoot, "logs");
+        string isoRoot = Path.Combine(_tempRoot, "isolated_root");
+        string isoData = Path.Combine(isoRoot, "data");
+        string isoLogs = Path.Combine(isoRoot, "logs");
+        string isoCfg = Path.Combine(isoRoot, "custom.json");
         string escapedLogs = Path.Combine(_tempRoot, "outside_logs");
         string escapedCfg = Path.Combine(_tempRoot, "outside_settings.json");
 
-        SandboxEnvironment sbx = CliOptions.Parse(new[]
+        AppEnvironment env = CliOptions.Parse(new[]
         {
-            "--test-mode", "--data-dir", sbxData, "--log-dir", sbxLogs
-        }).CreateSandbox();
-        Assert.Equal(Path.GetFullPath(sbxData), Path.GetFullPath(sbx.DataDirectory));
-        Assert.Equal(Path.GetFullPath(sbxLogs), Path.GetFullPath(sbx.LogDirectory));
-        Assert.Equal(Path.GetFullPath(Path.Combine(sbxData, "settings.json")), Path.GetFullPath(sbx.ConfigFilePath));
+            "--data-dir", isoData, "--log-dir", isoLogs, "--config", isoCfg
+        }).CreateEnvironment();
+        Assert.Equal(Path.GetFullPath(isoData), Path.GetFullPath(env.DataDirectory));
+        Assert.Equal(Path.GetFullPath(isoLogs), Path.GetFullPath(env.LogDirectory));
+        Assert.Equal(Path.GetFullPath(isoCfg), Path.GetFullPath(env.ConfigFilePath));
 
-        string runData = Path.Combine(_tempRoot, "run1", "data");
-        string runLogs = Path.Combine(_tempRoot, "run1", "logs");
-        SandboxEnvironment runSbx = CliOptions.Parse(new[]
-        {
-            "--test-mode", "--data-dir", runData, "--log-dir", runLogs
-        }).CreateSandbox();
-        Assert.Equal(Path.GetFullPath(runLogs), Path.GetFullPath(runSbx.LogDirectory));
+        string contained = AppEnvironment.AssertPathContained(Path.Combine(isoData, "saves", "slot1.dat"), isoRoot);
+        Assert.StartsWith(Path.GetFullPath(isoRoot), contained, StringComparison.OrdinalIgnoreCase);
 
-        Assert.Throws<InvalidOperationException>(() =>
-            CliOptions.Parse(new[] { "--test-mode", "--data-dir", sbxData, "--log-dir", escapedLogs }).CreateSandbox());
-        Assert.Throws<InvalidOperationException>(() =>
-            CliOptions.Parse(new[] { "--test-mode", "--data-dir", sbxData, "--config", escapedCfg }).CreateSandbox());
+        Assert.ThrowsAny<Exception>(() => AppEnvironment.AssertPathContained(escapedLogs, isoRoot));
+        Assert.ThrowsAny<Exception>(() => AppEnvironment.AssertPathContained(escapedCfg, isoRoot));
     }
 
     [Fact]
-    public void PlayerProcess_RelativeSandboxArgs_PreservesWorkingDirAndCapturesRedirectedStderr()
+    public void PlayerProcess_RelativeIsolatedArgs_PreservesWorkingDirAndCapturesRedirectedStderr()
     {
         string playerExe = Path.Combine(AppContext.BaseDirectory, "reStation.Player.exe");
         Assert.True(File.Exists(playerExe), $"Missing test target: {playerExe}");
@@ -241,7 +234,8 @@ public sealed class CliAndSettingsTests : IDisposable
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        foreach (string a in new[] { "--test-mode", "--headless", "--frames", "1", "--data-dir", "Sandbox\\data", "--log-dir", "Sandbox\\logs" })
+        okPsi.Environment["APP_ISOLATED_TEST"] = "1";
+        foreach (string a in new[] { "--tray-only", "--frames", "1", "--data-dir", "isolated\\data", "--log-dir", "isolated\\logs" })
             okPsi.ArgumentList.Add(a);
 
         using (Process okProc = Process.Start(okPsi)!)
@@ -251,7 +245,7 @@ public sealed class CliAndSettingsTests : IDisposable
             okProc.WaitForExit();
             Assert.True(okProc.ExitCode == 0, $"Expected exit 0, got {okProc.ExitCode}. out='{okOut}' err='{okErr}'");
         }
-        Assert.True(File.Exists(Path.Combine(_tempRoot, "Sandbox", "logs", "runtime.log")));
+        Assert.True(File.Exists(Path.Combine(_tempRoot, "isolated", "logs", "runtime.log")));
 
         var badPsi = new ProcessStartInfo
         {
@@ -261,23 +255,24 @@ public sealed class CliAndSettingsTests : IDisposable
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        foreach (string a in new[] { "--test-mode", "--data-dir", "Sandbox\\data", "--log-dir", "outside_logs" })
+        badPsi.Environment["APP_ISOLATED_TEST"] = "1";
+        foreach (string a in new[] { "--tray-only", "--disc", "missing.bin", "--data-dir", "isolated\\data", "--log-dir", "isolated\\logs" })
             badPsi.ArgumentList.Add(a);
 
         using Process badProc = Process.Start(badPsi)!;
         _ = badProc.StandardOutput.ReadToEnd();
         string badErr = badProc.StandardError.ReadToEnd();
         badProc.WaitForExit();
-        Assert.Equal(3, badProc.ExitCode);
-        Assert.Contains("Fail-Closed Sandbox Violation", badErr, StringComparison.Ordinal);
+        Assert.Equal(4, badProc.ExitCode);
+        Assert.Contains("Media file not found", badErr, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CliOptions_HelpTextAndEngineInfo_Reflect020Track()
     {
-        Assert.Equal("0.2.6", ReStationEngineInfo.Version);
+        Assert.Equal("0.2.6-hf.1", ReStationEngineInfo.Version);
         Assert.Equal("0.2.x", ReStationEngineInfo.CompatibleEngineTrack);
-        Assert.Contains("reStation v0.2.6", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Contains("reStation v0.2.6-hf.1", CliOptions.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]

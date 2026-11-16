@@ -33,7 +33,7 @@ public sealed class PsxDecompAndSlaTests : IDisposable
         var provider = new PsxDecompPlatformProvider();
         Assert.Equal("ps1", provider.PlatformId);
         Assert.Equal("reStation", provider.EngineId);
-        Assert.Equal("0.2.6", provider.MinimumEngineVersion);
+        Assert.Equal("0.2.6-hf.1", provider.MinimumEngineVersion);
         Assert.Equal("MIPS:LE:32:R3000A_GTE", provider.SleighLanguageId);
 
         string slaSpec = PsxGteSlaExtension.LoadSlaSpecText();
@@ -195,7 +195,7 @@ public sealed class PsxDecompAndSlaTests : IDisposable
             PlatformArguments: new Dictionary<string, string> { ["profile"] = "Full", ["invokeGhidra"] = "true" });
         DecompStageResult failTc = await provider.RunDecompAsync(badTcOpts);
         Assert.False(failTc.Success);
-        Assert.Equal("PSX_GHIDRA_HEADLESS_FAILED", failTc.DiagnosticCode);
+        Assert.Equal("PSX_GHIDRA_BATCH_FAILED", failTc.DiagnosticCode);
         Assert.Contains("offline", failTc.Message, StringComparison.OrdinalIgnoreCase);
 
         string dirtyZip = Path.Combine(_tempRoot, "dirty.decomp");

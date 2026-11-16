@@ -19,7 +19,7 @@ namespace reStation.Player;
 internal static unsafe partial class Program
 {
     private static void PumpEvents(HostVideoSurface video, ReStationHost host, PsxCpu cpu, SlideOverSettingsDrawer drawer,
-        UiOverlayPresenter overlay, RecompSettings settings, SandboxEnvironment sandbox, HighResFramePacer pacer, ReStationLogger logger, LoopState st)
+        UiOverlayPresenter overlay, RecompSettings settings, AppEnvironment env, HighResFramePacer pacer, ReStationLogger logger, LoopState st)
     {
         if (!video.SdlAvailable) return;
         byte* ev = stackalloc byte[128];
@@ -36,7 +36,7 @@ internal static unsafe partial class Program
             else if (type == Sdl3Native.EventGamepadButtonDown && drawer.IsOpen && drawer.ActiveTab == 2 && drawer.KeybindsTab.IsListening)
             {
                 int gpCode = GamepadBindingCode.FromSdlButtonIndex(Sdl3Native.EventGamepadButton(ev));
-                if (gpCode != GamepadBindingCode.None && drawer.TryHandleGamepadCapture(gpCode, settings, sandbox.ConfigFilePath))
+                if (gpCode != GamepadBindingCode.None && drawer.TryHandleGamepadCapture(gpCode, settings, env.ConfigFilePath))
                 {
                     overlay.MarkDirty(); st.UiDirty = true;
                 }
@@ -54,7 +54,7 @@ internal static unsafe partial class Program
                     if (drawer.KeybindsTab.IsListening)
                     {
                         int wheelCode = wy > 0f ? KeyBindingsConfig.MouseWheelUp : wy < 0f ? KeyBindingsConfig.MouseWheelDown : 0;
-                        if (wheelCode != 0 && drawer.TryHandleMouseCapture(wheelCode, settings, sandbox.ConfigFilePath))
+                        if (wheelCode != 0 && drawer.TryHandleMouseCapture(wheelCode, settings, env.ConfigFilePath))
                         {
                             overlay.MarkDirty(); st.UiDirty = true;
                         }
@@ -73,7 +73,7 @@ internal static unsafe partial class Program
             else if (type == Sdl3Native.EventKeyDown)
             {
                 int sc = Sdl3Native.EventScancode(ev);
-                if (drawer.IsOpen && drawer.TryHandleKeyCapture(sc, settings, sandbox.ConfigFilePath)) { overlay.MarkDirty(); st.UiDirty = true; continue; }
+                if (drawer.IsOpen && drawer.TryHandleKeyCapture(sc, settings, env.ConfigFilePath)) { overlay.MarkDirty(); st.UiDirty = true; continue; }
                 if (drawer.IsOpen && drawer.ActiveTab == 2 && !drawer.KeybindsTab.IsListening)
                 {
                     if (sc == Sdl3Native.ScPgUp && drawer.TryScrollKeybinds(-KeybindsDrawerTab.VisibleModernRows)) { overlay.MarkDirty(); st.UiDirty = true; continue; }
@@ -91,7 +91,7 @@ internal static unsafe partial class Program
                 else if (sc == Sdl3Native.ScF3)
                 {
                     settings.IsFpsOverlayEnabled = !settings.IsFpsOverlayEnabled;
-                    settings.Save(sandbox.ConfigFilePath);
+                    settings.Save(env.ConfigFilePath);
                     overlay.MarkDirty(); st.UiDirty = true;
                 }
                 else if (sc == Sdl3Native.ScEsc)
@@ -118,7 +118,7 @@ internal static unsafe partial class Program
                 if (drawer.IsOpen && drawer.ActiveTab == 2 && drawer.KeybindsTab.IsListening)
                 {
                     int captureCode = Sdl3Native.SdlButtonToBindingCode(btn);
-                    if (captureCode != 0 && drawer.TryHandleMouseCapture(captureCode, settings, sandbox.ConfigFilePath))
+                    if (captureCode != 0 && drawer.TryHandleMouseCapture(captureCode, settings, env.ConfigFilePath))
                     {
                         overlay.MarkDirty(); st.UiDirty = true; continue;
                     }
@@ -128,7 +128,7 @@ internal static unsafe partial class Program
                 (int winW, int winH) = video.GetWindowSize();
                 (float mx, float my) = Sdl3Native.EventMousePosition(ev);
                 (int ox, int oy) = UiOverlayPresenter.WindowToOverlayCoords(mx, my, winW, winH);
-                DrawerAction act = drawer.HandleClick(ox, oy, settings, sandbox.ConfigFilePath, isRightClick);
+                DrawerAction act = drawer.HandleClick(ox, oy, settings, env.ConfigFilePath, isRightClick);
                 if (act != DrawerAction.None)
                 {
                     video.Backend.ScaleFactor = settings.ResolutionScale;
@@ -136,22 +136,22 @@ internal static unsafe partial class Program
                     int targetFps = settings.FrameRateMode == FrameRateMode.Original ? 60 : settings.TargetFps;
                     bool unlockFps = settings.FrameRateMode == FrameRateMode.Enhanced && settings.TargetFps <= 0;
                     host.SetTargetFps(targetFps, unlockFps);
-                    pacer.TargetFps = ComputeTargetFps(settings, st.RunHeadless);
+                    pacer.TargetFps = ComputeTargetFps(settings, st.IsOffscreen);
                     overlay.MarkDirty();
                     st.UiDirty = true;
                 }
                 if (act == DrawerAction.ToggleFullscreen) video.SetFullscreen(settings.IsFullscreen);
                 else if (act == DrawerAction.ToggleVsync) video.SetVsync(settings.IsVsyncEnabled);
                 else if (act == DrawerAction.ToggleBackend) st.PendingBackendSwitch = settings.BackendId;
-                else if (act == DrawerAction.ToggleRuntimeLogging) logger.SetEnabled(settings.ShouldEnableRuntimeLogs || sandbox.TestMode);
+                else if (act == DrawerAction.ToggleRuntimeLogging) logger.SetEnabled(settings.ShouldEnableRuntimeLogs);
                 else if (act == DrawerAction.QuickSave) host.RequestQuickSave(0);
                 else if (act == DrawerAction.QuickLoad) host.RequestQuickLoad(0);
                 else if (act == DrawerAction.ChangeDisc && Sdl3Native.ShowOpenFileDialog("Select PS1 Disc Image", Sdl3Native.DiscImageFilter) is { } dp)
-                    AttachDiscFromPath(dp, cpu, sandbox, settings, host, st, logger);
+                    AttachDiscFromPath(dp, cpu, env, settings, host, st, logger);
                 else if (act == DrawerAction.ChangeModule && Sdl3Native.ShowOpenFileDialog("Select .recomp Module", Sdl3Native.ModuleFilter) is { } mp)
                 {
                     settings.LastModulePath = Path.GetFileName(mp);
-                    settings.Save(sandbox.ConfigFilePath);
+                    settings.Save(env.ConfigFilePath);
                     logger.Info("MODULE", $"Selected next-launch module '{Path.GetFileName(mp)}'.");
                 }
                 else if (act == DrawerAction.None && !isRightClick && btn == Sdl3Native.MouseBtnLeft && !wasOpen && !drawer.IsOpen && !st.MouseCaptured)
@@ -163,15 +163,15 @@ internal static unsafe partial class Program
             }
             else if (type == Sdl3Native.EventDropFile && Sdl3Native.EventDropPath(ev) is { } dropped)
             {
-                AttachDiscFromPath(dropped, cpu, sandbox, settings, host, st, logger);
+                AttachDiscFromPath(dropped, cpu, env, settings, host, st, logger);
             }
         }
 
-        PollControllerTriggerCapture(drawer, overlay, settings, sandbox, st);
+        PollControllerTriggerCapture(drawer, overlay, settings, env, st);
     }
 
     private static void PollControllerTriggerCapture(
-        SlideOverSettingsDrawer drawer, UiOverlayPresenter overlay, RecompSettings settings, SandboxEnvironment sandbox, LoopState st)
+        SlideOverSettingsDrawer drawer, UiOverlayPresenter overlay, RecompSettings settings, AppEnvironment env, LoopState st)
     {
         uint trig = st.Gamepad != IntPtr.Zero
             ? ((Sdl3Native.SDL_GetGamepadAxis(st.Gamepad, 4) >= 13107 ? 1u : 0u)
@@ -181,39 +181,37 @@ internal static unsafe partial class Program
         st.PrevCaptureTriggerMask = trig;
         if (!drawer.IsOpen || drawer.ActiveTab != 2 || !drawer.KeybindsTab.IsListening || drawer.KeybindsTab.ListeningSlotIndex != 3)
             return;
-        if ((edge & 1u) != 0 && drawer.TryHandleGamepadCapture(GamepadBindingCode.LT, settings, sandbox.ConfigFilePath))
+        if ((edge & 1u) != 0 && drawer.TryHandleGamepadCapture(GamepadBindingCode.LT, settings, env.ConfigFilePath))
         {
             overlay.MarkDirty(); st.UiDirty = true;
         }
-        else if ((edge & 2u) != 0 && drawer.TryHandleGamepadCapture(GamepadBindingCode.RT, settings, sandbox.ConfigFilePath))
+        else if ((edge & 2u) != 0 && drawer.TryHandleGamepadCapture(GamepadBindingCode.RT, settings, env.ConfigFilePath))
         {
             overlay.MarkDirty(); st.UiDirty = true;
         }
     }
 
-    private static void AttachDiscFromPath(string discPath, PsxCpu cpu, SandboxEnvironment sandbox,
+    private static void AttachDiscFromPath(string discPath, PsxCpu cpu, AppEnvironment env,
         RecompSettings settings, ReStationHost host, LoopState st, ReStationLogger logger)
     {
-        DiscIngestResult r = DiscVerifierAndExtractor.IngestAsync(discPath, sandbox.DataDirectory, host.ModuleManifest, logger, AppContext.BaseDirectory).GetAwaiter().GetResult();
+        DiscIngestResult r = DiscVerifierAndExtractor.IngestAsync(discPath, env.DataDirectory, host.ModuleManifest, logger, AppContext.BaseDirectory).GetAwaiter().GetResult();
         if (!r.Success || r.Manifest is null) return;
         cpu.AttachDisc(r.Manifest);
         st.DiscInfo = $"{r.Manifest.SerialNumber} ({r.Manifest.Files.Count} files)";
         settings.LastDiscPath = Path.GetFileName(discPath);
-        settings.Save(sandbox.ConfigFilePath);
+        settings.Save(env.ConfigFilePath);
     }
     private static bool RunFirstRunMediaGate(
-        HostVideoSurface video, SandboxEnvironment sandbox, RecompSettings settings, ReStationLogger logger,
+        HostVideoSurface video, AppEnvironment env, RecompSettings settings, ReStationLogger logger,
         ref ReStationModuleManifest? manifest, ref string? moduleDir, ref DiscManifest? discManifest, CliOptions options)
     {
         var view = new FirstRunMediaGateView();
         byte* ev = stackalloc byte[128];
         int frames = 0;
-        int? gateMaxFrames = options.MaxFrames ?? (options.VisibleTest ? 120 : null);
+        int? gateMaxFrames = options.MaxFrames;
         string? gateShot = !string.IsNullOrWhiteSpace(options.DumpScreenshotPath)
             ? Path.GetFullPath(options.DumpScreenshotPath)
-            : options.VisibleTest
-                ? Path.Combine(sandbox.LogDirectory, "screenshots", "visible-test.png")
-                : null;
+            : null;
 
         while (true)
         {
@@ -233,20 +231,20 @@ internal static unsafe partial class Program
                     if (type == Sdl3Native.EventMouseMotion) { view.HoverDisc = hitDisc; view.HoverModule = hitMod; }
                     else if (hitMod && Sdl3Native.ShowOpenFileDialog("Select .recomp Module", Sdl3Native.ModuleFilter) is { } mp)
                     {
-                        TryLoadGateModule(mp, ref manifest, ref moduleDir, view, settings, sandbox.ConfigFilePath, logger);
+                        TryLoadGateModule(mp, ref manifest, ref moduleDir, view, settings, env.ConfigFilePath, logger);
                     }
                     else if (hitDisc && Sdl3Native.ShowOpenFileDialog("Select PS1 Disc Image", Sdl3Native.DiscImageFilter) is { } dp)
                     {
-                        if (TryIngestGateDisc(dp, manifest, sandbox, settings, view, logger, out discManifest)) return true;
+                        if (TryIngestGateDisc(dp, manifest, env, settings, view, logger, out discManifest)) return true;
                     }
                 }
                 else if (type == Sdl3Native.EventDropFile && Sdl3Native.EventDropPath(ev) is { } dropped)
                 {
                     if (dropped.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || dropped.EndsWith(".recomp", StringComparison.OrdinalIgnoreCase))
                     {
-                        TryLoadGateModule(dropped, ref manifest, ref moduleDir, view, settings, sandbox.ConfigFilePath, logger);
+                        TryLoadGateModule(dropped, ref manifest, ref moduleDir, view, settings, env.ConfigFilePath, logger);
                     }
-                    else if (TryIngestGateDisc(dropped, manifest, sandbox, settings, view, logger, out discManifest))
+                    else if (TryIngestGateDisc(dropped, manifest, env, settings, view, logger, out discManifest))
                     {
                         return true;
                     }
@@ -255,7 +253,7 @@ internal static unsafe partial class Program
 
             if (manifest is not null && discManifest is null && moduleDir is not null &&
                 PreloadRomDetector.Detect(moduleDir, manifest).PrimaryMediaPath is { } preload &&
-                TryIngestGateDisc(preload, manifest, sandbox, settings, view, logger, out discManifest))
+                TryIngestGateDisc(preload, manifest, env, settings, view, logger, out discManifest))
             {
                 return true;
             }
@@ -290,16 +288,16 @@ internal static unsafe partial class Program
         catch (Exception ex) { view.StatusMessage = ex.Message; view.StatusIsError = true; }
     }
 
-    private static bool TryIngestGateDisc(string discPath, ReStationModuleManifest? manifest, SandboxEnvironment sandbox,
+    private static bool TryIngestGateDisc(string discPath, ReStationModuleManifest? manifest, AppEnvironment env,
         RecompSettings settings, FirstRunMediaGateView view, ReStationLogger logger, out DiscManifest? discManifest)
     {
         discManifest = null;
         if (manifest is null) { view.StatusMessage = "Load a .recomp module before ingesting a disc image."; view.StatusIsError = true; return false; }
-        DiscIngestResult res = view.TryIngestAsync(discPath, sandbox.DataDirectory, manifest, logger, CancellationToken.None).GetAwaiter().GetResult();
+        DiscIngestResult res = view.TryIngestAsync(discPath, env.DataDirectory, manifest, logger, CancellationToken.None).GetAwaiter().GetResult();
         if (!res.Success || res.Manifest is null) return false;
         discManifest = res.Manifest;
         settings.LastDiscPath = Path.GetFileName(discPath);
-        settings.Save(sandbox.ConfigFilePath);
+        settings.Save(env.ConfigFilePath);
         return true;
     }
 
@@ -308,12 +306,12 @@ internal static unsafe partial class Program
         string moduleDir,
         LocalAotLoadOptions aotOptions,
         HostVideoSurface video,
-        bool runHeadless,
+        bool isOffscreen,
         out ModuleAssemblyLoader? moduleAlc,
         out bool quitRequested)
     {
         quitRequested = false;
-        if (runHeadless || !video.HasWindow)
+        if (isOffscreen || !video.HasWindow)
             return ModuleAssemblyLoader.LoadGameModule(manifest, moduleDir, aotOptions, out moduleAlc);
 
         ModuleAssemblyLoader? loadedAlc = null;

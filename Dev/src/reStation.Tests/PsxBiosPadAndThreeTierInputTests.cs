@@ -1,5 +1,5 @@
 // @module: reStation.Tests.PsxBiosPadAndThreeTierInputTests
-// @purpose: Verifies PsyQ PAD_init/PAD_dr byte-swapping + Port-2 active-low polarity, 3-tier rebindable input + mouse support, settings.controls.json, and --input-script.
+// @purpose: Verifies PsyQ PAD_init/PAD_dr byte-swapping + Port-2 active-low polarity, 3-tier rebindable input + mouse support, and settings.controls.json.
 // @depends-on: Xunit, System.Text.Json, Foundation.Core, reStation.Contracts, reStation.Core, reStation.Core.Cpu, reStation.Core.Gpu, reStation.Core.Input, reStation.Launcher
 // @exports: PsxBiosPadAndThreeTierInputTests
 // @owner: devv-tests
@@ -146,16 +146,16 @@ public sealed class PsxBiosPadAndThreeTierInputTests : IDisposable
     }
 
     [Fact]
-    public void GlobalControllerProfile_StaysContainedInSandboxAndRoundTripsUnknownJson()
+    public void GlobalControllerProfile_StaysContainedAndRoundTripsUnknownJson()
     {
-        string sbxData = Path.Combine(_tempRoot, "Sandbox", "data");
-        string sbxLogs = Path.Combine(_tempRoot, "Sandbox", "logs");
-        Directory.CreateDirectory(sbxData);
-        Directory.CreateDirectory(sbxLogs);
-        SandboxEnvironment sbx = CliOptions.Parse(["--test-mode", "--data-dir", sbxData, "--log-dir", sbxLogs]).CreateSandbox();
+        string isoData = Path.Combine(_tempRoot, "isolated", "data");
+        string isoLogs = Path.Combine(_tempRoot, "isolated", "logs");
+        Directory.CreateDirectory(isoData);
+        Directory.CreateDirectory(isoLogs);
+        AppEnvironment env = CliOptions.Parse(["--data-dir", isoData, "--log-dir", isoLogs]).CreateEnvironment();
 
-        string resolved = GlobalControllerProfile.ResolvePath(sbx);
-        Assert.Equal(Path.GetFullPath(Path.Combine(sbxData, GlobalControllerProfile.FileName)), Path.GetFullPath(resolved));
+        string resolved = GlobalControllerProfile.ResolvePath(env, hasExplicitDataDir: true);
+        Assert.Equal(Path.GetFullPath(Path.Combine(isoData, GlobalControllerProfile.FileName)), Path.GetFullPath(resolved));
 
         GlobalControllerProfile prof = GlobalControllerProfile.LoadOrDefault(resolved);
         prof.KeyBindings.SetScancode(BindableAction.Square, KeyBindingsConfig.MouseLeft);
@@ -172,54 +172,15 @@ public sealed class PsxBiosPadAndThreeTierInputTests : IDisposable
     }
 
     [Fact]
-    public void InputScriptRunner_AndCliForwarding_EnforceContainmentAndEvaluateRamAssertions()
+    public void CliAndLauncherForwarding_ResolveRelativeMediaArgsAndTraySyncWait()
     {
-        string sbxData = Path.Combine(_tempRoot, "Sandbox", "data");
-        string sbxLogs = Path.Combine(_tempRoot, "Sandbox", "logs");
-        Directory.CreateDirectory(sbxData);
-        Directory.CreateDirectory(sbxLogs);
-        string scriptPath = Path.Combine(sbxLogs, "script.json");
-        string shotPath = Path.Combine(sbxLogs, "cap.png");
-        File.WriteAllText(scriptPath, JsonSerializer.Serialize(new InputScriptSpec
-        {
-            Description = "Smoke hold & assert",
-            HoldFrames = [new InputHoldStep { StartFrame = 1, EndFrame = 3, Keys = ["Space"], MouseButtons = ["lclick"], OpenDrawer = true, DrawerTab = 2 }],
-            Captures = [new InputCaptureStep { Frame = 2, ScreenshotPath = shotPath }],
-            RamAssertions =
-            [
-                new InputRamAssertion { Frame = 2, AddressHex = "0x80199554", MaskHex = "0xFFFF", ExpectedEqualsHex = "0x0040", Label = "CrossDown" },
-                new InputRamAssertion { Frame = 3, AddressHex = "0x80199554", MaskHex = "0xFFFF", ExpectedEqualsHex = "0xFFFF", Label = "IntentionalFail" }
-            ]
-        }));
-
-        string boundary = Path.GetFullPath(Path.Combine(_tempRoot, "Sandbox"));
-        string outsideScript = Path.Combine(_tempRoot, "outside.json");
-        File.WriteAllText(outsideScript, "{}");
-        Assert.Throws<InvalidOperationException>(() => InputScriptRunner.Load(outsideScript, boundary));
-
-        InputScriptRunner runner = InputScriptRunner.Load(scriptPath, boundary);
-        byte[] keys = new byte[KeyBindingsConfig.MaxScancode + 1];
-        runner.ApplyFrame(2, keys, out uint mouseMask, out DrawerScriptCommand drawerCmd, out string? capOut);
-        Assert.Equal(1, keys[44]); // Space scancode
-        Assert.Equal(1u, mouseMask);
-        Assert.True(drawerCmd.Open);
-        Assert.Equal(2, drawerCmd.Tab);
-        Assert.Equal(Path.GetFullPath(shotPath), Path.GetFullPath(capOut!));
-
-        using PsxCpu cpu = CreateCpu();
-        using var logger = new ReStationLogger(sbxLogs, enabled: true);
-        cpu.Bus.Write16(0x80199554U, 0x0040);
-        runner.EvaluateAssertions(2, cpu, logger);
-        Assert.Equal(1, runner.AssertionsPassed);
-        Assert.False(runner.HasFailures);
-
-        runner.EvaluateAssertions(3, cpu, logger);
-        Assert.True(runner.HasFailures);
-
-        CliOptions parsed = CliOptions.Parse(["--input-script", scriptPath]);
-        Assert.Equal(scriptPath, parsed.InputScriptPath);
-        Assert.True(LauncherArgsHelper.RequiresSyncWait(["--input-script", "a.json"]));
-        string[] resolved = LauncherArgsHelper.ResolveRelativePathArgs(["--input-script", "sub\\s.json"], _tempRoot);
-        Assert.Equal(Path.GetFullPath(Path.Combine(_tempRoot, "sub", "s.json")), resolved[1]);
+        string mediaPath = Path.Combine(_tempRoot, "sub", "disc.cue");
+        CliOptions parsed = CliOptions.Parse(["--preload-media", mediaPath, "--tray-only", "--port", "19422"]);
+        Assert.Equal(mediaPath, parsed.PreloadMediaPath);
+        Assert.True(parsed.TrayOnly);
+        Assert.Equal(19422, parsed.Port);
+        Assert.True(LauncherArgsHelper.RequiresSyncWait(["--tray-only", "--preload-media", "a.bin"]));
+        string[] resolved = LauncherArgsHelper.ResolveRelativePathArgs(["--preload-media", "sub\\disc.cue"], _tempRoot);
+        Assert.Equal(Path.GetFullPath(mediaPath), resolved[1]);
     }
 }

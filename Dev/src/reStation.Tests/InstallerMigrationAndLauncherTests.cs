@@ -30,7 +30,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.False(ReStationInstallerTheme.AllowAutoStart);
         Assert.False(reStation.Installer.Program.AllowAutoStart);
         Assert.Equal("lightweight", ReStationInstallerTheme.DefaultInstallProfile);
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reStation\\v0.2.6", ReStationInstallerTheme.UmbrellaSubpath);
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reStation\\v0.2.6-hf.1", ReStationInstallerTheme.UmbrellaSubpath);
 
         InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
         Assert.False(theme.AllowAutoStart);
@@ -51,7 +51,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
             out string? reEngineDir,
             out bool migrateLegacy,
             out bool confirmCleanup,
-            out _, out _, out _, out _, out _, out _, out _, out _);
+            out _, out _, out _, out _, out _, out _);
 
         Assert.Equal("full", profileId);
         Assert.Equal(_tempRoot, reEngineDir);
@@ -63,8 +63,8 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
     [Fact]
     public void LegacyMigrationHelper_PreservesRomAndSettings_AndGatesStrandedCleanup()
     {
-        string sandboxBase = Path.Combine(_tempRoot, "legacy-sbx");
-        string legacyData = Path.Combine(sandboxBase, "legacy-programs", "reEngine", "engines", "reStation", "v0.1.1", "data");
+        string isolatedBase = Path.Combine(_tempRoot, "legacy-isolated");
+        string legacyData = Path.Combine(isolatedBase, "legacy-programs", "reEngine", "engines", "reStation", "v0.1.1", "data");
         string legacyRom = Path.Combine(legacyData, "rom");
         Directory.CreateDirectory(legacyRom);
         File.WriteAllText(Path.Combine(legacyRom, "GAME.BIN"), "rom-bytes");
@@ -75,7 +75,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
 
         // Opt-in migration without --confirm-legacy-cleanup must preserve ROM + settings and NOT delete stranded artifacts.
         LegacyMigrationResult noClean = ReStationLegacyMigrationHelper.TryMigrateLegacyHostArtifacts(
-            targetInstall, testMode: true, sandboxDataDir: sandboxBase, silent: true, headless: true, dryRun: false, confirmCleanupFlag: false);
+            targetInstall, isolated: true, isolatedDataDir: isolatedBase, silent: true, dryRun: false, confirmCleanupFlag: false);
         Assert.True(noClean.MigratedSettings);
         Assert.Equal(1, noClean.PreservedRomFiles);
         Assert.False(noClean.StrandedArtifactsCleaned);
@@ -85,7 +85,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
 
         // Explicit confirmation cleans stranded non-ROM artifacts while leaving legacy data\rom\ intact.
         LegacyMigrationResult withClean = ReStationLegacyMigrationHelper.TryMigrateLegacyHostArtifacts(
-            targetInstall, testMode: true, sandboxDataDir: sandboxBase, silent: true, headless: true, dryRun: false, confirmCleanupFlag: true);
+            targetInstall, isolated: true, isolatedDataDir: isolatedBase, silent: true, dryRun: false, confirmCleanupFlag: true);
         Assert.True(withClean.StrandedArtifactsCleaned);
         Assert.False(File.Exists(Path.Combine(legacyData, "crash-old.json")));
         Assert.True(File.Exists(Path.Combine(legacyRom, "GAME.BIN")));
@@ -103,18 +103,18 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
     public void LauncherArgsHelper_ResolvesPeerReEngineAndSuiteDirs_AndZeroPiiDefaultPath()
     {
         string canonical = LauncherArgsHelper.ResolveCanonicalDefaultEngineDir();
-        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reStation", "v0.2.6"), canonical, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reStation", "v0.2.6-hf.1"), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"D:\Programs", canonical, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("%LOCALAPPDATA%", ReStationInstallerTheme.CreateSecondaryPathPicker().Placeholder, StringComparison.Ordinal);
 
         string peerRouter = Path.Combine(_tempRoot, "suiteA", "reEngine");
-        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reStation", "v0.2.6", "app", "reStation.Player.exe");
+        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reStation", "v0.2.6-hf.1", "app", "reStation.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(peerPlayer)!);
         File.WriteAllText(peerPlayer, string.Empty);
 
-        string[] sanitized = LauncherArgsHelper.SanitizeAndPrepareForwardArgs(["--verify", "--reengine-dir", peerRouter, "--suite-dir=ignored", "--headless"], out string? parsedRe, out string? parsedSuite);
-        Assert.Equal(["--verify", "--headless"], sanitized);
+        string[] sanitized = LauncherArgsHelper.SanitizeAndPrepareForwardArgs(["--verify", "--reengine-dir", peerRouter, "--suite-dir=ignored", "--tray-only"], out string? parsedRe, out string? parsedSuite);
+        Assert.Equal(["--verify", "--tray-only"], sanitized);
         Assert.Equal(peerRouter, parsedRe);
         Assert.Equal("ignored", parsedSuite);
 
@@ -122,7 +122,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.Equal(Path.GetFullPath(peerPlayer), Path.GetFullPath(resolvedPeer));
 
         string portableSuite = Path.Combine(_tempRoot, "portable");
-        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.2.6", "app", "reStation.Player.exe");
+        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.2.6-hf.1", "app", "reStation.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(portablePlayer)!);
         File.WriteAllText(portablePlayer, string.Empty);
 

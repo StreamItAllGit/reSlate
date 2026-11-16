@@ -278,15 +278,15 @@ public sealed partial class ModuleAssemblyLoader : AssemblyLoadContext
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryAssembly);
         string dummyRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "restation-path-check"));
-        SandboxEnvironment.AssertPathContained(Path.Combine(dummyRoot, entryAssembly), dummyRoot);
+        AppEnvironment.AssertPathContained(Path.Combine(dummyRoot, entryAssembly), dummyRoot);
     }
 
     private static string? ResolveDiskEntryAssemblyPath(string entryAssembly, string manifestDirectory)
     {
         string root = Path.GetFullPath(manifestDirectory);
-        string direct = SandboxEnvironment.AssertPathContained(Path.Combine(root, entryAssembly), root);
+        string direct = AppEnvironment.AssertPathContained(Path.Combine(root, entryAssembly), root);
         if (File.Exists(direct)) return direct;
-        string appNested = SandboxEnvironment.AssertPathContained(Path.Combine(root, "app", entryAssembly), root);
+        string appNested = AppEnvironment.AssertPathContained(Path.Combine(root, "app", entryAssembly), root);
         return File.Exists(appNested) ? appNested : null;
     }
 

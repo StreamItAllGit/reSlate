@@ -1,5 +1,5 @@
 // @module: reStation.Tests.CompilerAndModuleLoaderTests
-// @purpose: Verifies MIPS R3000A decoder, MipsLifter single/chunked function emission, DiscExeLoader PS-X EXE validation, RecompCompilerPipeline CLI/run, and ModuleAssemblyLoader sandbox checks.
+// @purpose: Verifies MIPS R3000A decoder, MipsLifter single/chunked function emission, DiscExeLoader PS-X EXE validation, RecompCompilerPipeline CLI/run, and ModuleAssemblyLoader containment checks.
 // @depends-on: Xunit, System.Buffers.Binary, System.Text, reStation.Compiler, reStation.Contracts, reStation.Player
 // @exports: CompilerAndModuleLoaderTests
 // @owner: devv-pkg-test (T8)

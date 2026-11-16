@@ -12,7 +12,11 @@ namespace reStation.Player;
 
 internal sealed partial class ReStationHost
 {
+    private static readonly IReadOnlyDictionary<string, byte[]> EmptyRstxChunks = new Dictionary<string, byte[]>();
     private volatile int _pendingQuickSaveSlot = -1;
+
+    /// <summary>Optional module provider consulted when saving/loading quick-save RSTX chunks.</summary>
+    public IRecompQuickSaveProvider? QuickSaveProvider { get; set; }
 
     /// <summary>Queued quick-save slot executed on the emulation thread at the next VBlank edge (-1 = none).</summary>
     public int PendingQuickSaveSlot
@@ -61,13 +65,17 @@ internal sealed partial class ReStationHost
     }
 
     /// <summary>Saves a quick-save slot atomically using <see cref="QuickSaveManager.SaveToFileWithTrailer"/>.</summary>
-    public void SaveQuickSlot(int slot) =>
+    public void SaveQuickSlot(int slot)
+    {
+        var chunks = new Dictionary<string, byte[]>(QuickSaveTrailer.CaptureDefaultChunks(_cpu), StringComparer.Ordinal);
+        QuickSaveProvider?.CaptureQuickSaveChunks(chunks);
         QuickSaveManager.SaveToFileWithTrailer(
             _cpu,
             QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot),
             ModuleManifest.ModuleId,
-            QuickSaveTrailer.CaptureDefaultChunks(_cpu),
+            chunks,
             _logger);
+    }
 
     /// <summary>Requests a quick-load at the next frame boundary (unwinds lifted code when booted).</summary>
     public bool RequestQuickLoad(int slot)
@@ -85,7 +93,10 @@ internal sealed partial class ReStationHost
     {
         try
         {
-            return QuickSaveManager.LoadFromFile(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), _logger).Success;
+            QuickSaveLoadResult result = QuickSaveManager.LoadFromFile(_cpu, QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot), _logger);
+            if (result.Success)
+                QuickSaveProvider?.OnQuickSaveLoaded(result.RstxChunks ?? EmptyRstxChunks);
+            return result.Success;
         }
         catch (Exception ex) when (ex is InvalidDataException or EndOfStreamException)
         {

@@ -1,5 +1,5 @@
 // @module: reStation.Tests.Hotfix026RegressionTests
-// @purpose: Regression coverage for v0.2.6 data/gamedata AOT media resolution, TryAdvanceToNextVBlank CD-ROM sector wakes, and AOT compiler fallback.
+// @purpose: Regression coverage for v0.2.6-hf.1 data/gamedata AOT media resolution, TryAdvanceToNextVBlank CD-ROM sector wakes, and AOT compiler fallback.
 // @depends-on: Xunit, System.IO.Compression, System.Security.Cryptography, Foundation.Retro, reStation.Contracts, reStation.Core, reStation.Player
 // @exports: Hotfix026RegressionTests
 
@@ -159,9 +159,9 @@ public sealed class Hotfix026RegressionTests : IDisposable
             Title = "Fallback Test",
             DisplayName = "Fallback Test",
             PlatformId = "ps1",
-            Version = "0.2.6",
+            Version = "0.2.6-hf.1",
             EngineId = "reStation",
-            EngineVersion = "0.2.6",
+            EngineVersion = "0.2.6-hf.1",
             CompatibleEngineTrack = "0.2.x",
             EntryAssembly = "reStation.Tests.dll",
             DefaultBootExecutable = "SLUS_001.58",

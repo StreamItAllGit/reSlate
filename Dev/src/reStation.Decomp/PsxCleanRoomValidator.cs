@@ -76,7 +76,7 @@ internal static class PsxCleanRoomValidator
         foreach (ZipArchiveEntry entry in zip.Entries)
         {
             string rel = entry.FullName.Replace('\\', '/');
-            _ = SandboxEnvironment.AssertPathContained(Path.GetFullPath(Path.Combine(virtualRoot, rel.Replace('/', Path.DirectorySeparatorChar))), virtualRoot);
+            _ = AppEnvironment.AssertPathContained(Path.GetFullPath(Path.Combine(virtualRoot, rel.Replace('/', Path.DirectorySeparatorChar))), virtualRoot);
             if (string.IsNullOrEmpty(entry.Name))
                 continue;
 

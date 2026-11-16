@@ -1,6 +1,6 @@
 // @module: reStation.Core.Aot.PlayerMediaResolver
 // @purpose: Resolves clean-room aot-recipe.json and verifies user-supplied data/rom media by SHA-256 without bundling assets.
-// @depends-on: Foundation.Core.SandboxEnvironment, reStation.Contracts.AotRecipeSpec, reStation.Contracts.ReStationModuleManifest
+// @depends-on: Foundation.Core.AppEnvironment, reStation.Contracts.AotRecipeSpec, reStation.Contracts.ReStationModuleManifest
 // @exports: PlayerMediaResolver, ResolvedPlayerMedia, MediaInputKind
 
 using System.IO.Compression;
@@ -84,7 +84,7 @@ public static class PlayerMediaResolver
         else
         {
             string root = Path.GetFullPath(manifestDirectory);
-            string fullPath = SandboxEnvironment.AssertPathContained(Path.Combine(root, relPath), root);
+            string fullPath = AppEnvironment.AssertPathContained(Path.Combine(root, relPath), root);
             if (!File.Exists(fullPath))
                 throw new FileNotFoundException($"AOT recipe file '{fullPath}' not found.", fullPath);
             jsonText = File.ReadAllText(fullPath, Encoding.UTF8);
@@ -267,7 +267,7 @@ public static class PlayerMediaResolver
             .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         if (!normalizedRel.Contains("..", StringComparison.Ordinal))
         {
-            string direct = SandboxEnvironment.AssertPathContained(Path.Combine(romDir, normalizedRel), romDir);
+            string direct = AppEnvironment.AssertPathContained(Path.Combine(romDir, normalizedRel), romDir);
             if (File.Exists(direct)) return direct;
         }
 

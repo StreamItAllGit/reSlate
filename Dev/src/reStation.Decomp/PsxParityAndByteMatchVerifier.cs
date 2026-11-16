@@ -109,7 +109,7 @@ public static partial class PsxParityAndByteMatchVerifier
         {
             string fullOut = Path.GetFullPath(outputDir);
             Directory.CreateDirectory(fullOut);
-            string reportPath = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "d4-lp32-parity-report.json"), fullOut);
+            string reportPath = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "d4-lp32-parity-report.json"), fullOut);
             File.WriteAllText(reportPath, JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
         }
         return report;
@@ -205,7 +205,7 @@ public static partial class PsxParityAndByteMatchVerifier
         {
             string fullOut = Path.GetFullPath(outputDir);
             Directory.CreateDirectory(fullOut);
-            string reportPath = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "d5-byte-match-report.json"), fullOut);
+            string reportPath = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "d5-byte-match-report.json"), fullOut);
             File.WriteAllText(reportPath, JsonSerializer.Serialize(report, JsonOptions), new UTF8Encoding(false));
         }
         return report;
@@ -221,13 +221,13 @@ public static partial class PsxParityAndByteMatchVerifier
     }
 
     /// <summary>
-    /// Enforces containment inside <paramref name="allowedRootDir"/> (e.g. <c>data\rom\</c> or <c>Sandbox\</c>)
+    /// Enforces containment inside <paramref name="allowedRootDir"/> (e.g. <c>data\rom\</c>)
     /// and executes <c>D5</c> verification against the verified PS-X EXE file.
     /// </summary>
     public static PsxByteMatchReport VerifyExeFileContained(
         string exeFilePath, string allowedRootDir, bool strictInstructionStream = false, string? outputDir = null)
     {
-        string safeExePath = SandboxEnvironment.AssertPathContained(exeFilePath, allowedRootDir);
+        string safeExePath = AppEnvironment.AssertPathContained(exeFilePath, allowedRootDir);
         PsxExeImage exe = PsxCleanExeAndOverlayLoader.LoadExeFromFile(safeExePath, allowedRootDir);
         return VerifyExeByteMatch(exe, strictInstructionStream, outputDir);
     }

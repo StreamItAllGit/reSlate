@@ -12,7 +12,7 @@ namespace reStation.Installer;
 /// Normalizes interactive Setup Wizard directory selections so choosing a generic parent folder
 /// (for example <c>&lt;custom-dir&gt;\Misc</c>) sorts <c>reEngine</c> into <c>&lt;parent&gt;\reEngine</c>
 /// and <c>reStation</c> into <c>&lt;reEngineDir&gt;\engines\reStation\v&lt;Version&gt;</c> without
-/// altering explicit headless CLI paths.
+/// altering explicit CLI paths.
 /// </summary>
 internal static class ReStationWizardPathNormalizer
 {

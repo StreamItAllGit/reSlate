@@ -1,5 +1,5 @@
 // @module: reStation.Decomp.PsxCleanExeAndOverlayLoader
-// @purpose: Clean-room PS-X EXE header parser (t_addr/t_size/pc0/BSS clear), multi-overlay loader, and offline Ghidra headless invocation generator.
+// @purpose: Clean-room PS-X EXE header parser (t_addr/t_size/pc0/BSS clear), multi-overlay loader, and offline Ghidra batch invocation generator.
 // @depends-on: System, System.Buffers.Binary, System.Collections.Generic, System.Diagnostics, System.IO, System.Security.Cryptography, System.Text, Foundation.Core, reEngine.Core.Decomp, reEngine.Core.Manifests
 // @exports: PsxCleanExeAndOverlayLoader
 // SPDX-License-Identifier: MPL-2.0
@@ -163,9 +163,9 @@ public static class PsxCleanExeAndOverlayLoader
 
     /// <summary>
     /// Generates clean-room SLEIGH language files, <c>psx-layout.json</c>, <c>PsxCleanExeLoader.py</c>,
-    /// and an offline <c>ghidra-headless-plan.json</c> inside <paramref name="outputDir"/>.
+    /// and an offline <c>ghidra-batch-plan.json</c> inside <paramref name="outputDir"/>.
     /// </summary>
-    public static PsxGhidraHeadlessPlan GenerateGhidraHeadlessArtifacts(
+    public static PsxGhidraBatchPlan GenerateGhidraBatchArtifacts(
         PsxLoadedProgramLayout layout,
         OfflineToolchainStatus toolchain,
         string outputDir,
@@ -177,22 +177,22 @@ public static class PsxCleanExeAndOverlayLoader
         string fullOut = Path.GetFullPath(outputDir);
         Directory.CreateDirectory(fullOut);
 
-        string extDir = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "ghidra_ext"), fullOut);
+        string extDir = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "ghidra_ext"), fullOut);
         _ = PsxGteSlaExtension.ProvisionExtensionDirectory(extDir);
 
-        string scriptsDir = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "ghidra_scripts"), fullOut);
+        string scriptsDir = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "ghidra_scripts"), fullOut);
         Directory.CreateDirectory(scriptsDir);
-        string loaderScript = SandboxEnvironment.AssertPathContained(
+        string loaderScript = AppEnvironment.AssertPathContained(
             Path.Combine(scriptsDir, PsxGhidraScriptTemplates.LoaderScriptFileName), fullOut);
         File.WriteAllText(loaderScript, PsxGhidraScriptTemplates.GenerateCleanExeLoaderScript(), new UTF8Encoding(false));
 
-        string exportDir = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "exports"), fullOut);
+        string exportDir = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "exports"), fullOut);
         Directory.CreateDirectory(exportDir);
 
-        string layoutPath = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "psx-layout.json"), fullOut);
+        string layoutPath = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "psx-layout.json"), fullOut);
         PsxGhidraScriptTemplates.WriteLayoutJson(layoutPath, layout);
 
-        string headlessExe = toolchain.AnalyzeHeadlessPath ?? "analyzeHeadless.bat";
+        string analyzeExe = toolchain.AnalyzeHeadlessPath ?? "analyzeHeadless.bat";
         string projectDir = Path.Combine(fullOut, "ghidra_work");
         var args = new List<string>
         {
@@ -205,17 +205,17 @@ public static class PsxCleanExeAndOverlayLoader
             "-postScript", PsxGhidraScriptTemplates.LoaderScriptFileName, layoutPath, exportDir,
             "-deleteProject"
         };
-        string cmdPreview = $"\"{headlessExe}\" " + string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+        string cmdPreview = $"\"{analyzeExe}\" " + string.Join(" ", args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
 
-        string planPath = SandboxEnvironment.AssertPathContained(Path.Combine(fullOut, "ghidra-headless-plan.json"), fullOut);
-        PsxGhidraScriptTemplates.WriteHeadlessPlanJson(planPath, toolchain, headlessExe, args, cmdPreview);
+        string planPath = AppEnvironment.AssertPathContained(Path.Combine(fullOut, "ghidra-batch-plan.json"), fullOut);
+        PsxGhidraScriptTemplates.WriteBatchPlanJson(planPath, toolchain, analyzeExe, args, cmdPreview);
 
-        return new PsxGhidraHeadlessPlan(toolchain, layoutPath, scriptsDir, loaderScript, extDir, exportDir, args, cmdPreview);
+        return new PsxGhidraBatchPlan(toolchain, layoutPath, scriptsDir, loaderScript, extDir, exportDir, args, cmdPreview);
     }
 
-    /// <summary>Executes Ghidra headless strictly offline when available; fails closed if the toolchain is incomplete.</summary>
-    public static async Task<(bool Success, int ExitCode, string Diagnostic)> ExecuteGhidraHeadlessAsync(
-        PsxGhidraHeadlessPlan plan, string mediaImportPath, CancellationToken ct = default)
+    /// <summary>Executes Ghidra batch analysis strictly offline when available; fails closed if the toolchain is incomplete.</summary>
+    public static async Task<(bool Success, int ExitCode, string Diagnostic)> ExecuteGhidraBatchAsync(
+        PsxGhidraBatchPlan plan, string mediaImportPath, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(plan);
         if (!plan.Toolchain.IsAvailable || string.IsNullOrWhiteSpace(plan.Toolchain.AnalyzeHeadlessPath))
@@ -234,16 +234,16 @@ public static class PsxCleanExeAndOverlayLoader
         if (!string.IsNullOrWhiteSpace(plan.Toolchain.JdkDirectory))
             psi.Environment["JAVA_HOME"] = plan.Toolchain.JdkDirectory;
 
-        for (int i = 0; i < plan.HeadlessArguments.Count; i++)
-            psi.ArgumentList.Add(i == 3 ? Path.GetFullPath(mediaImportPath) : plan.HeadlessArguments[i]);
+        for (int i = 0; i < plan.BatchArguments.Count; i++)
+            psi.ArgumentList.Add(i == 3 ? Path.GetFullPath(mediaImportPath) : plan.BatchArguments[i]);
 
-        using Process proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to launch offline Ghidra headless.");
+        using Process proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to launch offline Ghidra batch.");
         Task<string> errTask = proc.StandardError.ReadToEndAsync(ct);
         await proc.WaitForExitAsync(ct).ConfigureAwait(false);
         string err = (await errTask.ConfigureAwait(false)).Trim();
         return proc.ExitCode == 0
-            ? (true, 0, "Offline Ghidra headless execution completed.")
-            : (false, proc.ExitCode, $"Ghidra headless failed (exit {proc.ExitCode}): {err}");
+            ? (true, 0, "Offline Ghidra batch execution completed.")
+            : (false, proc.ExitCode, $"Ghidra batch failed (exit {proc.ExitCode}): {err}");
     }
 
     private static PsxLoadedProgramLayout BuildProgramLayout(List<PsxDiscFileSlice> slices, string? bootRel, string sourceLabel)

@@ -10,8 +10,86 @@ namespace reStation.Core.Bios;
 
 public sealed partial class PsxBiosHle
 {
+    private const uint KernelToT0Addr = 0x80000100U;
+    private const uint IntRpTableAddr = 0x80000200U;
+    private const int IntRpPriorityCount = 4;
+    private const uint C0TableAddr = 0x80000500U;
+    private const uint C0FastDsrTargetAddr = 0x80000540U;
+
     private uint _lastFailedEventHandle;
     private int _failedEventPolls;
+
+    private void EnsureKernelTables()
+    {
+        if (_cpu.Bus.Read32(KernelToT0Addr) == 0U)
+            _cpu.Bus.Write32(KernelToT0Addr, IntRpTableAddr);
+        if (_cpu.Bus.Read32(C0TableAddr + 0x18U) == 0U)
+            _cpu.Bus.Write32(C0TableAddr + 0x18U, C0FastDsrTargetAddr);
+    }
+
+    private void SysDeqIntRp(uint prio, uint node)
+    {
+        EnsureKernelTables();
+        if (prio >= IntRpPriorityCount || node == 0U) return;
+        uint headAddr = _cpu.Bus.Read32(KernelToT0Addr) + prio * 8U;
+        uint prev = 0U;
+        uint cur = _cpu.Bus.Read32(headAddr);
+        for (int guard = 0; guard < 64 && cur != 0U; guard++)
+        {
+            uint next = _cpu.Bus.Read32(cur);
+            if ((cur & 0x1FFFFFFFU) == (node & 0x1FFFFFFFU))
+            {
+                if (prev == 0U) _cpu.Bus.Write32(headAddr, next);
+                else _cpu.Bus.Write32(prev, next);
+                _cpu.Bus.Write32(cur, 0U);
+                return;
+            }
+            prev = cur;
+            cur = next;
+        }
+    }
+
+    private void SysEnqIntRp(uint prio, uint node)
+    {
+        EnsureKernelTables();
+        if (prio >= IntRpPriorityCount || node == 0U) return;
+        SysDeqIntRp(prio, node);
+        uint headAddr = _cpu.Bus.Read32(KernelToT0Addr) + prio * 8U;
+        uint head = _cpu.Bus.Read32(headAddr);
+        _cpu.Bus.Write32(node, head);
+        _cpu.Bus.Write32(headAddr, node);
+    }
+
+    private void RunIntRpChains()
+    {
+        EnsureKernelTables();
+        uint tableAddr = _cpu.Bus.Read32(KernelToT0Addr);
+        if (tableAddr == 0U) return;
+        for (uint prio = 0; prio < IntRpPriorityCount; prio++)
+        {
+            uint node = _cpu.Bus.Read32(tableAddr + prio * 8U);
+            for (int guard = 0; guard < 64 && node != 0U; guard++)
+            {
+                uint next = _cpu.Bus.Read32(node);
+                uint func2 = _cpu.Bus.Read32(node + 4U);
+                uint func1 = _cpu.Bus.Read32(node + 8U);
+                bool runFunc2 = true;
+                if (func1 != 0U)
+                {
+                    _cpu.R[2] = 0U;
+                    _cpu.R[31] = IrqReturnSentinel;
+                    _cpu.RunSlice(func1, IrqReturnSentinel);
+                    runFunc2 = _cpu.R[2] != 0U;
+                }
+                if (runFunc2 && func2 != 0U)
+                {
+                    _cpu.R[31] = IrqReturnSentinel;
+                    _cpu.RunSlice(func2, IrqReturnSentinel);
+                }
+                node = next;
+            }
+        }
+    }
 
     public void OnVBlank()
     {
@@ -59,7 +137,21 @@ public sealed partial class PsxBiosHle
 
     public void TryRunInterruptHook()
     {
-        if (_hookEntryIntBufAddr == 0) { _cpu.TimersAndDma.InterruptStatus = 0; return; }
+        EnsureKernelTables();
+        uint tableAddr = _cpu.Bus.Read32(KernelToT0Addr);
+        bool hasIntRp = false;
+        if (tableAddr != 0U)
+        {
+            for (uint p = 0; p < IntRpPriorityCount; p++)
+            {
+                if (_cpu.Bus.Read32(tableAddr + p * 8U) != 0U) { hasIntRp = true; break; }
+            }
+        }
+        if (!hasIntRp && _hookEntryIntBufAddr == 0)
+        {
+            _cpu.TimersAndDma.InterruptStatus = 0;
+            return;
+        }
         _cpu.InInterrupt = true;
         _cpu.TimersAndDma.AckedIrqBits = 0;
         uint beforeStat = _cpu.TimersAndDma.InterruptStatus;
@@ -68,14 +160,18 @@ public sealed partial class PsxBiosHle
         uint savedHi = _cpu.Hi, savedLo = _cpu.Lo, savedPc = _cpu.Pc;
         try
         {
-            uint targetPc = _cpu.Bus.Read32(_hookEntryIntBufAddr);
-            _cpu.R[29] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 4);
-            _cpu.R[30] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 8);
-            for (int i = 0; i < 8; i++) _cpu.R[16 + i] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 12U + (uint)i * 4U);
-            _cpu.R[28] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 44U);
-            _cpu.R[31] = IrqReturnSentinel;
-            _cpu.R[2] = 1U;
-            _cpu.RunSlice(targetPc, IrqReturnSentinel);
+            if (hasIntRp) RunIntRpChains();
+            if (_hookEntryIntBufAddr != 0)
+            {
+                uint targetPc = _cpu.Bus.Read32(_hookEntryIntBufAddr);
+                _cpu.R[29] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 4);
+                _cpu.R[30] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 8);
+                for (int i = 0; i < 8; i++) _cpu.R[16 + i] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 12U + (uint)i * 4U);
+                _cpu.R[28] = _cpu.Bus.Read32(_hookEntryIntBufAddr + 44U);
+                _cpu.R[31] = IrqReturnSentinel;
+                _cpu.R[2] = 1U;
+                _cpu.RunSlice(targetPc, IrqReturnSentinel);
+            }
         }
         finally
         {

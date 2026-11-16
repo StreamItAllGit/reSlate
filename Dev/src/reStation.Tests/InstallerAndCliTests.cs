@@ -1,17 +1,17 @@
-// @module: reStation.Tests.InstallerAndSandboxContainmentTests
-// @purpose: Verifies AllowAutoStart=false, --autostart* stripping, ReEngineBootstrapHelper side-by-side --test-mode containment, Launcher sync-wait flags, and Zero-PII source invariants.
-// @depends-on: Xunit, System.Text.RegularExpressions, Foundation.Core, reStation.Installer
-// @exports: InstallerAndSandboxContainmentTests
-// @owner: devv-pkg-test (T8)
+// @module: reStation.Tests.InstallerAndCliTests
+// @purpose: Verifies AllowAutoStart=false, --autostart* stripping, ReEngineBootstrapHelper side-by-side APP_ISOLATED_TEST=1 containment, Launcher sync-wait flags, and Zero-PII source invariants.
+// @depends-on: Xunit, System.Text.RegularExpressions, Foundation.Core, Foundation.Installer, reStation.Installer
+// @exports: InstallerAndCliTests
 
 using System.Text.RegularExpressions;
 using Foundation.Core;
+using Foundation.Installer;
 using reStation.Installer;
 using Xunit;
 
 namespace reStation.Tests;
 
-public sealed class InstallerAndSandboxContainmentTests : IDisposable
+public sealed class InstallerAndCliTests : IDisposable
 {
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), $"restation-inst-tests-{Guid.NewGuid():N}");
 
@@ -34,10 +34,10 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     [Fact]
     public void InstallerProgram_SanitizeArgs_StripsAllAutostartFlags()
     {
-        string[] raw = { "--test-mode", "--autostart", "--autostart=1", "--auto-start-on-login", "--silent", "--data-dir", _tempRoot };
+        string[] raw = { "--autostart", "--autostart=1", "--auto-start-on-login", "--silent", "--data-dir", _tempRoot };
         string[] clean = Program.SanitizeArgs(raw);
 
-        Assert.Equal(new[] { "--test-mode", "--silent", "--data-dir", _tempRoot }, clean);
+        Assert.Equal(new[] { "--silent", "--data-dir", _tempRoot }, clean);
     }
 
     [Theory]
@@ -50,9 +50,8 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     [InlineData(new[] { "--verify" }, null, true)]
     [InlineData(new[] { "--dry-run" }, null, true)]
     [InlineData(new[] { "--uninstall" }, null, true)]
-    [InlineData(new[] { "--visible-test" }, null, true)]
     [InlineData(new[] { "--silent" }, "C:\\temp\\uninstall.exe", true)]
-    [InlineData(new[] { "--test-mode", "--silent" }, "C:\\temp\\reStation-Setup.exe", false)]
+    [InlineData(new[] { "--silent" }, "C:\\temp\\reStation-Setup.exe", false)]
     public void InstallerBootstrap_ShouldSkip_MatchesInformationalAndUninstallInvocations(
         string[] args, string? processPath, bool expectedSkip)
     {
@@ -71,46 +70,56 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     }
 
     [Fact]
-    public void InstallerBootstrap_TestModeWithPreSeededReEngine_RewritesContainedDataAndInstallDirs()
+    public void InstallerBootstrap_IsolatedTestWithPreSeededReEngine_RewritesContainedDataAndInstallDirs()
     {
-        string sandboxRoot = Path.Combine(_tempRoot, "sandbox");
-        string reEngineApp = Path.Combine(sandboxRoot, "reEngine", "app");
+        string isolatedRoot = Path.Combine(_tempRoot, "isolated");
+        string reEngineApp = Path.Combine(isolatedRoot, "reEngine", "app");
         Directory.CreateDirectory(reEngineApp);
-        string reEngineSdkVersion = typeof(reEngine.Core.Bootstrap.ReEngineBootstrapHelper).Assembly.GetName().Version?.ToString(3) ?? "0.2.0";
+        string reEngineSdkVersion = typeof(reEngine.Core.Bootstrap.ReEngineBootstrapHelper).Assembly.GetName().Version?.ToString(3) ?? "0.2.1";
         File.WriteAllText(Path.Combine(reEngineApp, "version.txt"), reEngineSdkVersion);
 
-        int rc = ReStationInstallerBootstrap.Prepare(
-            new[] { "--test-mode", "--silent", "--data-dir", sandboxRoot },
-            typeof(Program).Assembly,
-            "uninstall.exe",
-            out string[] effective);
-        Assert.Equal(0, rc);
+        string? prevIsolated = Environment.GetEnvironmentVariable("APP_ISOLATED_TEST");
+        Environment.SetEnvironmentVariable("APP_ISOLATED_TEST", "1");
+        try
+        {
+            int rc = ReStationInstallerBootstrap.Prepare(
+                new[] { "--silent", "--data-dir", isolatedRoot },
+                typeof(Program).Assembly,
+                "uninstall.exe",
+                out string[] effective);
+            Assert.Equal(0, rc);
 
-        int dataIdx = Array.IndexOf(effective, "--data-dir");
-        int installIdx = Array.IndexOf(effective, "--install-dir");
-        Assert.True(dataIdx >= 0 && dataIdx + 1 < effective.Length);
-        Assert.True(installIdx >= 0 && installIdx + 1 < effective.Length);
+            int dataIdx = Array.IndexOf(effective, "--data-dir");
+            int installIdx = Array.IndexOf(effective, "--install-dir");
+            Assert.True(dataIdx >= 0 && dataIdx + 1 < effective.Length);
+            Assert.True(installIdx >= 0 && installIdx + 1 < effective.Length);
 
-        string resolvedData = SandboxEnvironment.AssertPathContained(effective[dataIdx + 1], sandboxRoot);
-        string resolvedInstall = SandboxEnvironment.AssertPathContained(effective[installIdx + 1], sandboxRoot);
-        Assert.Equal(Path.GetFullPath(sandboxRoot), resolvedData);
-        Assert.EndsWith(
-            Path.Combine("engines", "reStation", "v" + ReStationInstallerTheme.Version),
-            resolvedInstall,
-            StringComparison.OrdinalIgnoreCase);
-        Assert.False(
-            resolvedInstall.Contains(Path.Combine("reEngine", "engines"), StringComparison.OrdinalIgnoreCase),
-            "Installer target must use peer engines\\reStation\\v0.2.0 rather than nested reEngine\\engines\\.");
+            string resolvedData = AppEnvironment.AssertPathContained(effective[dataIdx + 1], isolatedRoot);
+            string resolvedInstall = AppEnvironment.AssertPathContained(effective[installIdx + 1], isolatedRoot);
+            Assert.Equal(Path.GetFullPath(isolatedRoot), resolvedData);
+            Assert.EndsWith(
+                Path.Combine("engines", "reStation", "v" + ReStationInstallerTheme.Version),
+                resolvedInstall,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.False(
+                resolvedInstall.Contains(Path.Combine("reEngine", "engines"), StringComparison.OrdinalIgnoreCase),
+                "Installer target must use peer engines\\reStation\\v0.2.6-hf.1 rather than nested reEngine\\engines\\.");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("APP_ISOLATED_TEST", prevIsolated);
+        }
     }
 
     [Fact]
-    public void SandboxContainment_RejectsPathTraversalOutOfSandboxRoot()
+    public void IsolationContainment_RejectsPathTraversalOutOfIsolatedRoot()
     {
-        string sandbox = Path.Combine(_tempRoot, "sbx");
-        Directory.CreateDirectory(sandbox);
-        string escaped = Path.GetFullPath(Path.Combine(sandbox, "..", "host_escape.txt"));
+        string isolated = Path.Combine(_tempRoot, "iso");
+        Directory.CreateDirectory(isolated);
+        string escaped = Path.GetFullPath(Path.Combine(isolated, "..", "host_escape.txt"));
 
-        Assert.ThrowsAny<Exception>(() => SandboxEnvironment.AssertPathContained(escaped, sandbox));
+        Assert.ThrowsAny<Exception>(() => AppEnvironment.AssertPathContained(escaped, isolated));
+        Assert.True(InstallerRuntimeContext.IsSafeIsolatedInstallDirectory(isolated));
     }
 
     [Fact]
@@ -164,10 +173,10 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     }
 
     [Fact]
-    public void InstallerAndLauncher_Expose020MetadataParameterizedAssemblyAndZeroEmptyCatches()
+    public void InstallerAndLauncher_ExposeCurrentMetadataParameterizedAssemblyAndZeroEmptyCatches()
     {
-        Assert.Equal("0.2.6", ReStationInstallerTheme.Version);
-        Assert.Equal("reStation-Setup-v0.2.6-win-x64", typeof(Program).Assembly.GetName().Name);
+        Assert.Equal("0.2.6-hf.1", ReStationInstallerTheme.Version);
+        Assert.Equal("reStation-Setup-v0.2.6-hf.1-win-x64", typeof(Program).Assembly.GetName().Name);
 
         string srcRoot = FindSrcRoot();
         string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));
@@ -198,53 +207,57 @@ public sealed class InstallerAndSandboxContainmentTests : IDisposable
     }
 
     [Fact]
-    public void UninstallBootstrap_NormalizesBaseDirs_DirectLeaf_DefaultTestMode_AndRejectsEscape()
+    public void UninstallBootstrap_NormalizesBaseDirs_DirectLeaf_DefaultIsolated_AndRejectsEscape()
     {
         string tempRoot = Path.Combine(Path.GetTempPath(), "restation-uninstall-norm-" + Guid.NewGuid().ToString("N"));
         string outsideDir = Path.GetFullPath(Path.Combine(tempRoot, "..", "restation-outside-" + Guid.NewGuid().ToString("N")));
+        string? prevIsolated = Environment.GetEnvironmentVariable("APP_ISOLATED_TEST");
+        Environment.SetEnvironmentVariable("APP_ISOLATED_TEST", "1");
         try
         {
-            string reEngineRoot = Path.Combine(tempRoot, "case1-root");
+            string case1Suite = Path.Combine(tempRoot, "case1-suite");
+            string reEngineRoot = Path.Combine(case1Suite, "reEngine");
             string leaf1 = ReStationInstallerBootstrap.ComputeSideBySideDir(reEngineRoot);
             Directory.CreateDirectory(leaf1);
             File.WriteAllText(Path.Combine(leaf1, "reStation.exe"), string.Empty);
 
             string[] normalizedRoot = ReStationInstallerBootstrap.NormalizeUninstallArgs(
-                new[] { "--uninstall", "--install-dir", reEngineRoot });
+                new[] { "--uninstall", "--data-dir", case1Suite, "--install-dir", reEngineRoot });
             Assert.Equal(leaf1, ReStationInstallerBootstrap.ReadInstallDir(normalizedRoot));
             Assert.Contains("--uninstall", normalizedRoot);
 
-            string sandbox2 = Path.Combine(tempRoot, "case2-sandbox");
-            string leaf2 = ReStationInstallerBootstrap.ComputeSideBySideDir(Path.Combine(sandbox2, "reEngine"));
+            string isolated2 = Path.Combine(tempRoot, "case2-isolated");
+            string leaf2 = ReStationInstallerBootstrap.ComputeSideBySideDir(Path.Combine(isolated2, "reEngine"));
             Directory.CreateDirectory(Path.Combine(leaf2, "app"));
             File.WriteAllText(Path.Combine(leaf2, "app", "install-manifest.json"), "{}");
 
-            string[] normalizedSandboxBase = ReStationInstallerBootstrap.NormalizeUninstallArgs(
-                new[] { "--uninstall", "--test-mode", "--data-dir", sandbox2, "--install-dir", sandbox2 });
-            Assert.Equal(leaf2, ReStationInstallerBootstrap.ReadInstallDir(normalizedSandboxBase));
-            Assert.Equal(sandbox2, ReStationInstallerBootstrap.ReadValue(normalizedSandboxBase, "--data-dir"));
+            string[] normalizedIsolatedBase = ReStationInstallerBootstrap.NormalizeUninstallArgs(
+                new[] { "--uninstall", "--data-dir", isolated2, "--install-dir", isolated2 });
+            Assert.Equal(leaf2, ReStationInstallerBootstrap.ReadInstallDir(normalizedIsolatedBase));
+            Assert.Equal(isolated2, ReStationInstallerBootstrap.ReadValue(normalizedIsolatedBase, "--data-dir"));
 
             string[] directLeafArgs = ReStationInstallerBootstrap.NormalizeUninstallArgs(
                 new[] { "--uninstall", "--install-dir", leaf2 });
             Assert.Equal(leaf2, ReStationInstallerBootstrap.ReadInstallDir(directLeafArgs));
 
             string[] omittedDirArgs = ReStationInstallerBootstrap.NormalizeUninstallArgs(
-                new[] { "--uninstall", "--test-mode", "--data-dir", sandbox2 });
+                new[] { "--uninstall", "--data-dir", isolated2 });
             Assert.Equal(leaf2, ReStationInstallerBootstrap.ReadInstallDir(omittedDirArgs));
 
-            string[] escapeArgs = { "--uninstall", "--test-mode", "--data-dir", sandbox2, "--install-dir", outsideDir };
+            string[] escapeArgs = { "--uninstall", "--data-dir", isolated2, "--install-dir", outsideDir };
             Assert.Throws<InvalidOperationException>(() => ReStationInstallerBootstrap.NormalizeUninstallArgs(escapeArgs));
             int prepareEscapeCode = ReStationInstallerBootstrap.Prepare(
                 escapeArgs, typeof(Program).Assembly, "uninstall.exe", out _);
             Assert.Equal(3, prepareEscapeCode);
 
-            int visibleTestCode = ReStationInstallerBootstrap.Prepare(
-                new[] { "--visible-test" }, typeof(Program).Assembly, "uninstall.exe", out string[] vtEffective);
-            Assert.Equal(0, visibleTestCode);
-            Assert.Equal(new[] { "--visible-test" }, vtEffective);
+            int verifySkipCode = ReStationInstallerBootstrap.Prepare(
+                new[] { "--verify" }, typeof(Program).Assembly, "uninstall.exe", out string[] verifyEffective);
+            Assert.Equal(0, verifySkipCode);
+            Assert.Equal(new[] { "--verify" }, verifyEffective);
         }
         finally
         {
+            Environment.SetEnvironmentVariable("APP_ISOLATED_TEST", prevIsolated);
             if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
             if (Directory.Exists(outsideDir)) Directory.Delete(outsideDir, recursive: true);
         }

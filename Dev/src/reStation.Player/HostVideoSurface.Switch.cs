@@ -29,7 +29,7 @@ internal sealed unsafe partial class HostVideoSurface
 
         if (!SdlAvailable)
         {
-            if (wantGl) { error = "OpenGL 3.3 unavailable in headless/offscreen mode."; return false; }
+            if (wantGl) { error = "OpenGL 3.3 unavailable in offscreen mode."; return false; }
             var sw = new SoftwareCpuRenderBackend();
             sw.Initialize(winW, winH, settings.ResolutionScale);
             Backend.Dispose();

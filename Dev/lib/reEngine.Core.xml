@@ -110,7 +110,7 @@
         </member>
         <member name="T:reEngine.Core.Associations.IFileAssociationStore">
             <summary>
-            Abstracts <c>.recomp</c> and <c>.decomp</c> file association registration across live HKCU and sandbox virtual storage.
+            Abstracts <c>.recomp</c> and <c>.decomp</c> file association registration across live HKCU and isolated virtual storage.
             </summary>
         </member>
         <member name="M:reEngine.Core.Associations.IFileAssociationStore.RegisterRecompAssociation(System.String,System.String)">
@@ -133,7 +133,7 @@
         </member>
         <member name="T:reEngine.Core.Associations.VirtualRegistryAssociationStore">
             <summary>
-            Fail-closed sandboxed association store persisting records atomically to <c>&lt;dataDir&gt;\virtual_registry.json</c>.
+            Fail-closed isolated association store persisting records atomically to <c>&lt;dataDir&gt;\virtual_registry.json</c>.
             </summary>
         </member>
         <member name="P:reEngine.Core.Associations.VirtualRegistryAssociationStore.RegistryFilePath">
@@ -169,7 +169,7 @@
         </member>
         <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.#ctor(System.Boolean)">
             <summary>
-            Initializes the live HKCU association store; throws fail-closed if <paramref name="testMode"/> is <see langword="true"/>.
+            Initializes the live HKCU association store; throws fail-closed if host mutations are suppressed (<paramref name="suppressHostMutations"/> or <c>APP_ISOLATED_TEST=1</c>).
             </summary>
         </member>
         <member name="M:reEngine.Core.Associations.WindowsRegistryAssociationStore.RegisterRecompAssociation(System.String,System.String)">
@@ -198,26 +198,26 @@
         </member>
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(System.String,System.String,System.Boolean)">
             <summary>
-            Resolves the target <c>reEngine</c> installation root while enforcing fail-closed containment in <c>--test-mode</c>
-            and zero literal host paths in compiled binaries.
+            Resolves the target <c>reEngine</c> installation root while enforcing fail-closed containment under
+            <paramref name="isolatedTest"/> / <c>APP_ISOLATED_TEST=1</c> and zero literal host paths in compiled binaries.
             </summary>
         </member>
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveDefaultSuiteInstallDir(System.String,System.String,System.Boolean)">
             <summary>
             Resolves the canonical suite umbrella directory (<c>%LOCALAPPDATA%\Programs\StreamItAll\reEngine\</c>)
-            while enforcing fail-closed containment in <c>--test-mode</c>.
+            while enforcing fail-closed containment under <paramref name="isolatedTest"/> / <c>APP_ISOLATED_TEST=1</c>.
             </summary>
         </member>
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveToolchainDir(System.String)">
             <summary>
             Returns the offline Ghidra + OpenJDK <c>toolchain\</c> sibling directory under <c>suiteInstallDir</c>
-            (falling back to <paramref name="reEngineInstallDir"/>\toolchain for isolated portable/sandbox runs).
+            (falling back to <paramref name="reEngineInstallDir"/>\toolchain for isolated portable runs).
             </summary>
         </member>
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.ResolveEnginesRootDir(System.String)">
             <summary>
             Returns the side-by-side <c>engines\</c> sibling directory under <c>suiteInstallDir</c>
-            (falling back to <paramref name="reEngineInstallDir"/>\engines for isolated portable/sandbox runs).
+            (falling back to <paramref name="reEngineInstallDir"/>\engines for isolated portable runs).
             </summary>
         </member>
         <member name="M:reEngine.Core.Bootstrap.ReEngineBootstrapHelper.BuildEngineVersionInstallDir(System.String,System.String,System.String)">
@@ -268,7 +268,7 @@
             <summary>Default relative preload directory inside game module roots.</summary>
         </member>
         <member name="F:reEngine.Core.Bootstrap.ReEnginePackagingConstants.VirtualRegistryFileName">
-            <summary>Filename of the virtualized association store in <c>--test-mode</c>.</summary>
+            <summary>Filename of the isolated/non-Windows association store (<c>APP_ISOLATED_TEST=1</c>).</summary>
         </member>
         <member name="T:reEngine.Core.Bootstrap.ReEngineBootstrapResult">
             <summary>
@@ -727,7 +727,7 @@
             <summary>Whether compatible patch updates on the active track are automatically staged.</summary>
         </member>
         <member name="P:reEngine.Core.Updates.ReEngineSettings.LastUpdateFeedUrl">
-            <summary>Optional feed URL or local sandbox feed path used for update checks.</summary>
+            <summary>Optional feed URL or local feed file path used for update checks.</summary>
         </member>
         <member name="P:reEngine.Core.Updates.ReEngineSettings.EnginesDirectoryOverride">
             <summary>Optional override path to the <c>engines\</c> root directory.</summary>

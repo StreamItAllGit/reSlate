@@ -35,22 +35,16 @@ public sealed class GlobalControllerProfile
     }
 
     /// <summary>
-    /// Resolves <c>settings.controls.json</c>; fails closed inside the sandbox boundary under <c>--test-mode</c> (zero host/AppData writes).
+    /// Resolves <c>settings.controls.json</c>; stays contained under <paramref name="env"/> when isolated or using an explicit <c>--data-dir</c>.
     /// </summary>
-    public static string ResolvePath(SandboxEnvironment sandbox, string? appBaseDirOverride = null)
+    public static string ResolvePath(AppEnvironment env, string? appBaseDirOverride = null, bool hasExplicitDataDir = false)
     {
-        ArgumentNullException.ThrowIfNull(sandbox);
-        if (sandbox.TestMode)
+        ArgumentNullException.ThrowIfNull(env);
+        bool isolated = string.Equals(Environment.GetEnvironmentVariable("APP_ISOLATED_TEST"), "1", StringComparison.OrdinalIgnoreCase);
+        if (isolated || hasExplicitDataDir)
         {
-            string boundary = CliOptions.ResolveSandboxBoundary(sandbox);
-            string dataRoot = Path.Combine(boundary, "data");
-            string candidate = string.Equals(
-                Path.GetFullPath(boundary),
-                Path.GetFullPath(sandbox.DataDirectory),
-                StringComparison.OrdinalIgnoreCase)
-                ? Path.Combine(sandbox.DataDirectory, FileName)
-                : Path.Combine(dataRoot, FileName);
-            return SandboxEnvironment.AssertPathContained(candidate, boundary);
+            string fullData = Path.GetFullPath(env.DataDirectory);
+            return AppEnvironment.AssertPathContained(Path.Combine(fullData, FileName), fullData);
         }
 
         string? engineRoot = TryResolveReEngineRoot(appBaseDirOverride ?? AppContext.BaseDirectory);

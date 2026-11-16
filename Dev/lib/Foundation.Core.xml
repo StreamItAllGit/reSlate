@@ -4,6 +4,21 @@
         <name>Foundation.Core</name>
     </assembly>
     <members>
+        <member name="T:Foundation.Core.UiPresentationMode">
+            <summary>
+            Canonical 4 UI presentation modes per Standard 17 §4 (Suite Tab, Standalone Window, Local Browser, Tray/Background).
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.AppEnvironment">
+            <summary>
+            Resolves standard CLI flags and environment variables for isolated test and production execution (Standard 02).
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.AppEnvironment.AssertPathContained(System.String,System.String)">
+            <summary>
+            Fail-closed containment guard ensuring a candidate path resolves strictly inside an allowed root directory.
+            </summary>
+        </member>
         <member name="T:Foundation.Core.AudioRingBuffer">
             <summary>
             Lock-free Single-Producer Single-Consumer (SPSC) audio ring buffer for interleaved PCM samples.
@@ -92,7 +107,7 @@
             <summary>Declarative settings owned by this module, rendered automatically by SchemaSettingsRenderer.</summary>
         </member>
         <member name="M:Foundation.Core.Contracts.IFoundationModule.ExecuteCliAsync(System.Collections.Generic.IReadOnlyList{System.String},System.Threading.CancellationToken)">
-            <summary>Executes the module's headless CLI or background worker action with mandatory CancellationToken propagation.</summary>
+            <summary>Executes the module's CLI or background worker action with mandatory CancellationToken propagation.</summary>
         </member>
         <member name="T:Foundation.Core.DualJobCancellationCoordinator">
             <summary>
@@ -137,7 +152,7 @@
         <member name="T:Foundation.Core.PixelOverlayCanvas">
             <summary>
             Pure-.NET RGBA pixel canvas with Porter-Duff SrcOver alpha compositing and built-in 5x7 bitmap text rendering
-            for SDL3/headless HUD overlays and deterministic PNG screenshot capture.
+            for SDL3/offscreen HUD overlays and deterministic PNG screenshot capture.
             </summary>
         </member>
         <member name="T:Foundation.Core.RgbaPngWriter">
@@ -154,28 +169,6 @@
             4. Disk Free-Space Pre-Flight Check (1.2x expected size + 512 MB reserve)
             5. Token-Bucket Bandwidth Throttling
             6. Streaming SHA-256 &amp; SHA-1 Verification before atomic rename
-            </summary>
-        </member>
-        <member name="T:Foundation.Core.UiPresentationMode">
-            <summary>
-            Canonical 4 UI presentation modes per Standard 17 §4 (Suite Tab, Standalone Window, Local Browser, Scoped Mobile PWA).
-            </summary>
-        </member>
-        <member name="T:Foundation.Core.SandboxEnvironment">
-            <summary>
-            Resolves standard CLI flags and environment variables for fail-closed Sandbox and Production execution (Standard 02).
-            </summary>
-        </member>
-        <member name="M:Foundation.Core.SandboxEnvironment.AssertPathContained(System.String,System.String)">
-            <summary>
-            Fail-closed containment guard ensuring a candidate path resolves strictly inside an allowed root directory.
-            </summary>
-        </member>
-        <member name="M:Foundation.Core.SandboxEnvironment.ResolveSiblingSandboxRoot(System.String)">
-            <summary>
-            Resolves the shared <c>Sandbox\</c> ancestor directory when <paramref name="dataDir"/> sits inside
-            a canonical <c>Sandbox\{app,data,logs,installed}</c> tree, returning <see langword="null"/> for host
-            or non-sandbox paths so callers fail closed.
             </summary>
         </member>
         <member name="T:Foundation.Core.SqliteWalPool">

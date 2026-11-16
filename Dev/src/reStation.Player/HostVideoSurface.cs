@@ -10,7 +10,7 @@ using reStation.Core.Gpu;
 
 namespace reStation.Player;
 
-/// <summary>Video output: GL window (default), SDL software renderer fallback, or pure offscreen (no SDL / headless).</summary>
+/// <summary>Video output: GL window (default), SDL software renderer fallback, or pure offscreen fallback.</summary>
 internal sealed unsafe partial class HostVideoSurface : IDisposable
 {
     public const int DefaultWidth = 1280, DefaultHeight = 720;
@@ -35,7 +35,7 @@ internal sealed unsafe partial class HostVideoSurface : IDisposable
     public bool CanPresent => UsesOpenGl || Renderer != IntPtr.Zero;
     public string? FallbackReason { get; private set; }
 
-    /// <summary>Software-backend surface with no SDL at all (fixtures, --verify, CI without SDL3.dll).</summary>
+    /// <summary>Software-backend surface with no SDL at all (--verify, offscreen/tray, or CI without SDL3.dll).</summary>
     public static HostVideoSurface CreateOffscreen(RecompSettings settings, ReStationLogger logger, string reason)
     {
         var surface = new HostVideoSurface(new SoftwareCpuRenderBackend()) { FallbackReason = reason };
@@ -45,56 +45,43 @@ internal sealed unsafe partial class HostVideoSurface : IDisposable
     }
 
     /// <summary>
-    /// Initializes SDL3 and selects OpenGL 3.3 Core (when requested and not headless) or falls back to
+    /// Initializes SDL3 and selects OpenGL 3.3 Core (when requested) or falls back to
     /// <c>SDL_CreateRenderer</c> + <see cref="SoftwareCpuRenderBackend"/> with a structured warning.
     /// </summary>
-    public static HostVideoSurface Create(string title, RecompSettings settings, bool headless, bool foreground, ReStationLogger logger, bool alwaysOnTop = false)
+    public static HostVideoSurface Create(string title, RecompSettings settings, bool foreground, ReStationLogger logger, bool alwaysOnTop = false)
     {
         Sdl3Native.InstallResolver();
         bool requestedGl = string.Equals(settings.BackendId, PsxRenderBackendIds.OpenGl, StringComparison.OrdinalIgnoreCase)
             || string.Equals(settings.BackendId, "gl", StringComparison.OrdinalIgnoreCase);
-        bool loggedHeadlessFallback = false;
-        if (headless && requestedGl)
-        {
-            logger.Warn("GL_FALLBACK", "reason=headless forced=software");
-            loggedHeadlessFallback = true;
-        }
-        if (headless)
-        {
-            Environment.SetEnvironmentVariable("SDL_VIDEODRIVER", "dummy");
-            Environment.SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy");
-        }
 
         if (!Sdl3Native.TryInit(Sdl3Native.InitVideo | Sdl3Native.InitAudio | Sdl3Native.InitGamepad, out string initError))
         {
-            if (!loggedHeadlessFallback)
-                logger.Warn("GL_FALLBACK", $"stage=SDL_Init reason=\"{initError}\" forced=software mode=offscreen");
-            return CreateOffscreen(settings, logger, headless && requestedGl ? "headless" : "sdl-init-failed");
+            logger.Warn("GL_FALLBACK", $"stage=SDL_Init reason=\"{initError}\" forced=software mode=offscreen");
+            return CreateOffscreen(settings, logger, "sdl-init-failed");
         }
 
-        ulong baseFlags = Sdl3Native.WindowResizable | (settings.IsFullscreen && !headless && !foreground ? Sdl3Native.WindowFullscreen : 0UL);
-        bool wantGl = !headless && requestedGl;
-        string? fallback = wantGl ? null : headless ? "headless" : "backend=software requested";
+        ulong baseFlags = Sdl3Native.WindowResizable | (settings.IsFullscreen && !foreground ? Sdl3Native.WindowFullscreen : 0UL);
+        string? fallback = requestedGl ? null : "backend=software requested";
 
-        if (wantGl)
+        if (requestedGl)
         {
             if (TryCreateGlSurface(title, baseFlags, settings, logger, out HostVideoSurface? glSurface, out string glError) && glSurface is not null)
             {
                 glSurface._title = title;
-                glSurface._alwaysOnTop = alwaysOnTop && !headless;
-                glSurface.FinishWindow(foreground, alwaysOnTop && !headless, logger);
+                glSurface._alwaysOnTop = alwaysOnTop;
+                glSurface.FinishWindow(foreground, alwaysOnTop, logger);
                 return glSurface;
             }
             fallback = glError;
             logger.Warn("GL_FALLBACK", $"stage=GL33Core reason=\"{glError}\" forced=software renderer=SDL_CreateRenderer");
         }
 
-        var surface = new HostVideoSurface(new SoftwareCpuRenderBackend()) { SdlAvailable = true, FallbackReason = fallback, _title = title, _alwaysOnTop = alwaysOnTop && !headless };
+        var surface = new HostVideoSurface(new SoftwareCpuRenderBackend()) { SdlAvailable = true, FallbackReason = fallback, _title = title, _alwaysOnTop = alwaysOnTop };
         surface.Window = Sdl3Native.CreateWindowUtf8(title, DefaultWidth, DefaultHeight, baseFlags);
         if (surface.Window != IntPtr.Zero)
         {
             surface.Renderer = Sdl3Native.SDL_CreateRenderer(surface.Window, null);
-            if (surface.Renderer != IntPtr.Zero) _ = Sdl3Native.SDL_SetRenderVSync(surface.Renderer, settings.IsVsyncEnabled && !headless ? 1 : 0);
+            if (surface.Renderer != IntPtr.Zero) _ = Sdl3Native.SDL_SetRenderVSync(surface.Renderer, settings.IsVsyncEnabled ? 1 : 0);
             else logger.Warn("VIDEO", $"[RENDERER_FALLBACK] reason=\"{Sdl3Native.GetErrorString()}\" mode=offscreen");
         }
         else
@@ -103,7 +90,7 @@ internal sealed unsafe partial class HostVideoSurface : IDisposable
         }
         (int initW, int initH) = GetWindowSize(surface.Window);
         surface.InitializeBackend(initW, initH, settings.ResolutionScale);
-        surface.FinishWindow(foreground && !headless, alwaysOnTop && !headless, logger);
+        surface.FinishWindow(foreground, alwaysOnTop, logger);
         return surface;
     }
 

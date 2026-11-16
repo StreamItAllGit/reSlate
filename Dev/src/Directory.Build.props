@@ -9,8 +9,8 @@
     <NuGetAudit>false</NuGetAudit>
     <Product>reStation</Product>
     <Company>StreamItAll</Company>
-    <Version>0.2.6</Version>
-    <InformationalVersion>0.2.6</InformationalVersion>
+    <Version>0.2.6-hf.1</Version>
+    <InformationalVersion>0.2.6-hf.1</InformationalVersion>
     <FileVersion>0.2.6.0</FileVersion>
     <AssemblyVersion>0.2.6.0</AssemblyVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
