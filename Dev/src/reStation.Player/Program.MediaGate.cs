@@ -82,8 +82,12 @@ internal static unsafe partial class Program
                 if (sc == Sdl3Native.ScF1)
                 {
                     drawer.IsOpen = !drawer.IsOpen;
-                    if (!drawer.IsOpen) drawer.KeybindsTab.ClearListening();
-                    st.MouseCaptured = !drawer.IsOpen;
+                    if (!drawer.IsOpen)
+                    {
+                        drawer.KeybindsTab.ClearListening();
+                        st.UserReleasedMouse = false;
+                    }
+                    st.MouseCaptured = !drawer.IsOpen && settings.ControlMode == ControlMode.ModernWasdMouse;
                     if (!st.MouseCaptured) { st.MouseDx = 0f; st.MouseDy = 0f; }
                     video.SetRelativeMouse(st.MouseCaptured);
                     overlay.MarkDirty(); st.UiDirty = true;
@@ -100,17 +104,26 @@ internal static unsafe partial class Program
                     {
                         drawer.IsOpen = false;
                         drawer.KeybindsTab.ClearListening();
+                        st.UserReleasedMouse = false;
                         overlay.MarkDirty(); st.UiDirty = true;
+                    }
+                    else if (settings.InputProfileMode == InputProfileMode.PerGameModern
+                             && drawer.ModuleProfile is { } mp
+                             && settings.IsBindingUsedByAnyModernAction(Sdl3Native.ScEsc, mp.ModernActions))
+                    {
+                        if ((uint)sc < (uint)st.LatchedKeys.Length) st.LatchedKeys[sc] = 1;
                     }
                     else if (st.MouseCaptured)
                     {
                         st.MouseCaptured = false;
+                        st.UserReleasedMouse = true;
                         st.MouseDx = 0f; st.MouseDy = 0f;
                         video.SetRelativeMouse(false);
                     }
                 }
                 else if (sc == Sdl3Native.ScF5) host.RequestQuickSave(0);
                 else if (sc == Sdl3Native.ScF9) host.RequestQuickLoad(0);
+                else if (!drawer.IsOpen && (uint)sc < (uint)st.LatchedKeys.Length) st.LatchedKeys[sc] = 1;
             }
             else if (type == Sdl3Native.EventMouseButtonDown)
             {
@@ -154,10 +167,15 @@ internal static unsafe partial class Program
                     settings.Save(env.ConfigFilePath);
                     logger.Info("MODULE", $"Selected next-launch module '{Path.GetFileName(mp)}'.");
                 }
-                else if (act == DrawerAction.None && !isRightClick && btn == Sdl3Native.MouseBtnLeft && !wasOpen && !drawer.IsOpen && !st.MouseCaptured)
+                else if (act == DrawerAction.None && !wasOpen && !drawer.IsOpen)
                 {
-                    st.MouseCaptured = true;
-                    video.SetRelativeMouse(true);
+                    if (btn is >= 1 and <= 5) st.LatchedMouseMask |= 1u << (btn - 1);
+                    if (!isRightClick && btn == Sdl3Native.MouseBtnLeft && !st.MouseCaptured)
+                    {
+                        st.UserReleasedMouse = false;
+                        st.MouseCaptured = true;
+                        video.SetRelativeMouse(true);
+                    }
                 }
                 if (drawer.IsOpen) { st.MouseCaptured = false; st.MouseDx = 0f; st.MouseDy = 0f; video.SetRelativeMouse(false); }
             }

@@ -221,49 +221,70 @@ internal sealed class SlideOverSettingsDrawer
         _hitBoxes.Add(new DrawerHitBox(minus, st => st.MouseSensitivity = Math.Max(0.2, Math.Round(st.MouseSensitivity - 0.2, 1)), DrawerAction.MarkDirty));
         _hitBoxes.Add(new DrawerHitBox(plus, st => st.MouseSensitivity = Math.Min(4.0, Math.Round(st.MouseSensitivity + 0.2, 1)), DrawerAction.MarkDirty));
 
-        UiPaint.Text(c, x, y + 96, "Controller D-Pad Mode", UiPaint.Muted);
-        int dw = (w - 12) / 3;
-        var dpadModes = new (string Id, string Label)[]
+        int curY = y + 96;
+        IReadOnlyList<GameControlOptionDescriptor> options = _moduleProfile?.ControlOptions ?? Array.Empty<GameControlOptionDescriptor>();
+        foreach (GameControlOptionDescriptor opt in options)
         {
-            (NativeInputModeIds.ControllerDpadQuickActions, "Quick Slots"),
-            (NativeInputModeIds.ControllerDpadWalkStickRun, "PadWalk/Run"),
-            (NativeInputModeIds.ControllerStickWalkDpadRun, "StkWalk/Run")
-        };
-        for (int i = 0; i < dpadModes.Length; i++)
-        {
-            var mode = dpadModes[i];
-            var r = new UiRect(x + i * (dw + 6), y + 116, dw, 32);
-            UiPaint.Pill(c, r, mode.Label, string.Equals(s.ControllerDpadMode, mode.Id, StringComparison.OrdinalIgnoreCase));
-            _hitBoxes.Add(new DrawerHitBox(r, st => st.ControllerDpadMode = mode.Id, DrawerAction.MarkDirty));
+            if (opt.Choices.Count == 0) continue;
+            UiPaint.Text(c, x, curY, opt.Label, UiPaint.Muted);
+            int count = opt.Choices.Count;
+            int cw = (w - ((count - 1) * 6)) / count;
+            string current = s.GetModuleOption(opt);
+            for (int ci = 0; ci < count; ci++)
+            {
+                GameControlOptionChoice choice = opt.Choices[ci];
+                var r = new UiRect(x + (ci * (cw + 6)), curY + 20, cw, 32);
+                UiPaint.Pill(c, r, choice.Label, string.Equals(current, choice.Value, StringComparison.OrdinalIgnoreCase));
+                string val = choice.Value;
+                string oid = opt.OptionId;
+                _hitBoxes.Add(new DrawerHitBox(r, st => st.SetModuleOption(oid, val), DrawerAction.MarkDirty));
+            }
+            curY += 60;
         }
 
-        UiPaint.Text(c, x, y + 158, "Isometric Move Projection", UiPaint.Muted);
-        int iw = (w - 8) / 2;
-        var cropPill = new UiRect(x, y + 178, iw, 32);
-        var screenPill = new UiRect(x + iw + 8, y + 178, iw, 32);
-        UiPaint.Pill(c, cropPill, "Crop Grid (45deg)", string.Equals(s.IsometricMoveMode, NativeInputModeIds.IsometricMoveCropGrid, StringComparison.OrdinalIgnoreCase));
-        UiPaint.Pill(c, screenPill, "Screen Space", string.Equals(s.IsometricMoveMode, NativeInputModeIds.IsometricMoveScreenSpace, StringComparison.OrdinalIgnoreCase));
-        _hitBoxes.Add(new DrawerHitBox(cropPill, st => st.IsometricMoveMode = NativeInputModeIds.IsometricMoveCropGrid, DrawerAction.MarkDirty));
-        _hitBoxes.Add(new DrawerHitBox(screenPill, st => st.IsometricMoveMode = NativeInputModeIds.IsometricMoveScreenSpace, DrawerAction.MarkDirty));
-
+        curY += 4;
         string tierLabel = s.InputProfileMode switch
         {
             InputProfileMode.GlobalController => "Global 1:1 PS1",
             InputProfileMode.PerGameController => "Game 1:1 PS1",
             _ => _moduleProfile is not null ? _moduleProfile.ProfileDisplayName : "Game 1:1 Fallback"
         };
-        UiPaint.Text(c, x, y + 224, $"Active Tier: {tierLabel}", UiPaint.AccentText);
+        UiPaint.Text(c, x, curY, $"Active Tier: {tierLabel}", UiPaint.AccentText);
+
+        (string line1, string line2) = BuildControlSummaryLines(s);
+        UiPaint.Text(c, x, curY + 28, line1, UiPaint.Muted);
+        UiPaint.Text(c, x, curY + 56, line2, UiPaint.Muted);
+
+        var customBtn = new UiRect(x, curY + 96, w, 42);
+        UiPaint.Pill(c, customBtn, "Customize Keybinds (3 Tiers)...", active: false);
+        _hitBoxes.Add(new DrawerHitBox(customBtn, _ => ActiveTab = 2, DrawerAction.MarkDirty));
+    }
+
+    private (string Line1, string Line2) BuildControlSummaryLines(RecompSettings s)
+    {
+        if (s.InputProfileMode == InputProfileMode.PerGameModern && _moduleProfile is not null && _moduleProfile.ModernActions.Count > 0)
+        {
+            var items = new List<string>(6);
+            foreach (GameActionDescriptor act in _moduleProfile.ModernActions)
+            {
+                IReadOnlyList<int> codes = s.GetModernActionBindings(act);
+                string key = codes.Count > 0 ? KeybindsDrawerTab.FormatScancode(codes[0]) : "---";
+                string shortName = act.Label.Length <= 8 ? act.Label : act.Label[..8];
+                items.Add($"{key} {shortName}");
+                if (items.Count >= 6) break;
+            }
+            string l1 = FitSummary(string.Join("  ", items.Take(3)), 44);
+            string l2 = items.Count > 3 ? FitSummary(string.Join("  ", items.Skip(3)), 44) : string.Empty;
+            return (l1, l2);
+        }
 
         KeyBindingsConfig kb = s.InputProfileMode == InputProfileMode.GlobalController ? _globalProfile.KeyBindings : (s.KeyBindings ?? new KeyBindingsConfig());
         string move = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadUp))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadLeft))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadDown))}/{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.DPadRight))} D-Pad";
         string acts = $"{KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Cross))} Cross  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Circle))} Circle  {KeybindsDrawerTab.FormatScancode(kb.GetScancode(BindableAction.Square))} Square";
-        UiPaint.Text(c, x, y + 252, move, UiPaint.Muted);
-        UiPaint.Text(c, x, y + 280, acts, UiPaint.Muted);
-
-        var customBtn = new UiRect(x, y + 320, w, 42);
-        UiPaint.Pill(c, customBtn, "Customize Keybinds (3 Tiers)...", active: false);
-        _hitBoxes.Add(new DrawerHitBox(customBtn, _ => ActiveTab = 2, DrawerAction.MarkDirty));
+        return (FitSummary(move, 44), FitSummary(acts, 44));
     }
+
+    private static string FitSummary(string text, int maxChars) => text.Length <= maxChars ? text : text[..Math.Max(1, maxChars)];
 
     private void RenderSystemTab(PixelOverlayCanvas c, int x, int y, int w, RecompSettings s, bool loggingActive)
     {

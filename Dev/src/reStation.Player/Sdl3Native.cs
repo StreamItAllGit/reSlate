@@ -55,6 +55,7 @@ internal static unsafe partial class Sdl3Native
     public const int ScF1 = 58, ScF3 = 60, ScF5 = 62, ScF9 = 66, ScPgUp = 75, ScDelete = 76, ScPgDn = 78;
     public const int ScRight = 79, ScLeft = 80, ScDown = 81, ScUp = 82;
     public const int MouseBtnLeft = 1, MouseBtnMiddle = 2, MouseBtnRight = 3, MouseBtnX1 = 4, MouseBtnX2 = 5;
+    public const ulong WindowInputFocus = 0x0000000000000200UL;
 
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetHint(byte* name, byte* value);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_Init(uint flags);
@@ -96,6 +97,7 @@ internal static unsafe partial class Sdl3Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_ResumeAudioStreamDevice(IntPtr stream);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_PutAudioStreamData(IntPtr stream, void* buf, int len);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern int SDL_GetAudioStreamQueued(IntPtr stream);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_ClearAudioStream(IntPtr stream);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void SDL_DestroyAudioStream(IntPtr stream);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern uint* SDL_GetGamepads(out int count);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_OpenGamepad(uint instanceId);

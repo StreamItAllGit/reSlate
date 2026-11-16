@@ -25,14 +25,15 @@ public sealed unsafe partial class OpenGl33RenderBackend
         layout(location = 2) in vec4 aColor;
         layout(location = 3) in uint aTexInfo;
         layout(location = 4) in uint aTexWindow;
+        uniform vec2 uDrawScale;
         out vec2 vUv;
         out vec4 vColor;
         flat out uint vTexInfo;
         flat out uint vTexWindow;
         void main() {
             float w = max(aPosW.z, 1.0);
-            float ndcX = (aPosW.x / 512.0) - 1.0;
-            float ndcY = (aPosW.y / 256.0) - 1.0;
+            float ndcX = (aPosW.x * uDrawScale.x) - 1.0;
+            float ndcY = (aPosW.y * uDrawScale.y) - 1.0;
             gl_Position = vec4(ndcX * w, ndcY * w, 0.0, w);
             vUv = aUv; vColor = aColor; vTexInfo = aTexInfo; vTexWindow = aTexWindow;
         }
@@ -132,6 +133,7 @@ public sealed unsafe partial class OpenGl33RenderBackend
         _drawProg = LinkProgram(DrawVertexGlsl, DrawFragmentGlsl);
         _uDrawVramTex = GetUniformLoc(_drawProg, "uVramTex");
         _uDrawStpPass = GetUniformLoc(_drawProg, "uStpPass");
+        _uDrawScale = GetUniformLoc(_drawProg, "uDrawScale");
 
         _blitProg = LinkProgram(BlitVertexGlsl, BlitFragmentGlsl);
         _uBlitVramTex = GetUniformLoc(_blitProg, "uVramTex");

@@ -18,14 +18,14 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     private readonly GlVertex[] _batch = new GlVertex[MaxBatchVertices];
     private int _scale = 1, _outW = 320, _outH = 240, _vramFboScale, _dispFboW, _dispFboH, _scratchW, _scratchH;
     private int _batchCount, _clipL, _clipT, _clipR = PsxGpu.VramWidth - 1, _clipB = PsxGpu.VramHeight - 1;
-    private int _presentW, _presentH, _overlayW, _overlayH;
+    private int _presentW, _presentH, _overlayW, _overlayH, _wideW, _wideH, _wideFboScale;
     private long _primitivesSubmitted;
     private uint _batchBlendKey, _texWindowPacked;
     private uint _drawProg, _blitProg, _drawVao, _drawVbo, _blitVao, _blitVbo;
-    private uint _vramTex, _vramFbo, _vramColorTex, _displayFbo, _displayTex, _scratchFbo, _scratchTex, _presentTex, _overlayTex;
-    private int _uDrawVramTex, _uDrawStpPass, _uBlitVramTex, _uBlitColorTex, _uBlitMode, _uBlitDstRect, _uBlitSrcRect, _uBlitDispInfo;
+    private uint _vramTex, _vramFbo, _vramColorTex, _wideFbo, _wideColorTex, _displayFbo, _displayTex, _scratchFbo, _scratchTex, _presentTex, _overlayTex;
+    private int _uDrawVramTex, _uDrawStpPass, _uDrawScale, _uBlitVramTex, _uBlitColorTex, _uBlitMode, _uBlitDstRect, _uBlitSrcRect, _uBlitDispInfo;
     private PgxpTracker? _pgxp;
-    private bool _glReady, _hasPresented, _disposed;
+    private bool _glReady, _hasPresented, _hasCachedWideFrame, _disposed;
 
     /// <summary>Requires bindings already initialized against a current GL 3.3 Core context.</summary>
     public OpenGl33RenderBackend(OpenGl33Bindings gl)
@@ -49,8 +49,11 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         ApplyTextureWindow(maskX, maskY, offsetX, offsetY);
     }
 
-    private void ApplyTextureWindow(int maskX, int maskY, int offsetX, int offsetY) =>
+    private void ApplyTextureWindow(int maskX, int maskY, int offsetX, int offsetY)
+    {
         _texWindowPacked = (uint)((maskX & 31) | ((maskY & 31) << 5) | ((offsetX & 31) << 10) | ((offsetY & 31) << 15));
+        _wideFrameOps.Add(new WideFrameOp { Kind = WideFrameOpKind.SetTextureWindow, RawU32 = _texWindowPacked });
+    }
 
     public bool TryReadVramRect(int x, int y, int w, int h, Span<ushort> destination) => false; // Lazy glReadPixels ONLY in CaptureRgba.
 
@@ -85,6 +88,7 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         InitGlIfNeeded();
         FlushQueuedOpsOnOwnerThread();
         FlushBatch();
+        ResetWideFrameTracking();
         if (_presentTex == 0 || _presentW != width || _presentH != height)
         {
             if (_presentTex != 0) { uint t = _presentTex; Gl.DeleteTextures(1, &t); }
@@ -170,6 +174,10 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         {
             BlitVramRegionToFbo(dstX, dstY, w, h);
         }
+        _wideFrameOps.Add(new WideFrameOp
+        {
+            Kind = WideFrameOpKind.CopyVram, A = srcX & 1023, B = srcY & 511, C = dstX & 1023, D = dstY & 511, E = w, F = h
+        });
     }
 
     public void FillDisplayRect(int x, int y, int w, int h, uint bgr24)
@@ -208,6 +216,10 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         });
         Gl.Disable(GlConst.ScissorTest);
         Gl.BindFramebuffer(GlConst.Framebuffer, 0);
+        _wideFrameOps.Add(new WideFrameOp
+        {
+            Kind = WideFrameOpKind.FillRect, A = x & 1023, B = y & 511, C = w, D = h, RawU32 = bgr24
+        });
     }
 
     public void SubmitPrimitive(uint gp0Opcode, ReadOnlySpan<uint> words, ushort texPage, int drawOffsetX, int drawOffsetY,
@@ -235,11 +247,31 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
             int n = PsxPrimitiveDecoder.DecodePolygon(op, words, texPage, drawOffsetX, drawOffsetY, _pgxp, v, out PsxDrawState st);
             if (n < 3 || !PsxPrimitiveDecoder.IsDrawable(v[0], v[1], v[2])) return;
             EmitDecodedPolygon(st, v[0], v[1], v[2], v[3], n, clipLeft, clipTop, clipRight, clipBottom);
+            _wideFrameOps.Add(new WideFrameOp
+            {
+                Kind = WideFrameOpKind.Polygon, DrawState = st, PolyCount = n,
+                V0 = v[0], V1 = v[1], V2 = v[2], V3 = v[3],
+                ClipL = clipLeft, ClipT = clipTop, ClipR = clipRight, ClipB = clipBottom
+            });
         }
         else if (op is >= 0x40 and <= 0x5F && PsxPrimitiveDecoder.DecodeLine(op, words, texPage, drawOffsetX, drawOffsetY, out PsxVertex a, out PsxVertex b, out PsxDrawState ls))
+        {
             EmitDecodedLine(ls, a, b, clipLeft, clipTop, clipRight, clipBottom);
+            _wideFrameOps.Add(new WideFrameOp
+            {
+                Kind = WideFrameOpKind.Line, DrawState = ls, V0 = a, V1 = b,
+                ClipL = clipLeft, ClipT = clipTop, ClipR = clipRight, ClipB = clipBottom
+            });
+        }
         else if (op is >= 0x60 and <= 0x7F && PsxPrimitiveDecoder.DecodeRect(op, words, texPage, drawOffsetX, drawOffsetY, out PsxRect rc, out PsxDrawState rs))
+        {
             EmitDecodedRect(rs, rc, clipLeft, clipTop, clipRight, clipBottom);
+            _wideFrameOps.Add(new WideFrameOp
+            {
+                Kind = WideFrameOpKind.Rect, DrawState = rs, Rect = rc,
+                ClipL = clipLeft, ClipT = clipTop, ClipR = clipRight, ClipB = clipBottom
+            });
+        }
     }
 
     public void EndFrameAndPresent(int dispX, int dispY, int dispW, int dispH, bool is24Bit, bool widescreen16By9)
@@ -251,13 +283,32 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         FlushBatch();
 
         int dw = Math.Clamp(dispW, 1, PsxGpu.VramWidth), dh = Math.Clamp(dispH, 1, PsxGpu.VramHeight);
+        int ox = dispX & 1023, oy = dispY & 511;
         int s = is24Bit ? 1 : _vramFboScale;
+        if (widescreen16By9 && !is24Bit)
+        {
+            PsxWidescreenGeometry.ComputeDimensions(dw, dh, out int wideW, out int leftPad);
+            if (wideW > dw)
+            {
+                RenderWideFrameToFbo(ox, oy, dw, dh, wideW, leftPad, s);
+                _outW = wideW * s;
+                _outH = dh * s;
+                EnsureDisplayFboSize(_outW, _outH);
+                DrawBlitQuad(_displayFbo, _outW, _outH, 1, _wideColorTex, -1f, -1f, 2f, 2f, 0f, 0f, 1f, 1f, ox, oy, wideW, dh);
+                _wideFrameOps.Clear();
+                BlitDisplayToScreen(fullWindow: false, widescreen16By9: true);
+                _hasPresented = true;
+                return;
+            }
+        }
+        _wideFrameOps.Clear();
+        _hasCachedWideFrame = false;
         _outW = dw * s; _outH = dh * s;
         EnsureDisplayFboSize(_outW, _outH);
         int mode = is24Bit ? 2 : 1;
         DrawBlitQuad(_displayFbo, _outW, _outH, mode, _vramColorTex, -1f, -1f, 2f, 2f,
-            (dispX & 1023) / (float)PsxGpu.VramWidth, (dispY & 511) / (float)PsxGpu.VramHeight,
-            dw / (float)PsxGpu.VramWidth, dh / (float)PsxGpu.VramHeight, dispX & 1023, dispY & 511, dw, dh);
+            ox / (float)PsxGpu.VramWidth, oy / (float)PsxGpu.VramHeight,
+            dw / (float)PsxGpu.VramWidth, dh / (float)PsxGpu.VramHeight, ox, oy, dw, dh);
         BlitDisplayToScreen(fullWindow: false, widescreen16By9: widescreen16By9);
         _hasPresented = true;
     }
@@ -287,8 +338,8 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         DeleteProg(ref _drawProg); DeleteProg(ref _blitProg);
         DeleteVao(ref _drawVao); DeleteVao(ref _blitVao);
         DeleteBuf(ref _drawVbo); DeleteBuf(ref _blitVbo);
-        DeleteTex(ref _vramTex); DeleteTex(ref _vramColorTex); DeleteTex(ref _displayTex); DeleteTex(ref _scratchTex); DeleteTex(ref _presentTex); DeleteTex(ref _overlayTex);
-        DeleteFbo(ref _vramFbo); DeleteFbo(ref _displayFbo); DeleteFbo(ref _scratchFbo);
+        DeleteTex(ref _vramTex); DeleteTex(ref _vramColorTex); DeleteTex(ref _wideColorTex); DeleteTex(ref _displayTex); DeleteTex(ref _scratchTex); DeleteTex(ref _presentTex); DeleteTex(ref _overlayTex);
+        DeleteFbo(ref _vramFbo); DeleteFbo(ref _wideFbo); DeleteFbo(ref _displayFbo); DeleteFbo(ref _scratchFbo);
         _glReady = false;
     }
 }

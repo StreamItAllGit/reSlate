@@ -7,16 +7,16 @@
   "containerTier": "Tier A (5-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.7",
-  "activeMilestone": "0.2.7",
+  "version": "0.2.8",
+  "activeMilestone": "0.2.8",
   "goalMajorVersion": "1.0.0",
-  "stateChangedDate": "2026-11-15",
-  "lastVersionDate": "2026-11-15",
+  "stateChangedDate": "2026-11-16",
+  "lastVersionDate": "2026-11-16",
   "productionSubpath": null,
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 11,
+  "completedTaskCount": 12,
   "openReportCount": 0,
   "gates": {
     "isGate0ScopePassed": true,
@@ -25,6 +25,6 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "reStation v0.2.7 PATCH+1 (Shipped & Consumer-Verified): kernel ToT[0]/SysEnqIntRP/SysDeqIntRP/GetC0Table + SIO0 IRQ7 poll tick, IRecompQuickSaveProvider RSTX callbacks, HostInputMapper pre-hook pad flush, PsxCpu.BringupRecorder + --jit-bringup ExitCode=5, Program.ApplyFirstLaunchTimingDefaults (LockedCap->Original), 180/180 passing Release tests, GitHub Release v0.2.7 live, and MeadowValley-Recomp v0.2.0-hf.1 Gate #2 isolated QA #5 PASS.",
-  "updatedAtUtc": "2026-11-16T02:20:00.000Z"
+  "notes": "reStation v0.2.8 PATCH+1 (Gate 2 PASS -> Packaging): Per-game ControlOptions + Standard 18 metadataJson (removing baked HM controls from F1->Controls), true unstretched Hor+ 16:9 side-wing GL33 & Software CPU rendering with 24-bit MDEC 4:3 centering, 60 Hz decoupled VBlank outer pacing + SDL key/mouse latch + Esc modern bind & focus capture sync, BIOS B0:0x09 CloseEvent + ExecOverlay IntRP isolation + bounded SPU audio drain; 184/184 passing Release /warnaserror tests.",
+  "updatedAtUtc": "2026-11-16T03:45:00.000Z"
 }

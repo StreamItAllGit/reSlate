@@ -32,6 +32,30 @@ internal static unsafe class HostInputMapper
         ISet<string> prevNativeActions,
         List<string> activeNativeBuffer,
         List<string> pressedNativeBuffer,
+        out bool releaseMouseCapture) =>
+        BuildLiveInput(
+            cpu, drawerOpen, sdlAvailable, settings, globalBindings, profileProvider, gamepad,
+            ref dx, ref dy, wheelUp, wheelDown, ReadOnlySpan<byte>.Empty, 0u,
+            nativeHook, prevNativeActions, activeNativeBuffer, pressedNativeBuffer, out releaseMouseCapture);
+
+    public static HostInputState BuildLiveInput(
+        IReStationCpuEx cpu,
+        bool drawerOpen,
+        bool sdlAvailable,
+        RecompSettings settings,
+        KeyBindingsConfig? globalBindings,
+        IModuleInputProfileProvider? profileProvider,
+        IntPtr gamepad,
+        ref float dx,
+        ref float dy,
+        bool wheelUp,
+        bool wheelDown,
+        ReadOnlySpan<byte> latchedKeys,
+        uint latchedMouseMask,
+        INativeGameActionHook? nativeHook,
+        ISet<string> prevNativeActions,
+        List<string> activeNativeBuffer,
+        List<string> pressedNativeBuffer,
         out bool releaseMouseCapture)
     {
         if (drawerOpen)
@@ -57,7 +81,10 @@ internal static unsafe class HostInputMapper
         Span<byte> mergedKeys = stackalloc byte[KeyBindingsConfig.MaxScancode + 1];
         int liveCopy = Math.Min(liveKeys.Length, mergedKeys.Length);
         liveKeys[..liveCopy].CopyTo(mergedKeys);
-        uint mergedMouseMask = liveMouseMask;
+        int latchedCopy = Math.Min(latchedKeys.Length, mergedKeys.Length);
+        for (int i = 0; i < latchedCopy; i++)
+            mergedKeys[i] |= latchedKeys[i];
+        uint mergedMouseMask = liveMouseMask | latchedMouseMask;
         bool controllerConnected = sdlAvailable && gamepad != IntPtr.Zero;
         float rawLx = controllerConnected ? ReadRawAxis(gamepad, 0) : 0f;
         float rawLy = controllerConnected ? ReadRawAxis(gamepad, 1) : 0f;

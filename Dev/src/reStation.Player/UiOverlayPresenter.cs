@@ -196,6 +196,8 @@ internal sealed class UiOverlayPresenter
             hc.Add(drawer.GlobalProfile.KeyBindings.GetScancode(a));
         if (drawer.ModuleProfile is not null)
         {
+            foreach (GameControlOptionDescriptor opt in drawer.ModuleProfile.ControlOptions)
+                hc.Add(s.GetModuleOption(opt));
             foreach (GameActionDescriptor d in drawer.ModuleProfile.ModernActions)
             {
                 foreach (int code in s.GetModernActionBindings(d)) hc.Add(code);

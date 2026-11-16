@@ -64,7 +64,18 @@ public readonly record struct NativeGameActionContext(
     string IsometricMoveMode = NativeInputModeIds.IsometricMoveCropGrid,
     float RawLeftStickX = 0f,
     float RawLeftStickY = 0f,
-    bool ControllerConnected = false);
+    bool ControllerConnected = false)
+{
+    /// <summary>Per-game option overrides resolved from Standard 18 <c>metadataJson</c>.</summary>
+    public IReadOnlyDictionary<string, string>? ModuleOptions { get; init; }
+
+    /// <summary>Reads a game-specific option override or falls back to <paramref name="defaultValue"/>.</summary>
+    public string GetOption(string optionId, string defaultValue = "") =>
+        ModuleOptions is not null && !string.IsNullOrWhiteSpace(optionId)
+        && ModuleOptions.TryGetValue(optionId, out string? v) && !string.IsNullOrWhiteSpace(v)
+            ? v
+            : defaultValue;
+}
 
 /// <summary>
 /// Optional interface implemented by a game module to handle Modern PC named actions directly in PS1 RAM

@@ -120,6 +120,19 @@ public sealed record GameActionDescriptor
     }
 }
 
+/// <summary>One selectable choice for a game-specific control option shown in the F1 Controls tab.</summary>
+public sealed record GameControlOptionChoice(string Value, string Label);
+
+/// <summary>
+/// Per-game control setting declared by a module and stored in Standard 18 <c>metadataJson</c> (<c>settings.json</c>).
+/// </summary>
+public sealed record GameControlOptionDescriptor(
+    string OptionId,
+    string Label,
+    string DefaultValue,
+    IReadOnlyList<GameControlOptionChoice> Choices,
+    string? Category = null);
+
 /// <summary>
 /// Optional interface implemented by a game module to provide Tier 3 Modern PC action definitions and gameplay/menu context detection.
 /// </summary>
@@ -130,6 +143,9 @@ public interface IModuleInputProfileProvider
 
     /// <summary>Ordered list of rebindable actions exposed to the Modern PC keybinds UI.</summary>
     IReadOnlyList<GameActionDescriptor> ModernActions { get; }
+
+    /// <summary>Optional game-specific toggles/pills rendered in F1 -&gt; Controls and persisted under <c>metadataJson</c>.</summary>
+    IReadOnlyList<GameControlOptionDescriptor> ControlOptions => Array.Empty<GameControlOptionDescriptor>();
 
     /// <summary>Returns <see langword="true"/> when active in-world gameplay controls apply, or <see langword="false"/> for menus/title.</summary>
     bool IsGameplayContextActive(IReStationCpu cpu);

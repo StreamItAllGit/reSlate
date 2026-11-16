@@ -19,7 +19,7 @@ public sealed partial class PsxBiosHle
     private sealed class KernelEvent
     {
         public uint ClassId, Spec, Mode, Callback;
-        public bool Enabled, Delivered;
+        public bool Enabled, Delivered, Closed;
     }
 
     private sealed class OpenMemCardFile : IDisposable
@@ -156,8 +156,8 @@ public sealed partial class PsxBiosHle
         {
             case 0x00: _cpu.R[2] = AllocHeap(_cpu.R[4]); break;
             case 0x07: DeliverClassEvent(_cpu.R[4], _cpu.R[5]); break;
-            case 0x08: _events.Add(new KernelEvent { ClassId = _cpu.R[4], Spec = _cpu.R[5], Mode = _cpu.R[6], Callback = _cpu.R[7] }); _cpu.R[2] = (uint)((_events.Count - 1) | 0xF1000000); break;
-            case 0x09: _cpu.R[2] = 1; break;
+            case 0x08: _cpu.R[2] = OpenKernelEvent(_cpu.R[4], _cpu.R[5], _cpu.R[6], _cpu.R[7]); break;
+            case 0x09: _cpu.R[2] = CloseKernelEvent(_cpu.R[4]) ? 1U : 0U; break;
             case 0x0B: _cpu.R[2] = TestEvent(_cpu.R[4]) ? 1U : 0U; break;
             case 0x0C: SetEventEnabled(_cpu.R[4], true); _cpu.R[2] = 1; break;
             case 0x0D: SetEventEnabled(_cpu.R[4], false); _cpu.R[2] = 1; break;
@@ -260,12 +260,23 @@ public sealed partial class PsxBiosHle
         uint spBase = _cpu.Bus.Read32(headerPtr + 0x1C);
         int prevExe = _cpu.ActiveExeId;
         uint prevSr = _cpu.Cop0Sr, prevHook = _hookEntryIntBufAddr, prevPad = _padBufAddr, prevType = _padType, prevLen = _padLen, prevPad2 = _padBuf2Addr, prevLen2 = _padLen2;
-        var prevEvents = new List<KernelEvent>(_events);
+        var prevEvents = new List<KernelEvent>(_events.Count);
+        foreach (KernelEvent ev in _events)
+        {
+            prevEvents.Add(new KernelEvent
+            {
+                ClassId = ev.ClassId, Spec = ev.Spec, Mode = ev.Mode, Callback = ev.Callback,
+                Enabled = ev.Enabled, Delivered = ev.Delivered, Closed = ev.Closed
+            });
+        }
+        Span<uint> savedIntRpHeads = stackalloc uint[IntRpPriorityCount];
+        SaveAndClearIntRpHeads(savedIntRpHeads);
         Span<uint> savedR = stackalloc uint[32];
         _cpu.R.AsSpan().CopyTo(savedR);
 
         _hookEntryIntBufAddr = 0; _padBufAddr = 0; _padType = 0; _padLen = 0; _padBuf2Addr = 0; _padLen2 = 0; _events.Clear();
         _failedEventPolls = 0; _lastFailedEventHandle = 0;
+        _cpu.Spu.Output.Clear();
         _cpu.Cop0Sr = 0x00000401U;
         _cpu.TimersAndDma.InterruptMask = 0; _cpu.TimersAndDma.InterruptStatus = 0; _cpu.TimersAndDma.PendingTimerEvents = 0;
 
@@ -284,6 +295,8 @@ public sealed partial class PsxBiosHle
             _cpu.ActiveExeId = prevExe; _cpu.Cop0Sr = prevSr;
             _hookEntryIntBufAddr = prevHook; _padBufAddr = prevPad; _padType = prevType; _padLen = prevLen; _padBuf2Addr = prevPad2; _padLen2 = prevLen2;
             _events.Clear(); _events.AddRange(prevEvents);
+            RestoreIntRpHeads(savedIntRpHeads);
+            _cpu.Spu.Output.Clear();
             _cpu.TimersAndDma.InterruptMask = 0; _cpu.TimersAndDma.InterruptStatus = 0;
             savedR.CopyTo(_cpu.R);
             if (switchingBack) _cpu.FramePatch?.Reset();

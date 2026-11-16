@@ -21,23 +21,26 @@ public sealed unsafe partial class OpenGl33RenderBackend
         if (st.Textured && st.SemiTransparent && st.SemiMode != 0) FlushBatch();
     }
 
-    private void FlushBatch()
+    private void FlushBatch() => FlushBatchTo(_vramFbo, PsxGpu.VramWidth, PsxGpu.VramHeight);
+
+    private void FlushBatchTo(uint targetFbo, int bufW, int bufH)
     {
         if (_batchCount == 0) return;
         int count = _batchCount;
         _batchCount = 0;
-        int cl = Math.Max(0, _clipL), ct = Math.Max(0, _clipT), cr = Math.Min(PsxGpu.VramWidth - 1, _clipR), cb = Math.Min(PsxGpu.VramHeight - 1, _clipB);
+        int cl = Math.Max(0, _clipL), ct = Math.Max(0, _clipT), cr = Math.Min(bufW - 1, _clipR), cb = Math.Min(bufH - 1, _clipB);
         if (cl > cr || ct > cb) return;
 
         int s = _vramFboScale;
-        Gl.BindFramebuffer(GlConst.Framebuffer, _vramFbo);
-        Gl.Viewport(0, 0, PsxGpu.VramWidth * s, PsxGpu.VramHeight * s);
+        Gl.BindFramebuffer(GlConst.Framebuffer, targetFbo);
+        Gl.Viewport(0, 0, bufW * s, bufH * s);
         Gl.Enable(GlConst.ScissorTest);
         Gl.Scissor(cl * s, ct * s, (cr - cl + 1) * s, (cb - ct + 1) * s);
         Gl.BindVertexArray(_drawVao);
         Gl.BindBuffer(GlConst.ArrayBuffer, _drawVbo);
         fixed (GlVertex* p = _batch) Gl.BufferSubData(GlConst.ArrayBuffer, 0, count * sizeof(GlVertex), p);
         Gl.UseProgram(_drawProg);
+        Gl.Uniform2f(_uDrawScale, 2f / bufW, 2f / bufH);
         Gl.ActiveTexture(GlConst.Texture0);
         Gl.BindTexture(GlConst.Texture2D, _vramTex);
         Gl.Uniform1i(_uDrawVramTex, 0);

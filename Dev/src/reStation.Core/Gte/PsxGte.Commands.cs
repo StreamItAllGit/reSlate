@@ -78,10 +78,7 @@ public sealed partial class PsxGte
         ushort sz3 = Sz(3);
         ushort h = (ushort)_c[26];
         uint div = Divide(h, sz3);
-        bool wide = Settings.IsWidescreen16By9;
-        long xTerm = (long)div * Ir(1);
-        if (wide) xTerm = xTerm * 3 / 4;
-        long macX = SetMac0(xTerm + (int)_c[24]);
+        long macX = SetMac0((long)div * Ir(1) + (int)_c[24]);
         long macY = SetMac0((long)div * Ir(2) + (int)_c[25]);
         short sx = SaturateScreen(macX >> 16, 1U << 14, ref _flag);
         short sy = SaturateScreen(macY >> 16, 1U << 13, ref _flag);
@@ -91,7 +88,7 @@ public sealed partial class PsxGte
         {
             double precise = sz3 == 0 ? 0x1FFFF : Math.Min(0x1FFFF, h * 65536.0 / sz3);
             double ir1 = Math.Clamp(Mac(1), -0x8000, 0x7FFF), ir2 = Math.Clamp(Mac(2), -0x8000, 0x7FFF);
-            double fx = ((int)_c[24] + precise * ir1 * (wide ? 0.75 : 1.0)) / 65536.0;
+            double fx = ((int)_c[24] + precise * ir1) / 65536.0;
             double fy = ((int)_c[25] + precise * ir2) / 65536.0;
             Pgxp.Record(sx, sy, (float)fx, (float)fy, sz3);
         }

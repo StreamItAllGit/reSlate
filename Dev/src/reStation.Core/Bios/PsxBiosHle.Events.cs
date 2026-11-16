@@ -91,12 +91,73 @@ public sealed partial class PsxBiosHle
         }
     }
 
+    private uint OpenKernelEvent(uint classId, uint spec, uint mode, uint callback)
+    {
+        if (mode == 0x1000U && callback != 0U)
+        {
+            for (int i = 0; i < _events.Count; i++)
+            {
+                KernelEvent existing = _events[i];
+                if (!existing.Closed && existing.ClassId == classId && existing.Spec == spec && existing.Mode == mode && existing.Callback == callback)
+                {
+                    existing.Enabled = false;
+                    existing.Delivered = false;
+                    return (uint)(i | 0xF1000000U);
+                }
+            }
+        }
+        for (int i = 0; i < _events.Count; i++)
+        {
+            if (!_events[i].Closed) continue;
+            _events[i] = new KernelEvent { ClassId = classId, Spec = spec, Mode = mode, Callback = callback };
+            return (uint)(i | 0xF1000000U);
+        }
+        _events.Add(new KernelEvent { ClassId = classId, Spec = spec, Mode = mode, Callback = callback });
+        return (uint)((_events.Count - 1) | 0xF1000000U);
+    }
+
+    private bool CloseKernelEvent(uint h)
+    {
+        uint hi = h & 0xFFFF0000U;
+        if (hi != 0xF1000000U && hi != 0U) return false;
+        int i = (int)(h & 0xFFFFU);
+        if (i < 0 || i >= _events.Count || _events[i].Closed) return false;
+        KernelEvent ev = _events[i];
+        ev.Closed = true;
+        ev.Enabled = false;
+        ev.Delivered = false;
+        if (_lastFailedEventHandle == h) { _lastFailedEventHandle = 0; _failedEventPolls = 0; }
+        return true;
+    }
+
+    private void SaveAndClearIntRpHeads(Span<uint> saved)
+    {
+        EnsureKernelTables();
+        uint tableAddr = _cpu.Bus.Read32(KernelToT0Addr);
+        if (tableAddr == 0U) { saved.Clear(); return; }
+        for (int p = 0; p < saved.Length; p++)
+        {
+            uint headAddr = tableAddr + (uint)(p * 8);
+            saved[p] = _cpu.Bus.Read32(headAddr);
+            _cpu.Bus.Write32(headAddr, 0U);
+        }
+    }
+
+    private void RestoreIntRpHeads(ReadOnlySpan<uint> saved)
+    {
+        EnsureKernelTables();
+        uint tableAddr = _cpu.Bus.Read32(KernelToT0Addr);
+        if (tableAddr == 0U) return;
+        for (int p = 0; p < saved.Length; p++)
+            _cpu.Bus.Write32(tableAddr + (uint)(p * 8), saved[p]);
+    }
+
     public void OnVBlank()
     {
         _failedEventPolls = 0;
         WritePadState();
         foreach (KernelEvent ev in _events)
-            if (ev.Enabled && (ev.ClassId is 0xF0000001U or 0xF2000003U) && ev.Spec == 0x0002U)
+            if (!ev.Closed && ev.Enabled && (ev.ClassId is 0xF0000001U or 0xF2000003U) && ev.Spec == 0x0002U)
                 TriggerEvent(ev);
     }
 
@@ -104,7 +165,7 @@ public sealed partial class PsxBiosHle
     {
         _failedEventPolls = 0;
         foreach (KernelEvent ev in _events)
-            if (ev.Enabled && ev.ClassId == classId && (ev.Spec == spec || ev.Spec == 0xFFFFU))
+            if (!ev.Closed && ev.Enabled && ev.ClassId == classId && (ev.Spec == spec || ev.Spec == 0xFFFFU))
                 TriggerEvent(ev);
     }
 
@@ -186,7 +247,7 @@ public sealed partial class PsxBiosHle
     private bool TestEvent(uint h)
     {
         int i = (int)(h & 0xFFFFU);
-        if (i < 0 || i >= _events.Count) return false;
+        if (i < 0 || i >= _events.Count || _events[i].Closed) return false;
         bool d = _events[i].Delivered;
         _events[i].Delivered = false;
         if (d) { _failedEventPolls = 0; return true; }
@@ -196,8 +257,8 @@ public sealed partial class PsxBiosHle
         return false;
     }
 
-    private void SetEventEnabled(uint h, bool en) { int i = (int)(h & 0xFFFFU); if (i >= 0 && i < _events.Count) _events[i].Enabled = en; }
-    private void ClearEvent(uint h) { int i = (int)(h & 0xFFFFU); if (i >= 0 && i < _events.Count) _events[i].Delivered = false; }
+    private void SetEventEnabled(uint h, bool en) { int i = (int)(h & 0xFFFFU); if (i >= 0 && i < _events.Count && !_events[i].Closed) _events[i].Enabled = en; }
+    private void ClearEvent(uint h) { int i = (int)(h & 0xFFFFU); if (i >= 0 && i < _events.Count && !_events[i].Closed) _events[i].Delivered = false; }
 
     private void ZeroRam(uint d, uint n)
     {
@@ -246,6 +307,8 @@ public sealed partial class PsxBiosHle
             w.Write(ev.Enabled); w.Write(ev.Delivered);
         }
         w.Write(_padBuf2Addr); w.Write(_padLen2);
+        w.Write(0x434C5344U);
+        foreach (KernelEvent ev in _events) w.Write(ev.Closed);
         w.Flush();
         return ms.ToArray();
     }
@@ -273,5 +336,9 @@ public sealed partial class PsxBiosHle
             });
         if (ms.Position + 8 <= ms.Length) { _padBuf2Addr = r.ReadUInt32(); _padLen2 = r.ReadUInt32(); }
         else { _padBuf2Addr = 0; _padLen2 = 0; }
+        if (ms.Position + 4 + count <= ms.Length && r.ReadUInt32() == 0x434C5344U)
+        {
+            for (int i = 0; i < count; i++) _events[i].Closed = r.ReadBoolean();
+        }
     }
 }

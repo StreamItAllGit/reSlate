@@ -10,7 +10,7 @@ using reStation.Core.Gte;
 
 namespace reStation.Core.Gpu;
 
-public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackendHooks
+public sealed partial class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackendHooks
 {
     internal static readonly uint[] Rgb15Lut = BuildRgb15Lut();
 
@@ -21,6 +21,7 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
     private int _scale = 1, _hiScale;
     private PgxpTracker? _pgxp;
     private int _texWinMaskX, _texWinMaskY, _texWinOffX, _texWinOffY;
+    private uint _texWindowPacked;
 
     public string BackendId => PsxRenderBackendIds.Software;
     public int ScaleFactor { get => _scale; set { _scale = NormalizeScale(value); EnsureHiVram(); } }
@@ -34,6 +35,8 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
     {
         _texWinMaskX = maskX & 0x1F; _texWinMaskY = maskY & 0x1F;
         _texWinOffX = offsetX & 0x1F; _texWinOffY = offsetY & 0x1F;
+        _texWindowPacked = (uint)(_texWinMaskX | (_texWinMaskY << 5) | (_texWinOffX << 10) | (_texWinOffY << 15));
+        _wideFrameOps.Add(new WideFrameOp { Kind = WideFrameOpKind.SetTextureWindow, RawU32 = _texWindowPacked });
     }
 
     public void Initialize(int initialWidth, int initialHeight, int scaleFactor) => Resize(initialWidth, initialHeight, scaleFactor);
@@ -50,6 +53,8 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
     public void PresentRgba(int width, int height, ReadOnlySpan<byte> rgba)
     {
         if (width <= 0 || height <= 0 || rgba.Length < width * height * 4) throw new ArgumentException("RGBA buffer too small.", nameof(rgba));
+        _wideFrameOps.Clear();
+        _hasCachedWideFrame = false;
         _frameW = width;
         _frameH = height;
         _frame = rgba[..(width * height * 4)].ToArray();
@@ -95,6 +100,10 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
         for (int r = 0, i = 0; r < sh; r++)
             for (int c = 0; c < sw; c++, i++)
                 _hiVram[(((dy0 + r) % hiH) * hiW) + ((dx0 + c) % hiW)] = tmp32[i];
+        _wideFrameOps.Add(new WideFrameOp
+        {
+            Kind = WideFrameOpKind.CopyVram, A = srcX & 1023, B = srcY & 511, C = dstX & 1023, D = dstY & 511, E = w, F = h
+        });
     }
 
     public void FillDisplayRect(int x, int y, int w, int h, uint bgr24)
@@ -115,6 +124,10 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
                 WriteScaledPixel(vx, vy, abgr, s, hiW);
             }
         }
+        _wideFrameOps.Add(new WideFrameOp
+        {
+            Kind = WideFrameOpKind.FillRect, A = x & 1023, B = y & 511, C = w, D = h, RawU32 = bgr24
+        });
     }
 
     public void SubmitPrimitive(uint gp0Opcode, ReadOnlySpan<uint> words, ushort texPage, int drawOffsetX, int drawOffsetY,
@@ -133,24 +146,52 @@ public sealed class SoftwareCpuRenderBackend : IPsxRenderBackend, IPsxGpuBackend
             if (count == 4)
                 SoftwareCpuRasterizer.RasterizeTriangle(_hiVram, _vram, _hiScale, in verts[1], in verts[2], in verts[3],
                     in state, clipLeft, clipTop, clipRight, clipBottom, _texWinMaskX, _texWinMaskY, _texWinOffX, _texWinOffY);
+            _wideFrameOps.Add(new WideFrameOp
+            {
+                Kind = WideFrameOpKind.Polygon, DrawState = state, PolyCount = count,
+                V0 = verts[0], V1 = verts[1], V2 = verts[2], V3 = verts[3],
+                ClipL = clipLeft, ClipT = clipTop, ClipR = clipRight, ClipB = clipBottom
+            });
         }
         else if (op is >= 0x40 and <= 0x5F && PsxPrimitiveDecoder.DecodeLine(op, words, texPage, drawOffsetX, drawOffsetY, out PsxVertex a, out PsxVertex b, out PsxDrawState ls))
         {
             SoftwareCpuRasterizer.RasterizeLine(_hiVram, _hiScale, in a, in b, in ls, clipLeft, clipTop, clipRight, clipBottom);
+            _wideFrameOps.Add(new WideFrameOp
+            {
+                Kind = WideFrameOpKind.Line, DrawState = ls, V0 = a, V1 = b,
+                ClipL = clipLeft, ClipT = clipTop, ClipR = clipRight, ClipB = clipBottom
+            });
         }
         else if (op is >= 0x60 and <= 0x7F && PsxPrimitiveDecoder.DecodeRect(op, words, texPage, drawOffsetX, drawOffsetY, out PsxRect rect, out PsxDrawState rs))
         {
             SoftwareCpuRasterizer.RasterizeRect(_hiVram, _vram, _hiScale, in rect, in rs,
                 clipLeft, clipTop, clipRight, clipBottom, _texWinMaskX, _texWinMaskY, _texWinOffX, _texWinOffY);
+            _wideFrameOps.Add(new WideFrameOp
+            {
+                Kind = WideFrameOpKind.Rect, DrawState = rs, Rect = rect,
+                ClipL = clipLeft, ClipT = clipTop, ClipR = clipRight, ClipB = clipBottom
+            });
         }
     }
 
     public void EndFrameAndPresent(int dispX, int dispY, int dispW, int dispH, bool is24Bit, bool widescreen16By9)
     {
-        _ = widescreen16By9;
         EnsureHiVram();
         int dw = Math.Clamp(dispW, 1, PsxGpu.VramWidth), dh = Math.Clamp(dispH, 1, PsxGpu.VramHeight);
+        int ox = dispX & 1023, oy = dispY & 511;
         int s = is24Bit ? 1 : _hiScale;
+        if (widescreen16By9 && !is24Bit)
+        {
+            PsxWidescreenGeometry.ComputeDimensions(dw, dh, out int wideW, out int leftPad);
+            if (wideW > dw)
+            {
+                RenderWideSoftwareFrame(ox, oy, dw, dh, wideW, leftPad, s);
+                _wideFrameOps.Clear();
+                return;
+            }
+        }
+        _wideFrameOps.Clear();
+        _hasCachedWideFrame = false;
         int outW = dw * s, outH = dh * s;
         if (_frame.Length != outW * outH * 4) _frame = new byte[outW * outH * 4];
         _frameW = outW; _frameH = outH;

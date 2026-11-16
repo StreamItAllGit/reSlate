@@ -63,6 +63,8 @@ public sealed class RecompSettings
     [JsonPropertyName("inputProfileMode")] public InputProfileMode InputProfileMode { get; set; } = InputProfileMode.PerGameModern;
     [JsonPropertyName("modernActionBindings"), JsonConverter(typeof(ModernBindingsJsonConverter))] public Dictionary<string, int[]>? ModernActionBindings { get; set; }
     [JsonPropertyName("modernControllerBindings"), JsonConverter(typeof(ModernBindingsJsonConverter))] public Dictionary<string, int[]>? ModernControllerBindings { get; set; }
+    /// <summary>Per-game control options stored under Standard 18 "metadataJson".</summary>
+    [JsonPropertyName("metadataJson"), JsonConverter(typeof(MetadataJsonConverter))] public Dictionary<string, string>? MetadataJson { get; set; }
     /// <summary>Preserves forward/unknown settings keys across load-save cycles (Standard 19 §2.3).</summary>
     [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -86,6 +88,45 @@ public sealed class RecompSettings
         KeyBindings.Clamp(ControlMode);
         ModernActionBindings = NormalizeBindingsMap(ModernActionBindings, isController: false);
         ModernControllerBindings = NormalizeBindingsMap(ModernControllerBindings, isController: true);
+        MetadataJson = NormalizeMetadataMap(MetadataJson);
+    }
+
+    public string GetModuleOption(GameControlOptionDescriptor option) =>
+        option is null ? string.Empty : GetModuleOption(option.OptionId, option.DefaultValue);
+
+    public string GetModuleOption(string optionId, string defaultValue = "")
+    {
+        if (MetadataJson is null || string.IsNullOrWhiteSpace(optionId)) return defaultValue;
+        foreach ((string k, string v) in MetadataJson)
+            if (string.Equals(k, optionId, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(v))
+                return v;
+        return defaultValue;
+    }
+
+    public void SetModuleOption(string optionId, string value)
+    {
+        if (string.IsNullOrWhiteSpace(optionId)) return;
+        MetadataJson ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        MetadataJson[optionId.Trim()] = value?.Trim() ?? string.Empty;
+    }
+
+    public bool IsBindingUsedByAnyModernAction(int bindingCode, IReadOnlyList<GameActionDescriptor>? actions)
+    {
+        if (bindingCode <= 0 || actions is null || actions.Count == 0) return false;
+        foreach (GameActionDescriptor action in actions)
+            foreach (int code in GetModernActionBindings(action))
+                if (code == bindingCode) return true;
+        return false;
+    }
+
+    private static Dictionary<string, string>? NormalizeMetadataMap(Dictionary<string, string>? raw)
+    {
+        if (raw is null) return null;
+        var clean = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach ((string k, string v) in raw)
+            if (!string.IsNullOrWhiteSpace(k) && !string.IsNullOrWhiteSpace(v))
+                clean[k.Trim()] = v.Trim();
+        return clean;
     }
 
     public IReadOnlyList<int> GetModernActionBindings(GameActionDescriptor action)
@@ -218,6 +259,44 @@ public sealed class RecompSettings
         Clamp();
         UpdatedAtUtc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture);
         new GranularSettingsManager(Path.GetDirectoryName(full)!).SaveAtomically(full, this, JsonOptions);
+    }
+}
+
+/// <summary>Deserializes Standard 18 <c>metadataJson</c> string/scalar entries into a case-insensitive option dictionary.</summary>
+public sealed class MetadataJsonConverter : JsonConverter<Dictionary<string, string>?>
+{
+    public override Dictionary<string, string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        if (reader.TokenType != JsonTokenType.StartObject) throw new JsonException("Expected JSON object for metadataJson.");
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndObject) return map;
+            if (reader.TokenType != JsonTokenType.PropertyName) continue;
+            string key = reader.GetString() ?? string.Empty;
+            if (!reader.Read()) break;
+            string? val = reader.TokenType switch
+            {
+                JsonTokenType.String => reader.GetString(),
+                JsonTokenType.True => "true",
+                JsonTokenType.False => "false",
+                JsonTokenType.Number => reader.TryGetInt64(out long l) ? l.ToString(System.Globalization.CultureInfo.InvariantCulture) : reader.GetDouble().ToString(System.Globalization.CultureInfo.InvariantCulture),
+                _ => null
+            };
+            if (reader.TokenType is JsonTokenType.StartObject or JsonTokenType.StartArray) reader.Skip();
+            if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(val)) map[key.Trim()] = val.Trim();
+        }
+        return map;
+    }
+
+    public override void Write(Utf8JsonWriter writer, Dictionary<string, string>? value, JsonSerializerOptions options)
+    {
+        if (value is null) { writer.WriteNullValue(); return; }
+        writer.WriteStartObject();
+        foreach ((string k, string v) in value)
+            if (!string.IsNullOrWhiteSpace(k) && v is not null) writer.WriteString(k, v);
+        writer.WriteEndObject();
     }
 }
 

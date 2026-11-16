@@ -43,7 +43,7 @@ public sealed partial class PsxGpu
     public IPsxRenderBackend Backend { get; private set; }
     public ushort[] Vram { get; } = new ushort[VramWidth * VramHeight];
     public Func<bool>? WidescreenSupportChecker { get; set; }
-    public bool EffectiveWidescreen => Settings.IsWidescreen16By9 && (WidescreenSupportChecker?.Invoke() ?? true);
+    public bool EffectiveWidescreen => Settings.IsWidescreen16By9 && !Is24BitDisplay && (WidescreenSupportChecker?.Invoke() ?? true);
 
     /// <summary>Hot-swaps the active render backend at a frame boundary and uploads current VRAM/state immediately.</summary>
     public void SetBackend(IPsxRenderBackend backend)

@@ -9,10 +9,11 @@ namespace reStation.Core.Gpu;
 internal static class SoftwareCpuRasterizer
 {
     public static void RasterizeTriangle(uint[] hiVram, ushort[] vram, int scale, in PsxVertex a, in PsxVertex b, in PsxVertex c,
-        in PsxDrawState st, int clipL, int clipT, int clipR, int clipB, int winMaskX, int winMaskY, int winOffX, int winOffY)
+        in PsxDrawState st, int clipL, int clipT, int clipR, int clipB, int winMaskX, int winMaskY, int winOffX, int winOffY,
+        int surfW = PsxGpu.VramWidth, int surfH = PsxGpu.VramHeight)
     {
         if (!PsxPrimitiveDecoder.IsDrawable(a, b, c)) return;
-        int hiW = PsxGpu.VramWidth * scale, hiH = PsxGpu.VramHeight * scale;
+        int hiW = surfW * scale, hiH = surfH * scale;
         float ax = a.X * scale, ay = a.Y * scale, bx = b.X * scale, by = b.Y * scale, cx = c.X * scale, cy = c.Y * scale;
         float area = Edge(ax, ay, bx, by, cx, cy);
         if (MathF.Abs(area) < 1e-4f) return;
@@ -77,9 +78,10 @@ internal static class SoftwareCpuRasterizer
     }
 
     public static void RasterizeRect(uint[] hiVram, ushort[] vram, int scale, in PsxRect r, in PsxDrawState st,
-        int clipL, int clipT, int clipR, int clipB, int winMaskX, int winMaskY, int winOffX, int winOffY)
+        int clipL, int clipT, int clipR, int clipB, int winMaskX, int winMaskY, int winOffX, int winOffY,
+        int surfW = PsxGpu.VramWidth, int surfH = PsxGpu.VramHeight)
     {
-        int hiW = PsxGpu.VramWidth * scale, hiH = PsxGpu.VramHeight * scale;
+        int hiW = surfW * scale, hiH = surfH * scale;
         int minX = Math.Max(Math.Max(0, clipL * scale), r.X * scale);
         int maxX = Math.Min(Math.Min(hiW - 1, ((clipR + 1) * scale) - 1), ((r.X + r.Width) * scale) - 1);
         int minY = Math.Max(Math.Max(0, clipT * scale), r.Y * scale);
@@ -117,9 +119,9 @@ internal static class SoftwareCpuRasterizer
     }
 
     public static void RasterizeLine(uint[] hiVram, int scale, in PsxVertex a, in PsxVertex b, in PsxDrawState st,
-        int clipL, int clipT, int clipR, int clipB)
+        int clipL, int clipT, int clipR, int clipB, int surfW = PsxGpu.VramWidth, int surfH = PsxGpu.VramHeight)
     {
-        int hiW = PsxGpu.VramWidth * scale, hiH = PsxGpu.VramHeight * scale;
+        int hiW = surfW * scale, hiH = surfH * scale;
         int minClipX = Math.Max(0, clipL * scale), maxClipX = Math.Min(hiW - 1, ((clipR + 1) * scale) - 1);
         int minClipY = Math.Max(0, clipT * scale), maxClipY = Math.Min(hiH - 1, ((clipB + 1) * scale) - 1);
         if (minClipX > maxClipX || minClipY > maxClipY) return;

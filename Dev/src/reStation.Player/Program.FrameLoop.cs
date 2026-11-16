@@ -24,13 +24,14 @@ internal static unsafe partial class Program
     {
         public IntPtr Gamepad = HostInputMapper.OpenFirstGamepad();
         public float MouseDx, MouseDy;
-        public bool MouseCaptured, QuitRequested, PrevSave, PrevLoad, UiDirty = true;
+        public bool MouseCaptured, UserReleasedMouse, QuitRequested, PrevSave, PrevLoad, UiDirty = true;
         public bool WheelUp, WheelDown, IsOffscreen;
         public bool SuppressNextIdleSubTickVBlank;
-        public uint PrevCaptureTriggerMask;
+        public uint PrevCaptureTriggerMask, LatchedMouseMask;
         public long HostFrame;
         public string DiscInfo = string.Empty;
         public string? PendingBackendSwitch;
+        public readonly byte[] LatchedKeys = new byte[KeyBindingsConfig.MaxScancode + 1];
         public readonly HashSet<string> PrevNativeActions = new(StringComparer.OrdinalIgnoreCase);
         public readonly List<string> ActiveNativeBuffer = new();
         public readonly List<string> PressedNativeBuffer = new();
@@ -61,7 +62,7 @@ internal static unsafe partial class Program
             : IntPtr.Zero;
         if (audioStream != IntPtr.Zero) _ = Sdl3Native.SDL_ResumeAudioStreamDevice(audioStream);
 
-        short[] audioBuf = new short[ReStationHost.SamplesPerFrame * 2];
+        short[] audioBuf = new short[(PsxSpu.SampleRate / 10) * 2];
         int maxFrames = options.MaxFrames ?? (options.JitBringup ? 60 : isOffscreen && gameModule is null ? 1 : 0);
         long totalFrames = Math.Max(1L, maxFrames > 0 ? maxFrames : 1L);
         string? autoShotPath = !string.IsNullOrWhiteSpace(options.DumpScreenshotPath)
@@ -85,6 +86,7 @@ internal static unsafe partial class Program
                 long t0 = Stopwatch.GetTimestamp();
                 PumpEvents(video, host, cpu, drawer, overlay, settings, env, pacer, logger, st);
                 if (st.QuitRequested) break;
+                SyncMouseCaptureState(video, drawer, settings, st);
 
                 if (st.PendingBackendSwitch is { } nextBackend)
                 {
@@ -95,10 +97,13 @@ internal static unsafe partial class Program
                 HostInputState input = HostInputMapper.BuildLiveInput(
                     cpu, drawer.IsOpen, video.SdlAvailable, settings, globalProfile.KeyBindings, profileProvider,
                     st.Gamepad, ref st.MouseDx, ref st.MouseDy, st.WheelUp, st.WheelDown,
+                    st.LatchedKeys, st.LatchedMouseMask,
                     gameModule as INativeGameActionHook, st.PrevNativeActions, st.ActiveNativeBuffer, st.PressedNativeBuffer,
                     out bool releaseMouseCapture);
                 st.WheelUp = false;
                 st.WheelDown = false;
+                Array.Clear(st.LatchedKeys);
+                st.LatchedMouseMask = 0u;
                 if (releaseMouseCapture && st.MouseCaptured)
                 {
                     st.MouseCaptured = false;
@@ -119,11 +124,7 @@ internal static unsafe partial class Program
                 bool wantAutoShot = !string.IsNullOrWhiteSpace(autoShotPath) && (maxFrames > 0 ? st.HostFrame + 1 >= maxFrames : st.HostFrame + 1 == 2);
                 string? frameShot = wantAutoShot ? autoShotPath : null;
 
-                int samplesRead = cpu.Spu.Output.Read(audioBuf);
-                if (audioStream != IntPtr.Zero && samplesRead > 0)
-                {
-                    fixed (short* ap = audioBuf) _ = Sdl3Native.SDL_PutAudioStreamData(audioStream, ap, samplesRead * sizeof(short));
-                }
+                DrainSpuAudioToStream(cpu.Spu.Output, audioStream, audioBuf);
 
                 long tCpu = Stopwatch.GetTimestamp();
                 st.HostFrame++;
@@ -140,8 +141,9 @@ internal static unsafe partial class Program
                     }
                     st.UiDirty = false;
                     tGpu = Stopwatch.GetTimestamp();
-                    pacer.TargetFps = ComputeTargetFps(settings, isOffscreen);
+                    pacer.TargetFps = 0.0;
                     _ = pacer.WaitForNextFrame();
+                    pacer.TargetFps = ComputeTargetFps(settings, isOffscreen);
                     tEnd = Stopwatch.GetTimestamp();
                 }
                 else if (skipIdleSecondVBlank && string.IsNullOrWhiteSpace(frameShot))
@@ -276,6 +278,78 @@ internal static unsafe partial class Program
             video.PresentRgba(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, overlay.CompositePixels);
         if (!string.IsNullOrWhiteSpace(shotPath))
             overlay.SaveCompositePng(shotPath);
+    }
+
+    internal static int DrainSpuAudioToStream(AudioRingBuffer output, IntPtr audioStream, short[] chunkBuf)
+    {
+        const int maxQueueBytes = (PsxSpu.SampleRate * 2 * sizeof(short)) / 10; // 100 ms target cap
+        int totalSamples = 0;
+        if (audioStream != IntPtr.Zero && Sdl3Native.SDL_GetAudioStreamQueued(audioStream) > maxQueueBytes * 2)
+            _ = Sdl3Native.SDL_ClearAudioStream(audioStream);
+
+        int maxRingSamples = (PsxSpu.SampleRate * 2) / 10;
+        if (output.BufferedSamples > maxRingSamples * 2)
+        {
+            int trim = (output.BufferedSamples - maxRingSamples) & ~1;
+            while (trim > 0)
+            {
+                int step = Math.Min(chunkBuf.Length & ~1, trim);
+                int dropped = output.Read(chunkBuf.AsSpan(0, step));
+                if (dropped <= 0) break;
+                trim -= dropped;
+            }
+        }
+
+        while (true)
+        {
+            int availEven = output.BufferedSamples & ~1;
+            if (availEven <= 0) break;
+            int toRead = Math.Min(chunkBuf.Length & ~1, availEven);
+            if (toRead <= 0) break;
+            int got = output.Read(chunkBuf.AsSpan(0, toRead));
+            if (got <= 0) break;
+            totalSamples += got;
+            if (audioStream != IntPtr.Zero)
+            {
+                fixed (short* ap = chunkBuf) _ = Sdl3Native.SDL_PutAudioStreamData(audioStream, ap, got * sizeof(short));
+            }
+        }
+        return totalSamples;
+    }
+
+    private static void SyncMouseCaptureState(HostVideoSurface video, SlideOverSettingsDrawer drawer, RecompSettings settings, LoopState st)
+    {
+        if (st.IsOffscreen || !video.HasWindow || drawer.IsOpen || settings.ControlMode != ControlMode.ModernWasdMouse)
+        {
+            if (st.MouseCaptured)
+            {
+                st.MouseCaptured = false;
+                st.MouseDx = 0f;
+                st.MouseDy = 0f;
+                video.SetRelativeMouse(false);
+            }
+            return;
+        }
+
+        bool focused = !video.SdlAvailable || (Sdl3Native.SDL_GetWindowFlags(video.Window) & Sdl3Native.WindowInputFocus) != 0UL;
+        if (!focused)
+        {
+            if (st.MouseCaptured)
+            {
+                st.MouseCaptured = false;
+                st.MouseDx = 0f;
+                st.MouseDy = 0f;
+                video.SetRelativeMouse(false);
+            }
+            return;
+        }
+
+        if (!st.UserReleasedMouse)
+        {
+            st.MouseCaptured = true;
+            if (video.SdlAvailable && Sdl3Native.SDL_GetWindowRelativeMouseMode(video.Window) == 0)
+                video.SetRelativeMouse(true);
+        }
     }
 
     private static double ElapsedMs(long a, long b) => (b - a) * 1000.0 / Stopwatch.Frequency;

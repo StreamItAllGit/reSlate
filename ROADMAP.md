@@ -1,8 +1,8 @@
 # reStation — Roadmap & Milestones
 
-**Current Active Version:** `0.2.7` *(pre-1.0 `0.2.x` track)*  
+**Current Active Version:** `0.2.8` *(pre-1.0 `0.2.x` track)*  
 **Lifecycle State:** [`active.state`](active.state)  
-**Last Updated:** `2026-11-15`
+**Last Updated:** `2026-11-16`
 
 ---
 
@@ -14,7 +14,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 
 ---
 
-## 2. Active Track (`0.2.7` Active Release $\rightarrow$ Next Minor: `v0.3.0`)
+## 2. Active Track (`0.2.8` Active Release $\rightarrow$ Next Minor: `v0.3.0`)
 - [x] Tier A 5-folder scaffold, `active.state`, `AGENTS.md`, Root Quartet, Manual Shelf, and original `.svg`/`.png`/`.ico` logo bundle (`v0.1.0`).
 - [x] Consume `Foundation` (`v0.3.1` -> `v0.4.1-hf.1`) and `reEngine` (`v0.1.0` -> `v0.2.1-hf.1`) SDK binaries (`MediaContainerExtractor`, `HighResFramePacer`, `AudioRingBuffer`, `WavCaptureWriter`, `RgbaPngWriter`, `AppEnvironment`, `InstallerRuntimeContext`, `Foundation.Installer`, `AotCacheManager`, `IDecompPlatformProvider`).
 - [x] Reusable R3000A CPU, COP0, GTE, MDEC, 2x CD-ROM (`150 sectors/s`), ADSR SPU/XA mixer, `reStation.Compiler`, `.recomp` ABI, `OpenGL 3.3 Core` (`ArrayPool` FIFO queue) <-> `SoftwareCpu` (`SDL_Texture` composite) live frame-boundary swap, `"RST1"` + `"RSTX"` quick-saves, and native ZIP `.recomp` cartridges (`v0.1.0`–`v0.2.0`).
@@ -26,6 +26,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 - [x] **Boot-Crash & Cold-AOT Hotfix (`v0.2.6` `PATCH+1`):** Fixed post-ingestion `data\gamedata` (`\app` fallback) media lookup in `PlayerMediaResolver`, intermediate 2x CD-ROM sector wakeups inside `PsxCpu.Scheduling.TryAdvanceToNextVBlank()`, `VBCSCompiler` pipe isolation (`--disable-build-servers -p:UseSharedCompilation=false -nodeReuse:false`), live SDL splash UI event pumping during first-run AOT compile (`Program.MediaGate.LoadGameModuleWithUiPump`), `aotWithJitFallback` entry fallback (`ModuleAssemblyLoader.Fallback`), and portable `engine.manifest.json` staging (`176/176` passing `/warnaserror` Release tests via `Hotfix026RegressionTests`).
 - [x] **Production-Only Runtime Surface & `APP_ISOLATED_TEST=1` Scrub (`v0.2.6-hf.1` Hotfix):** Removed retired test/script/harness CLI flags, local test staging directories, and standalone visual/fixture/script runner classes; migrated onto `Foundation v0.4.1-hf.1` (`AppEnvironment`, `UiPresentationMode.TrayOrBackground`, `InstallerRuntimeContext`) + `reEngine v0.2.1-hf.1`; retained production flags (`--data-dir`, `--config`, `--log-dir`, `--port`, `--verify`, `--tray-only`, `--dry-run`) and Tier A 5-folder structure; and refactored CLI/installer tests into `InstallerAndCliTests.cs` under `APP_ISOLATED_TEST=1`.
 - [x] **Kernel `IntRP`/`GetC0Table`, SIO0 IRQ7, Input Order, `IRecompQuickSaveProvider`, `--jit-bringup` & `LockedCap` Default (`v0.2.7` `PATCH+1` — Shipped & Verified):** Implemented `ToT[0]`/`SysEnqIntRP`/`SysDeqIntRP`/`GetC0Table` priority chains + SIO0 IRQ7 poll ticks, `IRecompQuickSaveProvider` `"RSTX"` callbacks, `ApplyToCpu` pre-hook ordering, wired `PsxCpu.BringupRecorder` + `ExitCode = 5`, added `Program.ApplyFirstLaunchTimingDefaults` (`LockedCap -> Original`), and verified `180/180` Release `/warnaserror` tests via [`Hotfix027RegressionTests.cs`](Dev/src/reStation.Tests/Hotfix027RegressionTests.cs) plus consumer `MeadowValley-Recomp v0.2.0-hf.1` Gate #2 isolated OS-temp QA #5 sign-off.
+- [x] **Per-Game Controls, Unstretched Hor+ `16:9`, Decoupled `60 Hz` Loop, BIOS `CloseEvent` & Bounded Audio Drain (`v0.2.8` `PATCH+1` — Active):** Removed hardcoded HM options from generic `reStation` controls UI in favor of `IModuleInputProfileProvider.ControlOptions` + Standard 18 `metadataJson`, added Hor+ `16:9` wing FBO/software rendering without GTE `0.75` squash (auto-gating 24-bit MDEC FMVs to unstretched `4:3`), locked outer VBlank pacing to `60 Hz` while latching mid-tick keys/clicks and preserving focus/Esc mouse capture, implemented `B0:0x09 CloseEvent` + `ExecOverlay` IntRP isolation + `DrainSpuAudioToStream`, and verified `184/184` Release `/warnaserror` tests via [`Hotfix028RegressionTests.cs`](Dev/src/reStation.Tests/Hotfix028RegressionTests.cs).
 
 ---
 
@@ -33,7 +34,7 @@ Deliver the canonical, clean-room **PS1 Static Recompilation Engine, `.decomp` L
 
 ```mermaid
 flowchart LR
-    V01["v0.1.0..0.1.5 (Shipped)\nModular PS1 + Pad/SPU + Overlays"] --> V02["v0.2.0..v0.2.7 (Active)\n.decomp + Local AOT + Overlays + Keybinds"]
+    V01["v0.1.0..0.1.5 (Shipped)\nModular PS1 + Pad/SPU + Overlays"] --> V02["v0.2.0..v0.2.8 (Active)\n.decomp + Local AOT + Hor+ 16:9 + Keybinds"]
     V02 --> V03["v0.3.0\nVulkan + ParallelCpu + Overrides SDK"]
     V03 --> V04["v0.4.0\nStatic Overlay Promoter + PS1 Essentials"]
     V04 --> V10["v1.0.0 (GOLD win-x64)\nTri-Backend + 2-Title Cert"]

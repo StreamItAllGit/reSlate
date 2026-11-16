@@ -103,7 +103,7 @@ public sealed class InstallerAndCliTests : IDisposable
                 StringComparison.OrdinalIgnoreCase);
             Assert.False(
                 resolvedInstall.Contains(Path.Combine("reEngine", "engines"), StringComparison.OrdinalIgnoreCase),
-                "Installer target must use peer engines\\reStation\\v0.2.7 rather than nested reEngine\\engines\\.");
+                "Installer target must use peer engines\\reStation\\v0.2.8 rather than nested reEngine\\engines\\.");
         }
         finally
         {
@@ -175,8 +175,8 @@ public sealed class InstallerAndCliTests : IDisposable
     [Fact]
     public void InstallerAndLauncher_ExposeCurrentMetadataParameterizedAssemblyAndZeroEmptyCatches()
     {
-        Assert.Equal("0.2.7", ReStationInstallerTheme.Version);
-        Assert.Equal("reStation-Setup-v0.2.7-win-x64", typeof(Program).Assembly.GetName().Name);
+        Assert.Equal("0.2.8", ReStationInstallerTheme.Version);
+        Assert.Equal("reStation-Setup-v0.2.8-win-x64", typeof(Program).Assembly.GetName().Name);
 
         string srcRoot = FindSrcRoot();
         string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));

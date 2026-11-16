@@ -127,11 +127,13 @@ internal static partial class Program
 
         bool isOffscreen = !video.HasWindow;
         double initialFps = ComputeTargetFps(settings, isOffscreen);
+        int hostTargetFps = settings.FrameRateMode == FrameRateMode.Original ? 60 : settings.TargetFps;
+        bool unlockHostFps = settings.FrameRateMode == FrameRateMode.Enhanced && settings.TargetFps <= 0;
         using var pacer = new HighResFramePacer(initialFps);
         var hostOptions = new RecompHostOptions
         {
-            TargetFps = initialFps,
-            UnlockFps = settings.TargetFps <= 0,
+            TargetFps = hostTargetFps,
+            UnlockFps = unlockHostFps,
             ScaleFactor = settings.ResolutionScale,
             EnableHudOverlay = settings.IsFpsOverlayEnabled
         };
@@ -296,6 +298,9 @@ internal static partial class Program
         return ok ? 0 : 1;
     }
 
-    private static double ComputeTargetFps(RecompSettings settings, bool isOffscreen) =>
-        isOffscreen ? 0.0 : settings.FrameRateMode == FrameRateMode.Original ? 60.0 : settings.TargetFps <= 0 ? 0.0 : settings.TargetFps;
+    private static double ComputeTargetFps(RecompSettings settings, bool isOffscreen)
+    {
+        _ = settings;
+        return isOffscreen ? 0.0 : 60.0;
+    }
 }

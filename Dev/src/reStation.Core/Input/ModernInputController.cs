@@ -187,7 +187,10 @@ public static class ModernInputController
             settings.IsometricMoveMode,
             state.RawLeftStickX,
             state.RawLeftStickY,
-            state.ControllerConnected);
+            state.ControllerConnected)
+        {
+            ModuleOptions = settings.MetadataJson
+        };
         nativeHook.ApplyNativeActions(cpu, CollectionsMarshal.AsSpan(activeBuffer), CollectionsMarshal.AsSpan(pressedBuffer), in ctx, gameplay, out releaseMouseCapture);
     }
 

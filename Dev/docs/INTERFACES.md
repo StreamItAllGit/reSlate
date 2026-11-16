@@ -1,6 +1,6 @@
-# reStation v0.2.7 — Interfaces, Public Contracts & Schemas
+# reStation v0.2.8 — Interfaces, Public Contracts & Schemas
 
-- **Version:** `v0.2.7` (`SupportedEngineTracks: ["0.2.x", "0.1.x"]`)
+- **Version:** `v0.2.8` (`SupportedEngineTracks: ["0.2.x", "0.1.x"]`)
 - **Pinned Upstream Dependencies:** `Foundation v0.4.1-hf.1` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`) & `reEngine v0.2.1-hf.1` (`reEngine.Core`)
 
 ---
@@ -32,7 +32,7 @@
 - `AotRecipeExecutableSpec`: `BootExePath`, `Sha256`, `LoadAddress`, `EntryAddress`, `GlobalPointer`, `TextSizeBytes`, `SleighLanguageId`.
 
 #### Manifest, CPU, Host & GPU Contracts
-- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "restation"`, `EngineId = "reStation"`, `Version = "0.2.7"`, `CompatibleEngineTrack = "0.2.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.2.x", "0.1.x"]`.
+- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "restation"`, `EngineId = "reStation"`, `Version = "0.2.8"`, `CompatibleEngineTrack = "0.2.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.2.x", "0.1.x"]`.
 - `IReStationModuleManifest : IRecompModuleManifest` (`ReStationModuleManifest`): `SerialNumber`, `EntryAssembly`, `DefaultBootExecutable`, `ModuleTypeName`, `EngineVersion`, `CompatibleEngineTrack`, `DefaultFramerateMode` (`RecompTimingMode`), `PreloadRomDir`, `SupportedEngineTracks`, `ExecutionTierMode`, `AotRecipe`, `AotRecipeSpec`, `LoadFromFile(string manifestPath)`, `SaveToFile(string manifestPath)`, `Validate(string sourceLabel)`.
 - `IRecompModule` / `IOverlayRecompModule : IRecompModule` (`ExeId`, `ExeName`, `TextStart`, `TextEnd`, `TryExecuteFunction(IReStationCpu, uint pc)`, plus overlay `LoadRamAddress`, `ContentSizeBytes`, `ContentSha256Hex`).
 - `IReStationCpu` / `IReStationCpuEx`: Register/bus/GTE/MDEC accessors plus `UnwindTargetPc`, `SkipPolygonRasterization`, `BeginSubTickFrame()`, `bool HasCompiledEntry(uint canonPc)`, `void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false)`, `bool TryAdvanceToNextVBlank()`.
@@ -48,10 +48,10 @@
 - `GameActionDescriptor` (`IModuleInputProfileProvider`):
   - Multi-bind constructor: `(string ActionId, string Label, IReadOnlyList<int>? DefaultBindingCodes, IReadOnlyList<int>? DefaultControllerCodes, ushort GameplayPadMask = 0, ushort MenuPadMask = 0, bool IsQuickSave = false, bool IsQuickLoad = false)` (`MaxBindingsPerDevice = 3`).
   - Legacy `v0.1.x` compatible constructor: `(string ActionId, string Label, int DefaultBindingCode, ushort GameplayPadMask = 0, ushort MenuPadMask = 0, bool IsQuickSave = false, bool IsQuickLoad = false)`.
-- `IModuleInputProfileProvider`: `ProfileDisplayName`, `IReadOnlyList<GameActionDescriptor> ModernActions`, `bool IsGameplayContextActive(IReStationCpu cpu)`.
+- `IModuleInputProfileProvider`: `ProfileDisplayName`, `IReadOnlyList<GameActionDescriptor> ModernActions`, optional `IReadOnlyList<GameControlOptionDescriptor> ControlOptions` (additive `GameControlOptionChoice` + `GameControlOptionDescriptor`), `bool IsGameplayContextActive(IReStationCpu cpu)`.
 - `INativeGameActionHook` & `NativeInputModeIds`:
   - `ControllerDpadQuickActions = "quickActions"`, `ControllerDpadWalkStickRun = "dpadWalkStickRun"`, `ControllerStickWalkDpadRun = "stickWalkDpadRun"`, `IsometricMoveCropGrid = "cropGrid"`, `IsometricMoveScreenSpace = "screenSpace"`.
-  - `NativeGameActionContext`: `(float MoveX, float MoveY, float LookX, float LookY, string ControllerDpadMode, string IsometricMoveMode, float RawLeftStickX, float RawLeftStickY, bool ControllerConnected)` (legacy tuple overload preserved).
+  - `NativeGameActionContext`: `(float MoveX, float MoveY, float LookX, float LookY, string ControllerDpadMode, string IsometricMoveMode, float RawLeftStickX, float RawLeftStickY, bool ControllerConnected)` plus optional `ModuleOptions` (`IReadOnlyDictionary<string, string>?`) & `GetOption(string optionId, string defaultValue = "")` (9-param ctor and legacy tuple overload preserved).
 
 ---
 
@@ -71,7 +71,7 @@
 - `ModuleAssemblyLoader` (`reStation.Player`): `Assembly? CompanionAssembly`, `PreloadCompanionAssembly(string assemblyPath)`, collectible `Unloading` `ClearLoadedCompanion` cleanup, `_companionAliases` simple-name checking, `LoadedFromLocalAotCache = true` when companion AOT resolves, and `concreteManifest.AotRecipeSpec ??= aotRecipe` attachment on stream-loaded `.recomp` archives.
 - `DiscOverlaySliceResolver` & `ModuleManifestEmitter` (`reStation.Compiler`): Internal `DiscOverlaySliceResolver.Resolve` orders `DiscoveredExe` IDs against `AotRecipeSpec.Executables` and slices `<container>#<slice>` overlays into `IOverlayRecompModule` specs (`IsOverlay = true`, `ContentSha256Hex`); `RecompCompilerPipeline.SelectUniqueSeedsForExe` isolates overlapping module entry seeds; `ModuleManifestEmitter.ResolveGeneratedAssemblySimpleName` sets generated `.Module.csproj` `<AssemblyName>` / `entryAssembly` to match `AotRecipeSpec.GeneratedCacheAssemblyName`.
 - `Tier3ExecutionCoordinator` / `RamPageEpochTable` / `MipsIrLowerer` / `JitBringupRecorder`: `SmcDemotionThreshold = 8`, `ExecuteBlock`, `TryInvalidateRamRange`, `CaptureStamp`, `IsStampValid`, `InvalidateRamRange`, `LowerBlock`, `WriteProfileAtomic`.
-- `RecompSettings`: `IsWidescreen16By9` (`false` default), `ControllerDpadMode` (`"quickActions"`), `IsometricMoveMode` (`"cropGrid"`), `Clamp()` (preserves consumer `SchemaVersion >= CurrentSchemaVersion` and trimmed non-empty `AppId`), `ModernBindingsJsonConverter` (reads legacy scalar `int` or `int[<=3]` arrays), `GetModernActionBindings`, `GetModernControllerBindings`, `SetModernActionSlot`, `SetModernControllerSlot`, `ClearModernActionSlot`.
+- `RecompSettings`: `IsWidescreen16By9` (`false` default), `MetadataJson` (`Dictionary<string, string>?`, Standard 18 `"metadataJson"` per-game option bag), `GetModuleOption`, `SetModuleOption`, `IsBindingUsedByAnyModernAction`, `ControllerDpadMode` (`"quickActions"`), `IsometricMoveMode` (`"cropGrid"`), `Clamp()` (preserves consumer `SchemaVersion >= CurrentSchemaVersion` and trimmed non-empty `AppId`), `ModernBindingsJsonConverter` (reads legacy scalar `int` or `int[<=3]` arrays), `GetModernActionBindings`, `GetModernControllerBindings`, `SetModernActionSlot`, `SetModernControllerSlot`, `ClearModernActionSlot`.
 - `KeyBindingsConfig`: `MaxScancode = 511`, `MouseLeft = 1001`, `MouseRight = 1002`, `MouseMiddle = 1003`, `MouseX1 = 1004`, `MouseX2 = 1005`, `MouseWheelUp = 1006`, `MouseWheelDown = 1007`, `MaxMouseCode = 1007`, `FormatBindingLabel(int)` (includes SDL3 USB HID Numpad `84..99` `Num/`..`Num.` plus `73` `Ins`, `74` `Home`, `77` `End`, `230` `RAlt`).
 - `ReStationLogger`: `TryResolveDevLogsDirectory()` (`RS-06` dev-mode `Dev\logs\` discovery), `TryHeartbeat(PsxTelemetrySnapshot, bool force = false)`.
 - `PsxGpu`: `SetBackend(IPsxRenderBackend)` (preserves `1024x512` VRAM, texture window & PGXP), `EffectiveWidescreen`.
@@ -91,10 +91,10 @@
 ## 4. File Contracts & Manifests
 - **`aot-recipe.json`:** `schemaVersion` (`1`), `platformId` (`"ps1"`), `moduleId`, `discSerial`, `executionTierMode`, `sleighSpecId` (`"MIPS:LE:32:R3000A_GTE"`), `targetArchitecture` (`"R3000A"`), `littleEndian` (`true`), `primaryBootExecutable`, `executables[]`, `entryAddresses[]`, `cleanRoomArtifacts[]`, `generatedCacheAssemblyName`.
 - **`module.recomp.json`:** Supports `supportedEngineTracks: ["0.2.x", "0.1.x"]`, `executionTierMode`, `aotRecipe` (`"aot-recipe.json"`), and zero bundled `*.Generated.dll` entries inside clean-room `.recomp` archives.
-- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` (and staged inside portable `Builds\v0.2.7\` + `app\`) advertising `0.2.7` + `supportedEngineTracks: ["0.2.x", "0.1.x"]`.
+- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` (and staged inside portable `Builds\v0.2.8\` + `app\`) advertising `0.2.8` + `supportedEngineTracks: ["0.2.x", "0.1.x"]`.
 - **Save Format:** Binary `QuickSaveManager` `"RST1"` (`SchemaVersion = 1`) + additive `"RSTX"` trailer blocks.
 
 ---
 
 ## 5. Versioning & Compatibility Notes
-- **Backward Compatibility:** `v0.2.0` introduced additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor` keeping scalar overload, `SupportedEngineTracks: ["0.2.x", "0.1.x"]`) so existing pinned `0.1.x` `.recomp` packages continue executing cleanly alongside clean-room local AOT modules; `v0.2.1`–`v0.2.6-hf.1` and `v0.2.7` are strictly non-breaking `PATCH+1` releases on the `0.2.x` track (`v0.2.7`: kernel `ToT[0]`/`SysEnqIntRP`/`SysDeqIntRP`/`GetC0Table`/`RunIntRpChains`, `PsxTimersAndDma.ReadIrqReg(0x1F801070)` `Joypad.TickTo`, additive `IRecompQuickSaveProvider`, `HostInputMapper` pre-hook pad flush, `PsxCpu.BringupRecorder` + `--jit-bringup` `ExitCode = 5`, `Program.ApplyFirstLaunchTimingDefaults`, and `Hotfix027RegressionTests` `180/180` passing tests).
+- **Backward Compatibility:** `v0.2.0` introduced additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor` keeping scalar overload, `SupportedEngineTracks: ["0.2.x", "0.1.x"]`) so existing pinned `0.1.x` `.recomp` packages continue executing cleanly alongside clean-room local AOT modules; `v0.2.1`–`v0.2.7` and `v0.2.8` are strictly non-breaking `PATCH+1` releases on the `0.2.x` track (`v0.2.8`: additive `ControlOptions`/`metadataJson`, unstretched Hor+ `16:9` GL33 & Software backends + 24-bit MDEC `4:3` auto-gate, decoupled `60 Hz` VBlank loop + mid-tick latched inputs, BIOS `B0:0x09 CloseEvent` + `ExecOverlay` `IntRP` isolation, bounded SPU audio drain, and `Hotfix028RegressionTests` `184/184` passing tests).
