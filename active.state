@@ -7,8 +7,8 @@
   "containerTier": "Tier A (5-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.6-hf.1",
-  "activeMilestone": "0.2.6-hf.1",
+  "version": "0.2.7",
+  "activeMilestone": "0.2.7",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-15",
   "lastVersionDate": "2026-11-15",
@@ -16,15 +16,15 @@
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 9,
+  "completedTaskCount": 10,
   "openReportCount": 0,
   "gates": {
     "isGate0ScopePassed": true,
     "isGate1PlanPassed": true,
     "isGate2BuildPassed": true,
-    "isInspecterVerified": true,
-    "isTessaSynced": true
+    "isInspecterVerified": false,
+    "isTessaSynced": false
   },
-  "notes": "Hotfix v0.2.6-hf.1: synced Foundation v0.4.1-hf.1 (AppEnvironment, InstallerRuntimeContext, UiPresentationMode.TrayOrBackground) and reEngine v0.2.1-hf.1, purged retired test harnesses, script runners, local test staging artifacts, and non-production CLI flags in favor of APP_ISOLATED_TEST=1 containment, and enforced canonical Tier A 5-Folder layout.",
-  "updatedAtUtc": "2026-11-15T23:59:00.000Z"
+  "notes": "reStation v0.2.7 PATCH+1 (awaiting Gate 2 & consumer QA): kernel ToT[0]/SysEnqIntRP/SysDeqIntRP/GetC0Table + SIO0 IRQ7 poll tick, IRecompQuickSaveProvider RSTX callbacks, HostInputMapper pre-hook pad flush, PsxCpu.BringupRecorder + --jit-bringup ExitCode=5, Program.ApplyFirstLaunchTimingDefaults (LockedCap->Original), and Hotfix027RegressionTests (180/180 passing Release tests).",
+  "updatedAtUtc": "2026-11-16T00:38:00.000Z"
 }

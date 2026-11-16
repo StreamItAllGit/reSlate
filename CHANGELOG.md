@@ -4,6 +4,14 @@ All notable changes to `reStation` will be documented in this file. Format follo
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-15
+### Added
+- **Kernel `IntRP` Chains, `GetC0Table` & `IRecompQuickSaveProvider` (`PsxBiosHle`, `IRecompQuickSaveProvider`):** Initialized `ToT[0]` (`0x80000100U -> 0x80000200U`) and `C0Table` (`0x80000500U` with `[+0x18] = 0x80000540U` via `B0:0x56`), implemented `SysEnqIntRP` (`C0:0x02`) / `SysDeqIntRP` (`C0:0x03`) priority queues + `TryRunInterruptHook()` `IntRP` chain dispatch (even when `_hookEntryIntBufAddr == 0`), and added the optional `IRecompQuickSaveProvider` contract wired through `ReStationHost.SaveQuickSlot`/`LoadQuickSlot` so game modules can persist and restore custom `"RSTX"` trailer chunks (such as `"OVLY"`).
+- **`v0.2.7` Regression Suite (`180/180` Passing Under `/warnaserror` — [`Hotfix027RegressionTests.cs`](Dev/src/reStation.Tests/Hotfix027RegressionTests.cs)):** Added `5` unit tests verifying kernel `IntRP`/`GetC0Table`/SIO0 IRQ7 poll ticks, `HostInputMapper` pre-hook pad flush + drawer clear, `ReStationHost` `"OVLY"` RSTX quick-save round-trip, `PsxCpu.BringupRecorder` spin watchdog `ExitCode = 5`, and `Program.ApplyFirstLaunchTimingDefaults`, and updated version pins to `0.2.7`.
+
+### Fixed
+- **SIO0 Poll IRQ7, Native Action Ordering, `--jit-bringup` Watchdog & First-Launch Timing Default:** Ticked `PsxJoypadPort.TickTo(_cpu.TotalCycles)` on `I_STAT` (`0x1F801070U`) reads when `NextWakeCycle <= TotalCycles` (`PsxTimersAndDma`); applied `ModernInputController.ApplyToCpu` inside `HostInputMapper.BuildLiveInput` *before* `ApplyNativeGameActions` (and removed the post-hook overwrite in `Program.FrameLoop`); attached `PsxCpu.BringupRecorder` + `WriteProfileAtomic` + bounded `--jit-bringup` `ExitCode = 5` (`PsxCpu`, `PsxCpu.Scheduling`, `Program`, `Program.FrameLoop`); and extracted `Program.ApplyFirstLaunchTimingDefaults` so unconfigured `DefaultFramerateMode == LockedCap` modules start in `FrameRateMode.Original`.
+
 ## [0.2.6-hf.1] - 2026-11-15
 ### Changed
 - **SDK & API Migration (`Foundation v0.4.1-hf.1` & `reEngine v0.2.1-hf.1`):** Synced `Dev\lib\` onto `Foundation v0.4.1-hf.1` and `reEngine v0.2.1-hf.1`; migrated runtime and installer code onto `AppEnvironment` (`AppEnvironment.AssertPathContained`), `UiPresentationMode.TrayOrBackground`, and `InstallerRuntimeContext` (`APP_ISOLATED_TEST=1` test isolation); updated `reStation.Decomp` batch helper symbols to `PsxGhidraBatchPlan`, `GenerateGhidraBatchArtifacts`, `ExecuteGhidraBatchAsync`, and `ghidra-batch-plan.json`; and preserved production CLI flags (`--data-dir`, `--config`, `--log-dir`, `--port`, `--verify`, `--tray-only`, `--dry-run`).

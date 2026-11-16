@@ -89,7 +89,7 @@ internal sealed partial class ReStationHost
         return LoadQuickSlot(slot);
     }
 
-    private bool LoadQuickSlot(int slot)
+    internal bool LoadQuickSlot(int slot)
     {
         try
         {

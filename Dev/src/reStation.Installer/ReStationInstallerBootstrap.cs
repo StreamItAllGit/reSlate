@@ -1,5 +1,5 @@
 // @module: reStation.Installer.ReStationInstallerBootstrap
-// @purpose: Side-by-side engines\reStation\v0.2.6-hf.1 target resolution, --reengine-dir/--suite-dir support, and fail-closed APP_ISOLATED_TEST=1 containment without nested Setup bloat.
+// @purpose: Side-by-side engines\reStation\v0.2.7 target resolution, --reengine-dir/--suite-dir support, and fail-closed APP_ISOLATED_TEST=1 containment without nested Setup bloat.
 // @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Reflection, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerBootstrap
 

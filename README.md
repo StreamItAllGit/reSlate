@@ -1,6 +1,6 @@
-# reStation (`v0.2.6-hf.1`)
+# reStation (`v0.2.7`)
 
-- **Active Version:** `v0.2.6-hf.1` (`2026-11-15`, pre-1.0 `0.2.x` track)
+- **Active Version:** `v0.2.7` (`2026-11-15`, pre-1.0 `0.2.x` track)
 - **Lifecycle State:** `active` ([`active.state`](active.state))
 - **Group / Scope:** `Personal/reStation` (`Engine Tier A (5-Folder)`, `reEngine v0.2.1-hf.1`, `Foundation v0.4.1-hf.1`)
 - **Logo Assets:** [`Dev\assets\reStation.svg`](Dev/assets/reStation.svg) | [`Dev\assets\reStation.png`](Dev/assets/reStation.png) | [`Dev\assets\reStation.ico`](Dev/assets/reStation.ico)
@@ -8,7 +8,7 @@
 ---
 
 ## 1. What It Is & Core Goal
-`reStation` is a clean-room **PlayStation 1 (`PS1`) Static Recompilation Engine, `.decomp` Lifter, Player-PC Local AOT Compiler, Opt-In Shared-IR/RyuJIT Diagnostic Translator & Modular BYO-Media Player**—**not** a generic compatibility emulator. Routed via `reEngine` (`v0.2.1-hf.1`) and installed per-user without admin elevation under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.6-hf.1\` (`--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`), `reStation` separates authoring from runtime cleanly:
+`reStation` is a clean-room **PlayStation 1 (`PS1`) Static Recompilation Engine, `.decomp` Lifter, Player-PC Local AOT Compiler, Opt-In Shared-IR/RyuJIT Diagnostic Translator & Modular BYO-Media Player**—**not** a generic compatibility emulator. Routed via `reEngine` (`v0.2.1-hf.1`) and installed per-user without admin elevation under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.7\` (`--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`), `reStation` separates authoring from runtime cleanly:
 
 - **Offline Clean-Room Authoring (`reStation.Decomp`):** Implements `IDecompPlatformProvider` (`platformId: "ps1"`) under `MPL-2.0` with an original PS-X EXE + overlay Ghidra loader, R3000A + GTE COP2 `.slaspec`, C/asset normalizer, `D4` LP32 parity verifier, and `D5` MIPS byte-match verifier—emitting deterministic `aot-recipe.json` packages with zero retail media or precompiled `*.Generated.dll` blobs.
 - **Player-PC Local AOT Cache (`<dataDir>\cache\`):** On first launch with verified `data\rom\` media (`PlayerMediaResolver` + `AotCacheManager`, supporting both standard PS-X EXEs and `<container>#<slice>` overlays ordered by `aot-recipe.json`), `PlayerLocalAotCompiler` synthesizes `<Game>.Generated.dll` matching `generatedCacheAssemblyName` locally on the player's machine and loads it via a collectible `ModuleAssemblyLoader` (`isCollectible: true`, `0`-byte unload leak), with `--jit-bringup` / `--force-zero-rwx` Shared-IR/RyuJIT/Threaded-IR available as an opt-in diagnostic fallback tier (`ExitCode = 5` non-VBlank spin watchdog).
@@ -24,7 +24,7 @@
 reStation.exe --module .\modules\kings-field\module.recomp.json --disc "D:\Roms\PS1\Kings Field (USA).chd"
 reStation.exe --verify --frames 240 --data-dir .\TestData --log-dir .\Dev\logs
 reStation.exe --tray-only --data-dir .\TestData --log-dir .\Dev\logs
-reStation-Setup-v0.2.6-hf.1-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine"
+reStation-Setup-v0.2.7-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine"
 ```
 
 | CLI Flag | Purpose |
@@ -37,7 +37,7 @@ reStation-Setup-v0.2.6-hf.1-win-x64.exe --profile Lightweight --reengine-dir "%L
 | `--reengine-dir` / `--migrate-legacy` | Override the user `reEngine` suite root or opt-in migrate preserved `data\rom\` & `settings.json` from `v0.1.x`. |
 | `--jit-bringup` / `--force-zero-rwx` | Opt-in Tier 3 CoreCLR RyuJIT bring-up profiler (`bringup.profile.json`, `ExitCode = 5`) or zero-RWX `ThreadedIrBackend` diagnostic mode (`--execution-tier`). |
 | `--verify` / `--tray-only` | Run non-interactive verification checks (`--verify`) or start in offscreen tray/background mode (`--tray-only`, automated via `APP_ISOLATED_TEST=1`). |
-| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until exit (`--wait` / `--jit-bringup`), or print `reStation v0.2.6-hf.1` (`--version`). |
+| `--wait` / `--version` | Hold launcher parent under `JobObjectGuard` until exit (`--wait` / `--jit-bringup`), or print `reStation v0.2.7` (`--version`). |
 | `--data-dir` / `--config` / `--log-dir` / `--port` | Override writable runtime data (`cache\`, `saves\`, `memcards\`, `settings.json`), config file, `Dev\logs\` (`RS-06`), or diagnostic port; installer also supports `--dry-run`. |
 
 **CLI Exit-Code Contract:** Root `reStation.exe` propagates deterministic exit codes: `0` pass, `1` runtime/`--verify` failure, `2` CLI validation error, `3` fail-closed path containment violation (`AppEnvironment.AssertPathContained`), `4` disc/archive ingestion failure, **`5` (`--jit-bringup` non-VBlank spin watchdog)**, reserved `6` (`--require-backend`, `v0.3.0`), and `130` (`SIGINT`).

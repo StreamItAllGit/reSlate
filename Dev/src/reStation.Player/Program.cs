@@ -90,8 +90,7 @@ internal static partial class Program
             manifest = ReStationModuleManifest.LoadFromFile(fullModule);
             moduleDir = RecompPackageReader.ResolveModuleRootDirectory(fullModule);
             logger.Info("MODULE", $"Loaded manifest '{manifest.ModuleId}' ({manifest.DisplayName}) serial={manifest.SerialNumber}.");
-            if (!hadConfigFile && options.FpsMode is null && manifest.DefaultFramerateMode == RecompTimingMode.LockedCap)
-                settings.FrameRateMode = FrameRateMode.Original;
+            ApplyFirstLaunchTimingDefaults(settings, options, manifest, hadConfigFile);
         }
 
         if (options.VerifyOnly)
@@ -177,6 +176,15 @@ internal static partial class Program
         int loopExit = RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, env, settings, pacer, logger);
         GC.KeepAlive(moduleAlc);
         return loopExit;
+    }
+
+    internal static void ApplyFirstLaunchTimingDefaults(
+        RecompSettings settings, CliOptions options, ReStationModuleManifest? manifest, bool hadConfigFile)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
+        if (!hadConfigFile && options.FpsMode is null && manifest?.DefaultFramerateMode == RecompTimingMode.LockedCap)
+            settings.FrameRateMode = FrameRateMode.Original;
     }
 
     private static LocalAotLoadOptions BuildLocalAotLoadOptions(
