@@ -3,6 +3,7 @@
 Builds/
 Installers/
 Releases/
+Dev/docs/*/
 .agents/
 Dev/logs/
 Dev/data/*

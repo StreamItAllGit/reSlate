@@ -2,7 +2,6 @@
 
 - **Version:** `v0.2.8` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
 - **Maintained By:** `@devv` (Technical Truth) & `@tessa` (Clarity) · **Enforcer:** `@dean` (Gate 2)
-- **Spoke Reference:** [`v0.2.0-ps1-decomp-and-aot.md`](architecture/v0.2.0-ps1-decomp-and-aot.md)
 
 ---
 

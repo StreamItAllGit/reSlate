@@ -2,7 +2,7 @@
 
 - **Active Version:** `v0.2.8` (`2026-11-16`, pre-1.0 `0.2.x` track)
 - **Lifecycle State:** `active` ([`active.state`](active.state))
-- **Group / Scope:** `Personal/reStation` (`Engine Tier A (5-Folder)`, `reEngine v0.2.1-hf.1`, `Foundation v0.4.1-hf.1`)
+- **Group / Scope:** `Personal/reStation` (`Engine Tier A (4-Folder)`, `reEngine v0.2.1-hf.1`, `Foundation v0.4.1-hf.1`)
 - **Logo Assets:** [`Dev\assets\reStation.svg`](Dev/assets/reStation.svg) | [`Dev\assets\reStation.png`](Dev/assets/reStation.png) | [`Dev\assets\reStation.ico`](Dev/assets/reStation.ico)
 
 ---
@@ -45,7 +45,7 @@ reStation-Setup-v0.2.8-win-x64.exe --profile Lightweight --reengine-dir "%LOCALA
 ---
 
 ## 3. Architecture At a Glance
-- **Application Archetype:** Shared Platform Recompilation Engine (`Tier A (5-Folder)`, consuming `Foundation v0.4.1-hf.1` & `reEngine.Core v0.2.1-hf.1`; `SupportedEngineTracks: ["0.2.x", "0.1.x"]`).
+- **Application Archetype:** Shared Platform Recompilation Engine (`Tier A (4-Folder)`, consuming `Foundation v0.4.1-hf.1` & `reEngine.Core v0.2.1-hf.1`; `SupportedEngineTracks: ["0.2.x", "0.1.x"]`).
 - **4-Tier Execution Stack (Built Toward `v1.0.0`):** **(1)** Native C# Hooks (`IGameFramePatch`, `ISubTickFrameHook`, `INativeGameActionHook`, `IRecompWidescreenProvider`) & Clean-Room BIOS/GTE/GP0/SPU/SIO0 HLE $\rightarrow$ **(2)** Player-PC Local `<dataDir>\cache\` AOT (`PlayerLocalAotCompiler` + collectible `ModuleAssemblyLoader`, keeping `.recomp` archives free of `*.Generated.dll`) $\rightarrow$ **(3)** Opt-In Shared MIPS$\rightarrow$IR CoreCLR RyuJIT (`DynamicMethod`) + `4 KB`/`64B` epoch invalidation + `--jit-bringup` / Zero-RWX `ThreadedIrBackend` (`v0.2.0`) $\rightarrow$ **(4)** `[WARN]`-logged `PsxInterpreter` (with mid-stack `ResumeFromSnapshot`) & `SoftwareCpu` oracle.
 - **Graphics Contract (`v0.2.0` $\rightarrow$ `v1.0.0` Tri-Backend Law):** Pluggable `IPsxRenderBackend` supporting live frame-boundary hot-swap (`OpenGL 3.3 Core` <-> `SoftwareCpu` with VRAM/PGXP preservation and automatic Software fallback banner); `v0.3.0` adds hardware `Vulkan` and deterministic `ParallelCpu` so `v1.0.0` ships all 3 mandatory production backends.
 - **Core PS1 Title Essentials & Lean UI Boundary (`v0.4.0` $\rightarrow$ `v1.0.0`):** `reEngine` owns the multi-title Library Shelf and Engine Manager, while `reStation.Player` stays a lean single-session host (`FirstRunMediaGateView`, `4:3` default + unstretched Hor+ `16:9` side-wing framing, `F3` `1060x34` HUD strip, `F1` `SlideOverSettingsDrawer` with `Video`/`Controls`/`Keybinds`/`System`/`Disc`, scrollable 5-column `800px` `Keybinds` multi-bind grid with Numpad/Nav labels). By `v0.4.0`, `reStation` adds Port 1+2 DualShock (`0x42–0x4D`) + rumble, unified `.mcr` Slot 1+2, multi-track `.cue`/`.chd` Redbook CD-DA, and `.m3u` `ShellOpen` lid-swap.
@@ -56,8 +56,8 @@ reStation-Setup-v0.2.8-win-x64.exe --profile Lightweight --reengine-dir "%LOCALA
 - **Feature Inventory & Code Map:** [`FEATURES.md`](FEATURES.md)
 - **Milestones & Strategic Horizon:** [`ROADMAP.md`](ROADMAP.md)
 - **Version History Ledger:** [`CHANGELOG.md`](CHANGELOG.md)
-- **Implementation Plans:** [`Dev\docs\plans\0.2.0.2026-11-15.md`](Dev/docs/plans/0.2.0.2026-11-15.md) *(Shipped `v0.2.0` — `.decomp`, local `<dataDir>\cache\` AOT, suite installer, opt-in Tier 3 IR/RyuJIT, `T7` runtime/input fixes)* | [`0.1.5.2026-11-14.md`](Dev/docs/plans/0.1.5.2026-11-14.md) | [`0.1.4.2026-11-14.md`](Dev/docs/plans/0.1.4.2026-11-14.md) | [`archive\0.1.3.2026-11-14.md`](Dev/docs/plans/archive/0.1.3.2026-11-14.md) | [`archive\0.1.2.2026-11-14.md`](Dev/docs/plans/archive/0.1.2.2026-11-14.md) | [`archive\0.1.1.2026-11-13.md`](Dev/docs/plans/archive/0.1.1.2026-11-13.md) | [`archive\0.1.0.2026-11-13.md`](Dev/docs/plans/archive/0.1.0.2026-11-13.md)
-- **Archived Audit Reports:** [`Dev\docs\reports\archive\0.1.5.2026-11-15_0325.-.hmbtn-joypad-ack-timers-gl-stalls-drawer-and-aspect.md`](Dev/docs/reports/archive/0.1.5.2026-11-15_0325.-.hmbtn-joypad-ack-timers-gl-stalls-drawer-and-aspect.md) | [`0.1.5.2026-11-15_0203.-.playtest-quickload-gl-hotswap-hud-mouse-and-multibind.md`](Dev/docs/reports/archive/0.1.5.2026-11-15_0203.-.playtest-quickload-gl-hotswap-hud-mouse-and-multibind.md) | [`0.1.5.2026-11-14_2115.-.ps1-decomp-aot-cache-wizard-and-public-readiness.md`](Dev/docs/reports/archive/0.1.5.2026-11-14_2115.-.ps1-decomp-aot-cache-wizard-and-public-readiness.md) | [`0.1.0.20261114-020830.-.lockstep-audit.md`](Dev/docs/reports/archive/0.1.0.20261114-020830.-.lockstep-audit.md)
+- **Implementation Plans:** `Dev\docs\plans\0.2.0.2026-11-15.md` *(Shipped `v0.2.0` — `.decomp`, local `<dataDir>\cache\` AOT, suite installer, opt-in Tier 3 IR/RyuJIT, `T7` runtime/input fixes)* | `0.1.5.2026-11-14.md` | `0.1.4.2026-11-14.md` | `archive\0.1.3.2026-11-14.md` | `archive\0.1.2.2026-11-14.md` | `archive\0.1.1.2026-11-13.md` | `archive\0.1.0.2026-11-13.md`
+- **Archived Audit Reports:** `Dev\docs\reports\archive\0.1.5.2026-11-15_0325.-.hmbtn-joypad-ack-timers-gl-stalls-drawer-and-aspect.md` | `0.1.5.2026-11-15_0203.-.playtest-quickload-gl-hotswap-hud-mouse-and-multibind.md` | `0.1.5.2026-11-14_2115.-.ps1-decomp-aot-cache-wizard-and-public-readiness.md` | `0.1.0.20261114-020830.-.lockstep-audit.md`
 
 ---
 
