@@ -7,15 +7,19 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <NuGetAudit>false</NuGetAudit>
-    <Product>reStation</Product>
+    <Product>reSlate</Product>
     <Company>StreamItAll</Company>
-    <Version>0.2.8</Version>
-    <InformationalVersion>0.2.8</InformationalVersion>
-    <FileVersion>0.2.8.0</FileVersion>
-    <AssemblyVersion>0.2.8.0</AssemblyVersion>
+    <Version>0.3.0</Version>
+    <InformationalVersion>0.3.0</InformationalVersion>
+    <FileVersion>0.3.0.0</FileVersion>
+    <AssemblyVersion>0.3.0.0</AssemblyVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ReStationLibDir>$(MSBuildThisFileDirectory)..\lib\</ReStationLibDir>
     <ReStationAssetsDir>$(MSBuildThisFileDirectory)..\assets\</ReStationAssetsDir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' Or '$(ReStationTestAutomation)' == 'true'">
+    <DefineConstants>$(DefineConstants);RESTATION_TEST_AUTOMATION</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

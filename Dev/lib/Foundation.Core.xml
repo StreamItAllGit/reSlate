@@ -132,6 +132,24 @@
             never survive if the parent process crashes or terminates.
             </summary>
         </member>
+        <member name="T:Foundation.Core.JsonHivePlatformRegistry">
+            <summary>
+            Persists HKCU, HKLM, and HKCR subkeys and typed values inside &lt;SandboxRoot&gt;\registry\registry.hive.json
+            using a named Mutex, PidSafeLockfile, and flush-safe .tmp -> .bak -> File.Move atomic replacement.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.KnownFolderPaths">
+            <summary>
+            Resolves Windows special folders against the active sandbox seam when FOUNDATION_SANDBOX_ROOT is active,
+            or delegates directly to Environment.GetFolderPath when running in production or Stage 1 isolation.
+            </summary>
+        </member>
+        <member name="M:Foundation.Core.KnownFolderPaths.GetHostFolderPath(System.Environment.SpecialFolder)">
+            <summary>
+            Resolves the true host Windows SpecialFolder path unaffected by child-process sandbox env redirection
+            (USERPROFILE, LOCALAPPDATA, APPDATA), falling back to Environment.GetFolderPath on non-Windows hosts.
+            </summary>
+        </member>
         <member name="T:Foundation.Core.PidSafeLockEnvelope">
             <summary>
             Canonical JSON lockfile envelope per Standard 19 §4.
@@ -171,6 +189,19 @@
             6. Streaming SHA-256 &amp; SHA-1 Verification before atomic rename
             </summary>
         </member>
+        <member name="T:Foundation.Core.SandboxDriveController">
+            <summary>
+            Explicit opt-in tooling controller for reading .env / .secrets\.env drive overrides, querying active Windows subst mounts,
+            resolving 4-drive sandbox mount descriptors, and enforcing host-collision safety.
+            Never invoked implicitly by AppEnvironment or SandboxEnvironmentSeam.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.SandboxEnvironmentSeam">
+            <summary>
+            Resolves 4-drive sandbox configuration strictly from process environment variables (never auto-reading .secrets\.env)
+            and enforces fail-closed host containment with ExitCode = 3.
+            </summary>
+        </member>
         <member name="T:Foundation.Core.SqliteWalPool">
             <summary>
             Standardized SQLite connection factory enforcing WAL mode, busy_timeout = 15000, Cache = Default (non-blocking WAL MVCC snapshot isolation),
@@ -194,6 +225,12 @@
         <member name="T:Foundation.Core.WavCaptureWriter">
             <summary>
             Writes deterministic uncompressed 16-bit PCM RIFF/WAV audio captures and patches RIFF/data byte lengths on Dispose.
+            </summary>
+        </member>
+        <member name="T:Foundation.Core.WindowsPlatformRegistry">
+            <summary>
+            Reads and mutates the live Windows Registry (HKCU, HKLM, HKCR) using in-box Microsoft.Win32.Registry.
+            Never instantiated when sandbox mode is active or host mutations are suppressed.
             </summary>
         </member>
     </members>

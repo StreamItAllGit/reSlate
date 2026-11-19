@@ -37,6 +37,15 @@
     <Reference Include="reEngine.Core">
       <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
     </Reference>
+    <Reference Include="reEngine.Host">
+      <HintPath>$(ReStationLibDir)reEngine.Host.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' Or '$(ReStationTestAutomation)' == 'true'">
+    <Reference Include="Foundation.Automation">
+      <HintPath>$(ReStationLibDir)Foundation.Automation.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

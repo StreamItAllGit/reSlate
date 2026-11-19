@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schemas.local/manifest.v2.json",
+  "schemaVersion": 2,
+  "manifestType": "installer-manifest",
+  "appId": "reslate",
+  "version": "0.3.0",
+  "updatedAtUtc": "2026-11-19T00:30:00.000Z",
+  "displayName": "reSlate",
+  "appTitle": "reSlate Setup",
+  "publisher": "StreamItAll",
+  "subtitle": "SlateOne Static Recompilation Engine & .decomp Provider for reEngine",
+  "studioName": "StreamItAll",
+  "suiteName": "reEngine",
+  "umbrellaSubpath": "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0",
+  "mainExecutableRelativePath": "reSlate.exe",
+  "theme": {
+    "accent": "#38BDF8",
+    "background": "#0E0E10",
+    "surface": "#18181B",
+    "text": "#ECF0F8",
+    "border": "#2A3344"
+  },
+  "layoutMode": "single-line",
+  "supportedProfiles": [
+    "lightweight",
+    "full"
+  ],
+  "defaultProfile": "lightweight",
+  "allowAutoStart": false,
+  "allowLegacyMigration": true,
+  "secondaryPickers": [
+    {
+      "flagName": "--reengine-dir",
+      "label": "Companion reEngine Directory:",
+      "defaultPath": "%LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine\\reEngine",
+      "placeholder": "%LOCALAPPDATA%\\Programs\\StreamItAll\\reEngine\\reEngine",
+      "tooltip": "Optional companion reEngine router directory hosting peer engines and toolchain (--reengine-dir)."
+    }
+  ]
+}

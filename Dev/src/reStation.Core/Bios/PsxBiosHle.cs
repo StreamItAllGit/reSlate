@@ -22,20 +22,8 @@ public sealed partial class PsxBiosHle
         public bool Enabled, Delivered, Closed;
     }
 
-    private sealed class OpenMemCardFile : IDisposable
-    {
-        public string Name = string.Empty;
-        public bool WriteMode;
-        public int Cursor;
-        public MemoryStream Buffer = new();
-        public void Dispose() => Buffer.Dispose();
-    }
-
     private readonly PsxCpu _cpu;
     private readonly List<KernelEvent> _events = new();
-    private readonly Dictionary<int, OpenMemCardFile> _openFiles = new();
-    private List<(string Name, int SizeBytes, int FirstBlock)> _dirSearch = new();
-    private int _dirCursor, _nextFd = 2;
     private uint _hookEntryIntBufAddr, _padBufAddr, _padType, _padLen, _padBuf2Addr, _padLen2, _randSeed = 1;
     private uint _heapPtr = 0x80180000U, _heapEnd = 0x801F0000U;
     private string _lastLoadedExeName = string.Empty;
@@ -308,66 +296,6 @@ public sealed partial class PsxBiosHle
         string clean = path.Replace("cdrom:", "", StringComparison.OrdinalIgnoreCase).Replace('\\', '/').TrimStart('/');
         int semi = clean.IndexOf(';');
         return semi >= 0 ? clean[..semi] : clean;
-    }
-
-    private uint OpenCardFile(string name, uint flags)
-    {
-        bool write = (flags & 0x0202U) != 0;
-        var f = new OpenMemCardFile { Name = name, WriteMode = write };
-        if (!write)
-        {
-            byte[]? data = MemCard.ReadFile(name);
-            if (data is null) { f.Dispose(); return 0xFFFFFFFFU; }
-            f.Buffer.Write(data, 0, data.Length);
-        }
-        int fd = _nextFd++; _openFiles[fd] = f; return (uint)fd;
-    }
-
-    private uint SeekCardFile(int fd, int offset, int origin)
-    {
-        if (!_openFiles.TryGetValue(fd, out var f)) return 0xFFFFFFFFU;
-        long basePos = origin switch { 1 => f.Cursor, 2 => f.Buffer.Length, _ => 0 };
-        f.Cursor = (int)Math.Max(0, basePos + offset);
-        return (uint)f.Cursor;
-    }
-
-    private uint ReadCardFile(int fd, uint dst, int len)
-    {
-        if (!_openFiles.TryGetValue(fd, out var f)) return 0xFFFFFFFFU;
-        byte[] raw = f.Buffer.ToArray();
-        int take = Math.Clamp(len, 0, Math.Max(0, raw.Length - f.Cursor));
-        for (int i = 0; i < take; i++) _cpu.Bus.Write8(dst + (uint)i, raw[f.Cursor + i]);
-        f.Cursor += take;
-        return (uint)take;
-    }
-
-    private uint WriteCardFile(int fd, uint src, int len)
-    {
-        if (!_openFiles.TryGetValue(fd, out var f)) return 0xFFFFFFFFU;
-        byte[] tmp = new byte[Math.Max(0, len)];
-        for (int i = 0; i < tmp.Length; i++) tmp[i] = _cpu.Bus.Read8(src + (uint)i);
-        f.Buffer.Position = f.Cursor; f.Buffer.Write(tmp, 0, tmp.Length); f.Cursor += tmp.Length;
-        return (uint)tmp.Length;
-    }
-
-    private uint CloseCardFile(int fd)
-    {
-        if (!_openFiles.Remove(fd, out var f)) return 0xFFFFFFFFU;
-        if (f.WriteMode) MemCard.WriteFile(f.Name, f.Buffer.ToArray());
-        f.Dispose();
-        return (uint)fd;
-    }
-
-    private uint FirstFile(string pattern, uint dirEntryAddr) { _dirSearch = MemCard.ListFiles(pattern); _dirCursor = 0; return NextFile(dirEntryAddr); }
-
-    private uint NextFile(uint dirEntryAddr)
-    {
-        if (_dirCursor >= _dirSearch.Count) return 0;
-        var item = _dirSearch[_dirCursor++];
-        WriteCString(dirEntryAddr, item.Name, 20);
-        _cpu.Bus.Write32(dirEntryAddr + 20, 0);
-        _cpu.Bus.Write32(dirEntryAddr + 24, (uint)item.SizeBytes);
-        return dirEntryAddr;
     }
 
     private void SaveJmpBuf(uint addr, uint pc) { _cpu.Bus.Write32(addr, pc); _cpu.Bus.Write32(addr + 4, _cpu.R[29]); _cpu.Bus.Write32(addr + 8, _cpu.R[30]); for (int i = 0; i < 8; i++) _cpu.Bus.Write32(addr + 12U + (uint)i * 4U, _cpu.R[16 + i]); _cpu.Bus.Write32(addr + 44, _cpu.R[28]); }

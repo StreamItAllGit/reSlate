@@ -122,6 +122,27 @@
         <member name="P:Foundation.Installer.InstallerThemeOptions.AllowLegacyMigration">
             <summary>Whether the wizard offers opt-in migration from legacy flat &lt;PROGRAMS_ROOT&gt;\ installations.</summary>
         </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.LayoutMode">
+            <summary>Wizard header/status layout mode ("single-line" or "multi-line").</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.TextPrimaryHex">
+            <summary>Optional primary text hex override from installer.manifest.json.</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.BorderHex">
+            <summary>Optional border hex override from installer.manifest.json.</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.SupportedProfiles">
+            <summary>Optional supported profile list ("lightweight", "full", "custom").</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.Buttons">
+            <summary>Optional wizard button label overrides.</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.Tooltips">
+            <summary>Optional 2-line tooltip overrides keyed by control role.</summary>
+        </member>
+        <member name="P:Foundation.Installer.InstallerThemeOptions.SecondaryPickers">
+            <summary>Optional list of secondary directory pickers loaded from installer.manifest.json.</summary>
+        </member>
         <member name="T:Foundation.Installer.InstallerWizardControls">
             <summary>
             Shared dark-theme control builders and hex color utilities for Foundation.Installer's Setup Wizard (Standard 09).

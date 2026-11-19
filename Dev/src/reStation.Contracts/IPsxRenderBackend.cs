@@ -14,6 +14,10 @@ public static class PsxRenderBackendIds
     public const string OpenGl = "opengl";
     /// <summary>Deterministic CPU rasterizer oracle (offscreen CPU fallback).</summary>
     public const string Software = "software";
+    /// <summary>Hardware Vulkan backend (deferred to v0.3.1 shared reEngine.Host GPU layer; fails closed with ExitCode = 6 on --require-backend).</summary>
+    public const string Vulkan = "vulkan";
+    /// <summary>Deterministic tile/band ParallelCpu backend (deferred to v0.3.1 shared reEngine.Host GPU layer).</summary>
+    public const string ParallelCpu = "parallelCpu";
 }
 
 /// <summary>

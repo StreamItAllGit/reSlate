@@ -1,13 +1,13 @@
-# reStation v0.2.8 — System Architecture & Symbol Map
+# reSlate — System Architecture & Symbol Map
 
-- **Version:** `v0.2.8` (`Track: 0.2.x` · Backward-Compatible Track: `0.1.x`)
+- **Version:** `v0.2.8` *(shipped baseline under former name `reStation`; repository path `Personal/reStation`)* | **Next Target:** `v0.3.0` *(`reSlate` Public-Ready Beta · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`)*
 - **Maintained By:** `@devv` (Technical Truth) & `@tessa` (Clarity) · **Enforcer:** `@dean` (Gate 2)
 
 ---
 
 ## 1. System Context & Runtime Model
 
-`reStation` executes PlayStation 1 (`PS1`) titles cleanly across two strictly decoupled stages: (1) an offline clean-room `.decomp` authoring pipeline (`reStation.Decomp` + `reStation.Compiler`) that turns user-supplied `PS-X EXE`/disc layouts into shareable `aot-recipe.json` + clean `module.recomp.json` metadata (`0` copyrighted ROMs or generated DLLs bundled), and (2) a player-PC runtime (`reStation.Launcher` + `reStation.Player` + `reStation.Core`) that synthesizes `<Game>.Generated.dll` locally inside `<dataDir>\cache\` via `AotCacheManager`, loads it inside a collectible `ModuleAssemblyLoader`, and runs a deterministic `30 Hz` / interpolated sub-tick PS1 frame loop with frame-boundary GPU backend hot-swapping (`Software CPU` <-> `OpenGL 3.3`).
+`reSlate` executes `SlateOne` (`MIPS32 R3000A + GTE`) titles cleanly across two strictly decoupled stages: (1) an offline clean-room `.decomp` authoring pipeline (`reStation.Decomp` $\rightarrow$ `reSlate.Decomp` in `v0.3.0`, plus `reSlate.Compiler`) that turns user-supplied `PS-X EXE`/disc layouts into shareable `aot-recipe.json` + clean `module.recomp.json` metadata (`0` copyrighted ROMs or generated DLLs bundled), and (2) a player-PC runtime (`reSlate` / `reSlate.Player` + `reStation.Core`) that synthesizes `<Game>.Generated.dll` locally inside `<dataDir>\cache\` via `AotCacheManager`, loads it inside a collectible `ModuleAssemblyLoader`, and runs a deterministic `30 Hz` / interpolated sub-tick frame loop with frame-boundary GPU backend hot-swapping (`Software CPU` <-> `OpenGL 3.3`; `v0.3.0` adds `Vulkan` & `ParallelCpu`). To preserve binary ABI compatibility with existing `0.1.x`/`0.2.x` cartridges, C# namespaces remain `reStation.*` and `reStation.Contracts.dll` / `reStation.Core.dll` retain their assembly names, while `v0.3.0` binaries (`reSlate.exe`, `reSlate.Player.exe`, `reSlate.Compiler.exe`, `reSlate.Decomp.dll`, `reSlate-Setup`) and `engineId: "reSlate"` transition cleanly via `reEngine v0.3.0`'s symmetric `reSlate`/`reStation` alias resolver and `.ready` engine marker.
 
 ```mermaid
 flowchart TB
@@ -81,14 +81,16 @@ flowchart LR
 ```
 
 ### Dependency Rules (Allowed vs. Forbidden)
-- **Allowed:** Pinned `Dev\lib\` SDK binaries (`Foundation.*` `v0.4.1-hf.1`, `reEngine.Core` `v0.2.1-hf.1`), unidirectional `Contracts -> Core / Decomp -> Compiler / Player -> Launcher`, isolated `Installer -> Foundation.Installer`.
-- **Forbidden:** Cross-repo writes to `Foundation\`, `_DevBible\`, or read-only `Research\*` repos; bundled `*.Generated.dll` or `*.g.cs` inside `.recomp`/`.decomp`; `GPLv3` `ghidra_psx_ldr` or Sony `.gdt`/`.til` headers; any file in `Dev\src\` exceeding `400` total lines (`build_release.ps1` hard gate).
+- **Allowed:** Pinned `Dev\lib\` SDK binaries (`Foundation.*` `v0.4.1-hf.1` -> `v0.5.0+`, `reEngine.Core` `v0.2.1-hf.1` -> `reEngine.Host` `v0.3.0`), unidirectional `Contracts -> Core / Decomp -> Compiler / Player -> Launcher`, isolated `Installer -> Foundation.Installer`, and `#if DEBUG || RESTATION_TEST_AUTOMATION` conditional `Foundation.Automation` reference (compiled 100% out of `Release`).
+- **Forbidden:** Cross-repo writes to `Foundation\`, `_DevBible\`, or read-only `Research\*` repos; bundled `*.Generated.dll` or `*.g.cs` inside `.recomp`/`.decomp`; `GPLv3` `ghidra_psx_ldr` or vendor SDK headers (`.gdt`/`.til`); unapproved monolithic files outside `Standard 24 §1.1` / `Standard 32` (`<= 250` preferred / `400` soft / `600` hard code-only SLOC, or documented `@loc-allow` / `re*` exemption); `Foundation.Automation.dll` shipped in `Release` binaries; or `AGENTS.md` staged inside `Builds\` or `%LOCALAPPDATA%\Programs\...`.
+
+> *Planned `v0.3.0` Host Integration & Clean-Source Decomp Notes:* `reEngine.Host.dll` (`SharedLibs\reEngine\v0.3.0\`, built `-c Release -f net8.0`) exports `reEngine.Host.Contracts` (`HostInputFrame`, `HostWidgetBounds`, `IHostAutomationTarget`, `HostDrawerTabId`, `F3HudTelemetry`) and `reEngine.Host.Input.HostInputMapper`, while its `Sdl3Native`/`HostSessionRunner` only wrap CPU `SDL_Renderer`. Accordingly, `reSlate.Player` consumes `reEngine.Host.Contracts` + `HostInputMapper` (adding `"reEngine.Host"` to `ModuleAssemblyLoader.SharedAssemblyNames`), keeps GL33/Vulkan-capable `HostVideoSurface` + `SlideOverSettingsDrawer` (`IHostAutomationTarget`), adds Debug/Test-only `DebugAutomationHook.cs` (`#if DEBUG || RESTATION_TEST_AUTOMATION`, `ExitCode = 2` stripped in `Release`), adds `.ready` + alias-aware `ReStationModuleManifest.Validate`, emits canonical `isPureStaticReady` (+ `[Obsolete]` `isR4PromotionReady` read-alias), and upgrades `reSlate.Decomp` with `DecompD4StrictnessValidator` + `PsxD4CraftsmanshipValidator` (6 decompiler-tell families + `-Wall -Wextra -Wno-unused-parameter` real warning gate).
 
 ---
 
 ## 3. End-to-End Data Flow per Major Pipeline
 
-### A. Clean-Room PS1 `.decomp` Flow (`D0`–`D5`)
+### A. Clean-Room `SlateOne` `.decomp` Flow (`D0`–`D5`)
 1. [`PsxDecompPlatformProvider.RunDecompAsync`](../src/reStation.Decomp/PsxDecompPlatformProvider.cs#L48-L132) loads `module.decomp.json`, runs [`PsxCleanRoomValidator.ValidatePackage`](../src/reStation.Decomp/PsxCleanRoomValidator.cs#L55-L87), and verifies the clean-room SLEIGH extension via [`PsxGteSlaExtension.ValidateSlaSpec`](../src/reStation.Decomp/PsxGteSlaExtension.cs#L89-L105).
 2. [`PsxCleanExeAndOverlayLoader.DiscoverProgramLayout`](../src/reStation.Decomp/PsxCleanExeAndOverlayLoader.cs#L111-L154) and [`PsxIsoImageScanner`](../src/reStation.Decomp/PsxIsoImageScanner.cs) parse PS-X EXE + dynamic overlay addresses and provision `ghidra_ext/` + `PsxCleanExeLoader.py` via [`PsxGhidraScriptTemplates`](../src/reStation.Decomp/PsxGhidraScriptTemplates.cs).
 3. `D3` [`PsxExportAndAssetPipeline`](../src/reStation.Decomp/PsxExportAndAssetPipeline.cs) normalizes Ghidra C exports and synthesizes deterministic `aot-recipe.json` (`--emit-clean-room` in [`RecompCompilerPipeline`](../src/reStation.Compiler/RecompCompilerPipeline.cs)), while `D4`/`D5` [`PsxParityAndByteMatchVerifier`](../src/reStation.Decomp/PsxParityAndByteMatchVerifier.cs) checks LP32 ABI layouts and MIPS byte parity.
@@ -100,7 +102,7 @@ flowchart LR
 
 ### C. Runtime Frame, `T7` Input & GPU Backend Flow
 1. [`ReStationHost`](../src/reStation.Player/ReStationHost.cs) + [`ReStationHost.QuickSave`](../src/reStation.Player/ReStationHost.QuickSave.cs) queue `F5`/`F9` requests cleanly at VBlank boundaries; mid-stack `F9` restores dispatch through [`PsxCpu.DispatchFunction`](../src/reStation.Core/Cpu/PsxCpu.cs#L163-L174) -> [`PsxInterpreter.ResumeFromSnapshot`](../src/reStation.Core/Cpu/PsxInterpreter.cs#L13-L43) whenever `R[31] != ReturnSentinelPc`, while [`PsxCpu.HasCompiledEntry`](../src/reStation.Core/Cpu/PsxCpu.Scheduling.cs#L79-L86) resolves `IRecompCompiledEntryLookup`.
-2. [`PsxJoypadPort`](../src/reStation.Core/Hardware/PsxJoypadPort.cs) drives finite `~96`-cycle `/ACK` pulses, `_irqPending` (`0x200`), and DualShock `0x73` packets; [`PsxTimersAndDma`](../src/reStation.Core/Hardware/PsxTimersAndDma.cs) calls `TickTo(_cpu.TotalCycles)` on reads/writes; [`ModernInputController`](../src/reStation.Core/Input/ModernInputController.cs) + [`HostInputMapper`](../src/reStation.Player/HostInputMapper.cs) dispatch `[1st, 2nd, 3rd]` KBM (including SDL3 USB HID Numpad `Num/`..`Num.` + `Ins`/`Home`/`End`/`RAlt` labels in [`KeyBindingsConfig`](../src/reStation.Core/Input/KeyBindingsConfig.cs#L115-L147)) + mouse/wheel (`1001..1007`) + controller (`2001..2032`) + `Schema B` `controllerDpadMode` / `isometricMoveMode` with `!gameplay` Arrow fallback.
+2. [`PsxJoypadPort`](../src/reStation.Core/Hardware/PsxJoypadPort.cs) drives finite `~96`-cycle `/ACK` pulses, `_irqPending` (`0x200`), and analog controller `0x73` packets; [`PsxTimersAndDma`](../src/reStation.Core/Hardware/PsxTimersAndDma.cs) calls `TickTo(_cpu.TotalCycles)` on reads/writes; [`ModernInputController`](../src/reStation.Core/Input/ModernInputController.cs) + [`HostInputMapper`](../src/reStation.Player/HostInputMapper.cs) dispatch `[1st, 2nd, 3rd]` KBM (including SDL3 USB HID Numpad `Num/`..`Num.` + `Ins`/`Home`/`End`/`RAlt` labels in [`KeyBindingsConfig`](../src/reStation.Core/Input/KeyBindingsConfig.cs#L115-L147)) + mouse/wheel (`1001..1007`) + controller (`2001..2032`) + `Schema B` `controllerDpadMode` / `isometricMoveMode` with `!gameplay` Arrow fallback.
 3. [`Program.FrameLoop`](../src/reStation.Player/Program.FrameLoop.cs) preserves `float` mouse deltas, commits live `host.SetTargetFps` and [`PsxGpu.SetBackend`](../src/reStation.Core/Gpu/PsxGpu.cs) / [`HostVideoSurface.TrySwitchBackend`](../src/reStation.Player/HostVideoSurface.Switch.cs) swaps at frame boundary (reverting to `software` with banner on GL error), enforces `4:3` default aspect unless enabled + module-approved via `IRecompWidescreenProvider`, and renders the `1060x34` HUD strip (`F3`) or widened `800px` (`actW = 304 px`) 5-column `Action | 1st | 2nd | 3rd | Gamepad` `Keybinds` drawer (`F1`) over GPU-composited layers.
 
 ---
@@ -180,7 +182,7 @@ flowchart LR
 | `Dev/src/reStation.Core/Gte/PgxpTracker.cs` | 41 | 22 | `PgxpTracker` sub-pixel vertex cache |
 | `Dev/src/reStation.Core/Gte/PsxGte.Commands.cs` | 191 | 159 | `PsxGte` unstretched 1:1 RTPS/RTPT/NCLIP/AVSZ math commands |
 | `Dev/src/reStation.Core/Gte/PsxGte.cs` | 260 | 207 | `PsxGte` COP2 data/control registers |
-| `Dev/src/reStation.Core/Hardware/PsxJoypadPort.cs` | 238 | 206 | `PsxJoypadPort` finite `~96`-cycle `/ACK` pulse, `_irqPending` (`0x200`), DualShock `0x73` |
+| `Dev/src/reStation.Core/Hardware/PsxJoypadPort.cs` | 238 | 206 | `PsxJoypadPort` finite `~96`-cycle `/ACK` pulse, `_irqPending` (`0x200`), analog `0x73` |
 | `Dev/src/reStation.Core/Hardware/PsxTimersAndDma.cs` | 311 | 269 | `PsxTimersAndDma` DMA, `TickTo` synced `RCnt0..RCnt2`, `ReadIrqReg(0x1F801070)` `Joypad.TickTo` controller IRQ poll |
 | `Dev/src/reStation.Core/Input/GlobalControllerProfile.cs` | 114 | 91 | `GlobalControllerProfile` `settings.controls.json` 1:1 pad mapping |
 | `Dev/src/reStation.Core/Input/KeyBindingsConfig.cs` | 203 | 172 | `KeyBindingsConfig` (`4..511` incl. Numpad `84..99` + `73/74/77/230`, `1001..1007` mouse/wheel, `2001..2032` gamepad helpers) |
@@ -197,7 +199,7 @@ flowchart LR
 | `Dev/src/reStation.Core/Saves/QuickSaveTrailer.cs` | 146 | 119 | `QuickSaveTrailer` `"RSTX"` additive state extension blocks |
 | `Dev/src/reStation.Decomp/PsxAssetExtractors.cs` | 255 | 208 | `PsxAssetExtractors` TIM/VAB/SEQ extractor into gitignored `<dataDir>\cache\assets\` |
 | `Dev/src/reStation.Decomp/PsxCleanExeAndOverlayLoader.cs` | 306 | 238 | `PsxCleanExeAndOverlayLoader` PS-X EXE + overlay + `OfflineToolchainLocator` bridge |
-| `Dev/src/reStation.Decomp/PsxCleanRoomValidator.cs` | 154 | 127 | `PsxCleanRoomValidator` rejects ROMs, save states, `ghidra_psx_ldr`, Sony headers, `*.g.cs`/`*.Generated.dll` |
+| `Dev/src/reStation.Decomp/PsxCleanRoomValidator.cs` | 154 | 127 | `PsxCleanRoomValidator` rejects ROMs, save states, `ghidra_psx_ldr`, vendor SDK headers, `*.g.cs`/`*.Generated.dll` |
 | `Dev/src/reStation.Decomp/PsxDecompPlatformProvider.cs` | 306 | 240 | `PsxDecompPlatformProvider` `MPL-2.0` `IReStationDecompProvider` (`platformId: "ps1"`) |
 | `Dev/src/reStation.Decomp/PsxExportAndAssetPipeline.cs` | 237 | 185 | `PsxNormalizedFunction`, `PsxExportAndAssetPipeline` C normalization + `AotRecipeSpec` builder |
 | `Dev/src/reStation.Decomp/PsxGhidraScriptTemplates.cs` | 156 | 123 | `PsxGhidraScriptTemplates` clean-room `PsxCleanExeLoader.py` & batch JSON generator |
@@ -282,13 +284,13 @@ flowchart LR
 - **OpenGL Context Creation Failure:** `HostVideoSurface.TrySwitchBackend` preserves window handle, logs exact driver failure, reverts to `software` cleanly, and displays an inline Video-tab warning banner.
 - **Joypad / Polled Timer Deadlocks:** `PsxJoypadPort` clears `/ACK` automatically after `96` cycles while keeping `_irqPending` (`0x200`) independent; `PsxTimersAndDma` advances timers before reading/writing `RCnt*`.
 - **Unbuilt Offline Ghidra Toolchain:** `PsxDecompPlatformProvider` fails closed on D2 `invokeGhidra=true` (`PSX_GHIDRA_BATCH_FAILED`) while allowing D0–D3 recipe synthesis without network calls (`MISSING_OFFLINE_TOOLCHAIN` diagnostic when toolchain missing in `Full`).
-- **Clean-Room & Containment Escapes:** `PsxCleanRoomValidator` & `AppEnvironment.AssertPathContained` throw fail-closed exceptions on path traversal, `ghidra_psx_ldr`, Sony headers, retail media, or `*.g.cs`/`*.Generated.dll`.
+- **Clean-Room & Containment Escapes:** `PsxCleanRoomValidator` & `AppEnvironment.AssertPathContained` throw fail-closed exceptions on path traversal, `ghidra_psx_ldr`, vendor SDK headers, retail media, or `*.g.cs`/`*.Generated.dll`.
 
 ---
 
 ## 7. Security & Privacy Model
 
-- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reStation\v0.2.8\` (`LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
+- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0\` (`v0.2.8` under `reStation\`; `LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
 - **No Auto-Start / No Telemetry:** `AllowAutoStart = false`; zero background listeners or network sockets.
 - **Human-Gated Legacy Cleanup:** Stranded `v0.1.1` cleanup requires explicit `--migrate-legacy` + `--confirm-legacy-cleanup` (or interactive modal `Yes`) and always preserves `data\rom\`.
 
@@ -297,17 +299,19 @@ flowchart LR
 ## 8. Testing Strategy Map
 
 - **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` (`184/184` passing across `26` test files, `0` warnings, `0` failures, `0` skipped, including `Hotfix028RegressionTests` verifying per-game `ControlOptions`/`metadataJson`, unstretched Hor+ `16:9` wings & 24-bit `4:3` auto-gate, mid-tick latched inputs, BIOS `B0:0x09 CloseEvent`, and zero-underrun SPU audio stream draining) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
+- **Debug/Test-Only `Foundation.Automation` Stage 2 Sandbox E2E (`Standard 02 §4`, Planned `v0.3.0`):** Every pre-release cycle installs a `-test.*` (`#if DEBUG || RESTATION_TEST_AUTOMATION`) build into the isolated 4-Drive Sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE` via `%USERPROFILE%\.gemini\.secrets\.env`), driving `--automation-port 0` (`127.0.0.1` Bearer/Origin-guarded Virtual Pointer, Virtual Keyboard & composited `IRenderSurfaceSnapshotProvider` PNG snapshot without focus stealing) and asserting `0` `Foundation.Automation.dll` symbols in the shipped `Release` binary (`ExitCode = 2` fail-closed if `--automation-port` is passed to Release).
 
 ---
 
 ## 9. Design Decisions Log (ADR)
 
 - **ADR-001 (2026-11-15 · v0.2.0) — Player-PC `<dataDir>\cache\` AOT Primary Over Shipped `.Generated.dll`:** Strip `*.Generated.dll` from shareable `.recomp` bundles and compile locally via `AotCacheManager` + collectible `ModuleAssemblyLoader`, keeping distributed packages cleanly separated from ROM/machine artifacts.
-- **ADR-002 (2026-11-15 · v0.2.0) — Bespoke `MPL-2.0` `R3000A_GTE` `.slaspec`:** Replaced `GPLv3` `ghidra_psx_ldr` and Sony SDK headers with original clean-room SLEIGH definitions + `PsxCleanRoomValidator`.
+- **ADR-002 (2026-11-15 · v0.2.0) — Bespoke `MPL-2.0` `R3000A_GTE` `.slaspec`:** Replaced `GPLv3` `ghidra_psx_ldr` and vendor SDK headers with original clean-room SLEIGH definitions + `PsxCleanRoomValidator`.
 - **ADR-003 (2026-11-15 · v0.2.0) — `IRecompWidescreenProvider` in `reStation.Contracts`:** Kept `Foundation\` strictly read-only while honoring `IsWidescreen16By9 = false` (`4:3`) default aspect until both user setting and game module approve `16:9`.
 - **ADR-004 (2026-11-15 · v0.2.0) — Dual-Layer Software UI Compositing & `1060x34` Compact Strip:** Decoupled `SDL_Texture` UI overlay blending from CPU pixel compositing and isolated `F3` HUD rendering from full-screen allocations.
 - **ADR-005 (2026-11-15 · v0.2.0) — Multi-Bind `Schema A` & `Schema B` Controller/Isometric Modes:** Unified `[1st, 2nd, 3rd]` KBM/wheel/gamepad bindings (`ModernBindingsJsonConverter`) with `!gameplay` Menu Arrow fallback without breaking `v0.1.x` scalar `GameActionDescriptor` signatures.
-- **ADR-006 (2026-11-16 · v0.2.8) — Dynamic `ControlOptions` (`metadataJson`), Hor+ `16:9` Side Wings & Decoupled `60 Hz` VBlank:** Replaced hardcoded *MeadowValley* drawer pills with `IModuleInputProfileProvider.ControlOptions` + `MetadataJsonConverter`, replaced GTE `0.75` squash with unstretched Hor+ `16:9` side wings (`PsxWidescreenGeometry` + `_wideFbo`/`_wideHiBuf` while keeping 24-bit MDEC FMVs at `4:3`), locked outer VBlank cadence to `60.0 Hz`, and implemented BIOS `B0:0x09 CloseEvent` + `ExecOverlay` `IntRP` isolation + bounded SPU stream draining.
+- **ADR-006 (2026-11-16 · v0.2.8) — Dynamic `ControlOptions` (`metadataJson`), Hor+ `16:9` Side Wings & Decoupled `60 Hz` VBlank:** Replaced hardcoded pastoral-sim (`MeadowValley BackToEarth`) drawer pills with `IModuleInputProfileProvider.ControlOptions` + `MetadataJsonConverter`, replaced GTE `0.75` squash with unstretched Hor+ `16:9` side wings (`PsxWidescreenGeometry` + `_wideFbo`/`_wideHiBuf` while keeping 24-bit MDEC FMVs at `4:3`), locked outer VBlank cadence to `60.0 Hz`, and implemented BIOS `B0:0x09 CloseEvent` + `ExecOverlay` `IntRP` isolation + bounded SPU stream draining.
+- **ADR-007 (2026-11-18 · v0.3.0 Scope) — `reSlate` Identity Split & `reEngine.Host v0.3.0` Boundary:** Keeps `reStation.Contracts.dll`, `reStation.Core.dll`, `reStation.*` namespaces, and `Personal/reStation/` unchanged while cutting over user-facing binaries (`reSlate.exe`, `reSlate.Decomp.dll`, `reSlate-Setup`, `reSlate-Portable.zip`), `engineId: "reSlate"`, `engines\reSlate\`, and `SharedLibs\reSlate\` using bidirectional `EngineAliasCatalog` symmetry and consuming `reEngine.Host.Contracts` + `HostInputMapper` atop GL33/Vulkan-capable `HostVideoSurface`.
 
 ---
 

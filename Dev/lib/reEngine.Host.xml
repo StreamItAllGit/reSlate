@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>reEngine.Host</name>
+    </assembly>
+    <members>
+        <member name="T:reEngine.Host.Contracts.HostGamepadButtons">
+            <summary>
+            Platform-neutral controller button bitmask populated per frame.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostRenderBackendKind">
+            <summary>
+            Supported clean-room render backend kinds exposed by <c>reEngine.Host</c>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostDrawerTabId">
+            <summary>
+            Canonical host overlay tabs exposed in the <c>F1</c> slide-over settings drawer.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostInputFrame">
+            <summary>
+            Non-ref immutable value-type frame input snapshot safe for generic delegates, queues, and async boundaries.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostAudioFormat">
+            <summary>
+            Describes the interleaved audio stream format configured by a host session.
+            </summary>
+        </member>
+        <member name="M:reEngine.Host.Contracts.HostAudioFormat.#ctor(System.Int32,System.Int16,System.Int32)">
+            <summary>
+            Describes the interleaved audio stream format configured by a host session.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostDrawerRowDescriptor">
+            <summary>
+            Single descriptor item rendered inside an <c>F1</c> drawer tab.
+            </summary>
+        </member>
+        <member name="M:reEngine.Host.Contracts.HostDrawerRowDescriptor.#ctor(System.String,reEngine.Host.Contracts.HostDrawerTabId,System.String,System.String,System.String)">
+            <summary>
+            Single descriptor item rendered inside an <c>F1</c> drawer tab.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostDrawerDescriptor">
+            <summary>
+            Console-agnostic descriptor parameterizing the <c>F1</c> 5-tab settings drawer and media gate.
+            </summary>
+        </member>
+        <member name="M:reEngine.Host.Contracts.HostDrawerDescriptor.#ctor(System.String,System.String,System.String,System.String,System.Int32,System.String,System.String,System.Collections.Generic.IReadOnlyList{reEngine.Host.Contracts.HostDrawerRowDescriptor})">
+            <summary>
+            Console-agnostic descriptor parameterizing the <c>F1</c> 5-tab settings drawer and media gate.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostWidgetBounds">
+            <summary>
+            Reported overlay control geometry mirrored into automation inspection trees.
+            </summary>
+        </member>
+        <member name="M:reEngine.Host.Contracts.HostWidgetBounds.#ctor(System.String,System.String,System.String,System.Drawing.Rectangle,System.Boolean)">
+            <summary>
+            Reported overlay control geometry mirrored into automation inspection trees.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostSessionOptions">
+            <summary>
+            Runtime launch options accepted by <c>HostSessionRunner</c>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.HostSessionResult">
+            <summary>
+            Exit result returned by <c>HostSessionRunner</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Host.Contracts.HostSessionResult.#ctor(System.Int32,System.Int64,System.Boolean,System.Boolean,reEngine.Host.Contracts.HostDrawerTabId,System.String,System.String,System.String)">
+            <summary>
+            Exit result returned by <c>HostSessionRunner</c>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.IHostRenderBackend">
+            <summary>
+            Video surface presenter abstraction implemented cleanly for RGBA or GL backends.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.IHostSessionCallbacks">
+            <summary>
+            Engine callbacks invoked each frame by <c>HostSessionRunner</c>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Contracts.IHostAutomationTarget">
+            <summary>
+            Thread-safe automation bridge target driven at the SDL frame boundary under Debug/Test builds.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Core.HostRgbaSurfaceBackend">
+            <summary>
+            Thread-safe RGBA render surface composing engine pixels and <see cref="T:Foundation.Core.PixelOverlayCanvas"/> overlays.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Core.HostSessionRunner">
+            <summary>
+            Clean-room host runtime orchestrating video, audio, input, overlays, and opt-in loopback test automation.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Input.HostHotkeyFlags">
+            <summary>
+            Edge-triggered host hotkey bitmask reported on <see cref="P:reEngine.Host.Contracts.HostInputFrame.HotkeyFlags"/>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Input.HostInputMapper">
+            <summary>
+            Maps raw keyboard scancodes, synthetic test keys, mouse deltas, and gamepad state into non-ref <see cref="T:reEngine.Host.Contracts.HostInputFrame"/> values.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Input.HostInputSchemaKind">
+            <summary>
+            Standardized multi-generation host input layout schemas.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Input.HostKeybindEntry">
+            <summary>
+            Single action-to-input binding descriptor displayed in the F1 Keybinds tab.
+            </summary>
+        </member>
+        <member name="M:reEngine.Host.Input.HostKeybindEntry.#ctor(System.String,System.String,System.String)">
+            <summary>
+            Single action-to-input binding descriptor displayed in the F1 Keybinds tab.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Input.HostInputSchemas">
+            <summary>
+            Provides normalized Schema A/B/C profiles and human-readable keybind tables.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Ui.F1SettingsDrawerView">
+            <summary>
+            Immediate-mode 5-tab F1 settings drawer rendered directly onto <see cref="T:Foundation.Core.PixelOverlayCanvas"/>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Ui.F3HudTelemetry">
+            <summary>
+            Telemetry snapshot rendered inside the F3 overlay pill.
+            </summary>
+        </member>
+        <member name="M:reEngine.Host.Ui.F3HudTelemetry.#ctor(System.Double,System.Double,System.String,System.Int32,System.String,System.Double)">
+            <summary>
+            Telemetry snapshot rendered inside the F3 overlay pill.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Ui.F3HudOverlayView">
+            <summary>
+            Renders and measures the F3 performance telemetry overlay on <see cref="T:Foundation.Core.PixelOverlayCanvas"/>.
+            </summary>
+        </member>
+        <member name="T:reEngine.Host.Ui.FirstRunMediaGateView">
+            <summary>
+            Clean-room retail media gate prompting optical/ROM verification without bundling retail assets.
+            </summary>
+        </member>
+    </members>
+</doc>

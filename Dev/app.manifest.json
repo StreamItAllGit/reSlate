@@ -2,19 +2,16 @@
   "$schema": "https://schemas.local/manifest.v2.json",
   "schemaVersion": 2,
   "manifestType": "standalone-app",
-  "appId": "restation",
-  "version": "0.2.8",
-  "updatedAtUtc": "2026-11-16T03:35:00.000Z",
-  "displayName": "reStation PS1 Recomp Engine",
-  "containerTier": "Tier A (5-Folder)",
+  "appId": "reslate",
+  "version": "0.3.0",
+  "updatedAtUtc": "2026-11-19T00:30:00.000Z",
+  "displayName": "reSlate SlateOne Recomp Engine",
+  "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "activeMilestone": "0.2.8",
+  "activeMilestone": "0.3.0",
   "goalMajorVersion": "1.0.0",
-  "sdkVersion": "0.4.1-hf.1",
+  "sdkVersion": "0.5.0",
   "upstreamResearchPath": null,
-  "downstreamProjects": [
-    "Personal/CrownDepthsRecomp",
-    "Personal/MeadowValley-Recomp"
-  ]
+  "downstreamProjects": []
 }

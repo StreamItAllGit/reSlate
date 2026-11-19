@@ -22,7 +22,6 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
 {
     public const int CyclesPerFrame = 564_480; // 33,868,800 Hz / 60 Hz
     public const int ModuleSlotCount = 12;
-    private const uint SnapshotMarker = 0x55504352U; // "RCPU"
 
     private readonly List<IRecompModule> _modules = new();
     private OverlayEntry[] _overlays = [];
@@ -75,6 +74,8 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     public long TotalCycles { get; set; }
     public long NextEventCycle { get; set; } = 1024;
     public long FrameCount { get; private set; }
+    /// <summary>Monotonic hardware VBlank edge sequence counter incremented once per 564,480-cycle VBlank edge.</summary>
+    public long VBlankSequence { get; private set; }
     public int ActiveExeId { get; set; }
     public bool ShouldUnwind { get; set; }
     public bool InInterrupt { get; set; }
@@ -304,6 +305,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         if (vblankEdge)
         {
             FrameCount++;
+            VBlankSequence++;
             FrameReadyFlag = true;
             Pgxp.ClearFrame();
             TimersAndDma.RaiseIrq(PsxIrq.VBlank);
@@ -340,41 +342,6 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
             }
             if (TimersAndDma.HasPendingInterrupt) Bios.TryRunInterruptHook();
         }
-    }
-
-    public void WriteSnapshotState(BinaryWriter w)
-    {
-        ArgumentNullException.ThrowIfNull(w);
-        w.Write(SnapshotMarker);
-        w.Write(ActiveExeId); w.Write(Pc); w.Write(Hi); w.Write(Lo); w.Write(Cop0Sr); w.Write(Cop0Cause); w.Write(Cop0Epc);
-        w.Write(TotalCycles); w.Write(FrameCount);
-        for (int i = 0; i < 32; i++) w.Write(R[i]);
-        Bus.WriteSnapshotState(w);
-        Gte.WriteSnapshotState(w);
-        TimersAndDma.WriteSnapshotState(w);
-        Joypad.WriteSnapshotState(w);
-        CdRom.WriteSnapshotState(w);
-        Gpu.WriteSnapshotState(w);
-        Spu.WriteSnapshotState(w);
-    }
-
-    public void ReadSnapshotState(BinaryReader r)
-    {
-        ArgumentNullException.ThrowIfNull(r);
-        if (r.ReadUInt32() != SnapshotMarker) throw new InvalidDataException("Snapshot CPU marker mismatch.");
-        ActiveExeId = r.ReadInt32(); Pc = r.ReadUInt32(); Hi = r.ReadUInt32(); Lo = r.ReadUInt32();
-        Cop0Sr = r.ReadUInt32(); Cop0Cause = r.ReadUInt32(); Cop0Epc = r.ReadUInt32();
-        TotalCycles = r.ReadInt64(); FrameCount = r.ReadInt64();
-        for (int i = 0; i < 32; i++) R[i] = r.ReadUInt32();
-        Bus.ReadSnapshotState(r);
-        Gte.ReadSnapshotState(r);
-        TimersAndDma.ReadSnapshotState(r);
-        Joypad.ReadSnapshotState(r);
-        CdRom.ReadSnapshotState(r);
-        Gpu.ReadSnapshotState(r);
-        Spu.ReadSnapshotState(r);
-        NextEventCycle = Math.Clamp(ComputeNextWakeCycle(), TotalCycles + 256, TotalCycles + 4096);
-        FramePatch?.Reset();
     }
 
     public void Dispose() => CdRom.Dispose();

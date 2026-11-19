@@ -1,7 +1,7 @@
-# reStation v0.2.8 — Interfaces, Public Contracts & Schemas
+# reSlate — Interfaces, Public Contracts & Schemas
 
-- **Version:** `v0.2.8` (`SupportedEngineTracks: ["0.2.x", "0.1.x"]`)
-- **Pinned Upstream Dependencies:** `Foundation v0.4.1-hf.1` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`) & `reEngine v0.2.1-hf.1` (`reEngine.Core`)
+- **Version:** `v0.2.8` *(shipped baseline under former name `reStation`)* | **Next Target:** `v0.3.0` *(`reSlate` Public-Ready Beta · `SupportedEngineTracks: ["0.3.x", "0.2.x", "0.1.x"]`)*
+- **Pinned Upstream Dependencies:** `Foundation v0.4.1-hf.1` -> `v0.5.0+` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`, plus Debug/Test-only `Foundation.Automation`) & `reEngine v0.3.0` (`reEngine.Core`, `reEngine.Host` — shipped)
 
 ---
 
@@ -9,7 +9,7 @@
 
 | Domain / Task | Assembly | Key Public Types & Contracts |
 | :--- | :--- | :--- |
-| **PS1 `.decomp` Provider (`D0`–`D5`)** | `reStation.Contracts`, `reStation.Decomp` | `IReStationDecompProvider`, `PsxDecompPlatformProvider`, `AotRecipeSpec`, `PsxGteSlaExtension`, `PsxParityAndByteMatchVerifier` |
+| **`SlateOne` `.decomp` Provider (`D0`–`D5`)** | `reStation.Contracts`, `reSlate.Decomp` (`reStation.Decomp` in `0.2.x`) | `IReStationDecompProvider`, `PsxDecompPlatformProvider`, `AotRecipeSpec`, `PsxGteSlaExtension`, `PsxParityAndByteMatchVerifier`, `PsxD4CraftsmanshipValidator` (`v0.3.0`) |
 | **Local AOT Cache & Collectible Load** | `reStation.Core`, `reStation.Player`, `reStation.Compiler` | `PlayerLocalAotCompiler`, `PlayerMediaResolver`, `IRecompCompiledEntryLookup`, `ModuleAssemblyLoader`, `AotRecipeEmitter`, `DiscOverlaySliceResolver`, `ModuleManifestEmitter` |
 | **Opt-In Tier 3 IR / JIT / Bring-Up** | `reStation.Core` | `MipsIrLowerer`, `IrBasicBlock`, `RamPageEpochTable`, `RyuJitBlockBackend`, `ThreadedIrBackend`, `Tier3ExecutionCoordinator`, `JitBringupRecorder` |
 | **Runtime CPU, GPU & Audio** | `reStation.Contracts`, `reStation.Core` | `IReStationCpu`, `IReStationCpuEx`, `IRecompModule`, `IOverlayRecompModule`, `IPsxRenderBackend`, `IRecompWidescreenProvider`, `PsxGpu`, `PsxJoypadPort`, `PsxTimersAndDma` |
@@ -91,10 +91,15 @@
 ## 4. File Contracts & Manifests
 - **`aot-recipe.json`:** `schemaVersion` (`1`), `platformId` (`"ps1"`), `moduleId`, `discSerial`, `executionTierMode`, `sleighSpecId` (`"MIPS:LE:32:R3000A_GTE"`), `targetArchitecture` (`"R3000A"`), `littleEndian` (`true`), `primaryBootExecutable`, `executables[]`, `entryAddresses[]`, `cleanRoomArtifacts[]`, `generatedCacheAssemblyName`.
 - **`module.recomp.json`:** Supports `supportedEngineTracks: ["0.2.x", "0.1.x"]`, `executionTierMode`, `aotRecipe` (`"aot-recipe.json"`), and zero bundled `*.Generated.dll` entries inside clean-room `.recomp` archives.
-- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` (and staged inside portable `Builds\v0.2.8\` + `app\`) advertising `0.2.8` + `supportedEngineTracks: ["0.2.x", "0.1.x"]`.
+- **`engine.manifest.json` & `sdk-manifest.json`:** Emitted by `build_release.ps1` (staged inside portable `Builds\v<Ver>\` + `app\`, alongside required `.ready` marker for `reEngine v0.3.0+`) advertising `"engineId": "reSlate"`, `"entryExecutable": "reSlate.exe"`, `"decompProviderAssembly": "app/reSlate.Decomp.dll"`, and `"supportedEngineTracks": ["0.3.x", "0.2.x", "0.1.x"]` (with bidirectional `reSlate` <-> `reStation` alias resolution in `EngineAliasCatalog` and `ReStationModuleManifest.Validate`).
 - **Save Format:** Binary `QuickSaveManager` `"RST1"` (`SchemaVersion = 1`) + additive `"RSTX"` trailer blocks.
 
 ---
 
 ## 5. Versioning & Compatibility Notes
-- **Backward Compatibility:** `v0.2.0` introduced additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor` keeping scalar overload, `SupportedEngineTracks: ["0.2.x", "0.1.x"]`) so existing pinned `0.1.x` `.recomp` packages continue executing cleanly alongside clean-room local AOT modules; `v0.2.1`–`v0.2.7` and `v0.2.8` are strictly non-breaking `PATCH+1` releases on the `0.2.x` track (`v0.2.8`: additive `ControlOptions`/`metadataJson`, unstretched Hor+ `16:9` GL33 & Software backends + 24-bit MDEC `4:3` auto-gate, decoupled `60 Hz` VBlank loop + mid-tick latched inputs, BIOS `B0:0x09 CloseEvent` + `ExecOverlay` `IntRP` isolation, bounded SPU audio drain, and `Hotfix028RegressionTests` `184/184` passing tests).
+- **Backward Compatibility (`reSlate` Partial Rename):** `reStation.Contracts.dll` and `reStation.Core.dll` retain their PE assembly names (`reStation.*` C# namespaces) so existing `0.1.x` and `0.2.x` `.recomp` cartridges bind cleanly at runtime, while launcher/player/compiler/decomp/installer outputs switch to `reSlate.exe`, `reSlate.Player.exe`, `reSlate.Compiler.exe`, `reSlate.Decomp.dll`, `reSlate-Setup-v<Ver>-win-x64.exe`, and `reSlate-v<Ver>-win-x64-Portable.zip`. `ReStationModuleManifest.Validate` uses bidirectional `reSlate` <-> `reStation` alias matching (`EngineAliasCatalog.AreEquivalent`).
+- **Prior `0.2.x` Baseline:** `v0.2.0` introduced additive contracts (`IRecompWidescreenProvider`, `INativeGameActionHook` `NativeGameActionContext` overload, multi-bind `GameActionDescriptor`); `v0.2.1`–`v0.2.8` shipped non-breaking `PATCH+1` updates (`184/184` passing tests).
+- **`v0.3.0` Planned Interface Additions & Report Remediations:**
+  - **Upstream `reEngine v0.3.0` (`reEngine.Host.dll`) Alignment:** Consumes `reEngine.Host.Contracts` (`HostInputFrame`, `HostRenderBackendKind`, `HostWidgetBounds`, `IHostAutomationTarget`, `HostDrawerTabId`, `HostDrawerDescriptor`, `F3HudTelemetry`) and `reEngine.Host.Input.HostInputMapper`, while keeping slimmed GL33/Vulkan-capable `HostVideoSurface` and `SlideOverSettingsDrawer` (`IHostAutomationTarget`) in `reSlate.Player` alongside `"reEngine.Host"` in `ModuleAssemblyLoader.SharedAssemblyNames`.
+  - **CLI & Exit-Code Extensions:** Accepts `reEngine v0.3.0` forwarded flags (`--require-backend`, `--save-dir`, `--fixture`, `--dump-audio`, `--doctor`, `--execution-tier`, `--automation-port`, `--automation-token`), adds `.ready` marker emission, `ExitCode = 6` (`--require-backend`), `"vulkan"` / `"parallelCpu"` backends, `ISubTickFrameHook` + `<dataDir>\hdpacks\` (`ExitCode = 3` containment), `SIO0 0x81` + `B0:0x4E/0x4F/0x50` `_new_card` + `"MCD2"` `"RSTX"` chunk, canonical `data\config\settings.json` (auto-migrated from `<dataDir>\settings.json`), and Debug/Test-only `#if DEBUG || RESTATION_TEST_AUTOMATION` `DebugAutomationHook` (`127.0.0.1` loopback; Release builds exclude `Foundation.Automation.dll` completely and fail closed with `ExitCode = 2`).
+  - **Schema & Decomp Contracts (`2026-11-18` Reports):** Adds canonical `"isPureStaticReady"` (`IsPureStaticReady`: `true` only on zero-fallback pure-static completion, never during active JIT bring-up) alongside `[Obsolete]` `"isR4PromotionReady"` read-alias in `BringupProfileDocument` / `JitBringupRecorder`; integrates `DecompD4StrictnessValidator` (`Corpus\tiers\{D1_Raw..D5_ByteExact}` + transition alias, `0` C bodies in `.decomp`/`d4_rewrites\*.json`, `-Wno-everything` ban, `-Wall -Wextra -Wno-unused-parameter` `0` warnings) and `PsxD4CraftsmanshipValidator` (6 decompiler-tell families + cohesive module check).

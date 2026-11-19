@@ -1,50 +1,65 @@
 {
   "schemaVersion": 1,
   "sdkId": "Foundation",
-  "version": "0.4.1-hf.1",
-  "uiVersion": "0.4.1-hf.1",
-  "publishedAtUtc": "2026-11-15T23:34:18Z",
-  "fileCount": 50,
+  "version": "0.5.0",
+  "uiVersion": "0.5.0",
+  "publishedAtUtc": "2026-11-17T00:16:24Z",
+  "fileCount": 57,
   "files": [
     {
+      "relativePath": "Foundation.Automation.deps.json",
+      "sizeBytes": 8651,
+      "sha256": "341cadf9df57d2bca000526d36d13811225df7ced7dd5f52e0752be7569d2375"
+    },
+    {
+      "relativePath": "Foundation.Automation.dll",
+      "sizeBytes": 55808,
+      "sha256": "87567d5075885cf0038c374ed09b9448be1a07b2822e1975f4aa657c3816b494"
+    },
+    {
+      "relativePath": "Foundation.Automation.xml",
+      "sizeBytes": 1137,
+      "sha256": "60c6b25dd6d3963a0aac59a51ce90b4578e0eb27273cafff46833ae7fb97b7ea"
+    },
+    {
       "relativePath": "Foundation.Core.deps.json",
-      "sizeBytes": 8533,
-      "sha256": "43b547adce3d29e762209da8edbc29f987a58ae27034b825678da3dda3548cac"
+      "sizeBytes": 8523,
+      "sha256": "1e9719d90287e79919e09909b61e8717c2e64298303e4301e645689203b15ded"
     },
     {
       "relativePath": "Foundation.Core.dll",
-      "sizeBytes": 101888,
-      "sha256": "a11a1eda5f92a008674e3e534ff6e27d39966ba09bb88452ab667df6d33f422a"
+      "sizeBytes": 148992,
+      "sha256": "1914e54a223127256e1aa345924818db7ea73aee61d6f4a44df44ca5fb03177b"
     },
     {
       "relativePath": "Foundation.Core.xml",
-      "sizeBytes": 11483,
-      "sha256": "4354af68826e3f2df02bd8e480e806173156f3131b6da9c3abac80673c51a98c"
+      "sizeBytes": 13742,
+      "sha256": "2df82c12ca9c5cf25bcef0ff9868c5ddfd470775c92808e71834ee5d52dd2977"
     },
     {
       "relativePath": "Foundation.Installer.deps.json",
-      "sizeBytes": 8243,
-      "sha256": "b1069daf35b1f874393517d48e17ead5c6b0c29e6a5f3101d6e3ed707a201c03"
+      "sizeBytes": 8218,
+      "sha256": "4a677b4d455a3b61deb4a5cc3f36241b19604774cc5df291a178563b375c8b80"
     },
     {
       "relativePath": "Foundation.Installer.dll",
-      "sizeBytes": 142848,
-      "sha256": "5ce9482f02e57357d366c150ee97737a022ad249c580d1bdaadece2730a325a9"
+      "sizeBytes": 183296,
+      "sha256": "7ec1e270074c9d454d466f00706166351ecde944a25c402227b983af72f96904"
     },
     {
       "relativePath": "Foundation.Installer.xml",
-      "sizeBytes": 8679,
-      "sha256": "5ce9c0b61ed3e2ca7f392e1e7a876d9ff3aefa3aa6d03ce07c8108a873ce05f7"
+      "sizeBytes": 10050,
+      "sha256": "a119b3857c98c44f35e15ce8b9ac5b07292c52abd5d442d4675f91a3f4a78e34"
     },
     {
       "relativePath": "Foundation.Launcher.deps.json",
-      "sizeBytes": 459,
-      "sha256": "348b2a1d3b82c5afd498ea864f2b2a919181e0873cd3ef445576fb28f3fb40dc"
+      "sizeBytes": 449,
+      "sha256": "cf13c333e0a6be425e4547e0de0a590a836086f50c8a92510861dfad3cf0d9a3"
     },
     {
       "relativePath": "Foundation.Launcher.dll",
       "sizeBytes": 9216,
-      "sha256": "1e559476edd5076416e8d82e05c0cc5fce1c46eddc73285c34f638b4fc155d7e"
+      "sha256": "5ec9ef536c046dd70fc9739cbac096fa72cfb1de17cb59e5b1343073eab1037f"
     },
     {
       "relativePath": "Foundation.Launcher.xml",
@@ -53,13 +68,13 @@
     },
     {
       "relativePath": "Foundation.Retro.deps.json",
-      "sizeBytes": 8950,
-      "sha256": "4bb53a3aae00adc67fe3771cdccd6face07810a39a76f4aa97603e62e8203503"
+      "sizeBytes": 8925,
+      "sha256": "0cefc43c05ffabb434d0cdf604433aa70cf95b9e1c996aea87cb8080df71d136"
     },
     {
       "relativePath": "Foundation.Retro.dll",
       "sizeBytes": 137216,
-      "sha256": "b11cd2e3c0f6b58a6a0122ea1393ae446e8e40741d7a037fecede9980b58082d"
+      "sha256": "ac114c0686296f47d1aaef5e4662b6e995fb5b03ad6aaf38c5ba65d3e84162c8"
     },
     {
       "relativePath": "Foundation.Retro.xml",
@@ -68,13 +83,13 @@
     },
     {
       "relativePath": "Foundation.Server.deps.json",
-      "sizeBytes": 8953,
-      "sha256": "f0e68694a3e7b8b03f06201b990702ed3fe85dccc1692ab0cca44f5bfa65cb06"
+      "sizeBytes": 8928,
+      "sha256": "f6065cdc77929ca91ff088979db97ccad95e638e53ab5a9b27505a802d7354ec"
     },
     {
       "relativePath": "Foundation.Server.dll",
       "sizeBytes": 21504,
-      "sha256": "972fe16f37f23ced98702f8ebb0c549e563137891913d1d4d242893026a375e7"
+      "sha256": "e9ec076d2e58b253d3ed6f65418609756bc45d5363e164c3f06d8d77014c315b"
     },
     {
       "relativePath": "Foundation.Server.xml",
@@ -83,13 +98,13 @@
     },
     {
       "relativePath": "Foundation.Sidecars.deps.json",
-      "sizeBytes": 9421,
-      "sha256": "acb91ada171e8e5b46d8cfdebbb93349d3b22fbe7145c30e7febc92b336d0707"
+      "sizeBytes": 9376,
+      "sha256": "ffc5ed6ace8ee4709fc93721fc2d4b8d500d85d679b1c6ea115dbc60bebf5ef8"
     },
     {
       "relativePath": "Foundation.Sidecars.dll",
       "sizeBytes": 59392,
-      "sha256": "bcb88dd61bfd6565147d72ae958604fcf08f054686d8a88a3e8c0be4885997a7"
+      "sha256": "426edebd7a1db07fd526c214a3cf20974b459046c1f751fce574a54409e2aa1c"
     },
     {
       "relativePath": "Foundation.Sidecars.xml",
@@ -98,13 +113,13 @@
     },
     {
       "relativePath": "Foundation.UI.deps.json",
-      "sizeBytes": 8222,
-      "sha256": "a9c01e1e06d47dbd63b79eabd3f6c2ffdb27a9c700060ebd35a451e304422702"
+      "sizeBytes": 8197,
+      "sha256": "c8ef465fd603d56dccb86096338723e1a81c9d908fcdd074dae39d98431295cb"
     },
     {
       "relativePath": "Foundation.UI.dll",
       "sizeBytes": 17920,
-      "sha256": "d7e6b1f988cf88deca627889da0d73bbedd06d6a06177bc8c0593a56e7d7cb99"
+      "sha256": "7ff40053e24ab4a89a4b75745e074731fc0eb31c2f9a7e7f0cfc0e4a7fe1fee3"
     },
     {
       "relativePath": "Foundation.UI.xml",
@@ -113,8 +128,8 @@
     },
     {
       "relativePath": "foundation_core/__init__.py",
-      "sizeBytes": 1316,
-      "sha256": "e93206556d1754e846d7d7258f9c74617c1647bd1c47c63bdbcd1d90b545bfb7"
+      "sizeBytes": 2854,
+      "sha256": "1e2521770e7cea4b2a67b9988bee4bcfa907b15e8d7ba2c725a528fc23a1c3f9"
     },
     {
       "relativePath": "foundation_core/cli.py",
@@ -142,9 +157,19 @@
       "sha256": "c21e3b763ebd15942083bd9d4a488089045da1d49f257dddac90be8e46d39f58"
     },
     {
+      "relativePath": "foundation_core/pseudo_registry.py",
+      "sizeBytes": 17784,
+      "sha256": "d9b83c19d0d5532e5a698eb7bc7d36c081b545b9fd6ff8901a867943407d9353"
+    },
+    {
       "relativePath": "foundation_core/pyproject.toml",
-      "sizeBytes": 370,
-      "sha256": "18606f5efc29612910e6faa35a9526876224bdcf1d0c6b48a6e6d0c5cac014f1"
+      "sizeBytes": 429,
+      "sha256": "cb6b4f71c09854ca5f886581fb519a475af9558d0d709dfaeffe5411b3d37184"
+    },
+    {
+      "relativePath": "foundation_core/sandbox_seam.py",
+      "sizeBytes": 18066,
+      "sha256": "6c8f842b48cbe6b5b76ff45d17d06c8dcb7c62eb79932756436527bc1f43fe4e"
     },
     {
       "relativePath": "foundation_core/settings.py",
@@ -158,8 +183,8 @@
     },
     {
       "relativePath": "tools/build_release_universal.py",
-      "sizeBytes": 4665,
-      "sha256": "cc3f34d6cd41ecce48784bed782d0a11162f5b34a67ffc17675944acaa83bf6d"
+      "sizeBytes": 4802,
+      "sha256": "7825dd3aedf24e79212f7e657d05ad357e7aa3b2ac4bff1073c5aab8eee5ea41"
     },
     {
       "relativePath": "tools/notion_task_helper.py",
@@ -167,9 +192,19 @@
       "sha256": "99826854236e944992a2c48107de771df3d2837e9913a7ed46aaaf8fd732febb"
     },
     {
+      "relativePath": "tools/run_sandbox_e2e.py",
+      "sizeBytes": 20232,
+      "sha256": "9237590a2e5747efcad289526700cb1ad0f1241f1b17a4bd4f3f018157f95a69"
+    },
+    {
+      "relativePath": "tools/sandbox_ctl.py",
+      "sizeBytes": 21185,
+      "sha256": "143b72b00aef0a689c3b5c5b3e81064bb39326fd4b44b8fddd495ffe1793f465"
+    },
+    {
       "relativePath": "tools/sync_foundation_sdk.py",
-      "sizeBytes": 10561,
-      "sha256": "47c0f650835fde0de4d611c5de9159959e4cd867a5eaa7efd0ae426ed657a28c"
+      "sizeBytes": 10418,
+      "sha256": "9a347900505b6f4dea89194210dba81349da37f9279102d53ff2dba3c35dffdf"
     },
     {
       "relativePath": "WebAssets/components/CoexistenceWarningBanner.tsx",
@@ -253,8 +288,8 @@
     },
     {
       "relativePath": "WebAssets/package.json",
-      "sizeBytes": 461,
-      "sha256": "f590e700487e7bf2d17bb60fe9fa09e30e60185f088b43827919be6c4651685d"
+      "sizeBytes": 460,
+      "sha256": "01dc2f15fb8f22b51babe75b6dcbe43348ba427c619a45d4336401a631a2b493"
     }
   ]
 }

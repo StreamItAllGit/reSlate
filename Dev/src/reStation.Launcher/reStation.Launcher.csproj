@@ -3,9 +3,9 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <AssemblyName>reStation</AssemblyName>
+    <AssemblyName>reSlate</AssemblyName>
     <RootNamespace>reStation.Launcher</RootNamespace>
-    <ApplicationIcon>..\..\assets\reStation.ico</ApplicationIcon>
+    <ApplicationIcon>..\..\assets\reSlate.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>false</SelfContained>
   </PropertyGroup>

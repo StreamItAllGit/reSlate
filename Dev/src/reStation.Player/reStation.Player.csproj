@@ -3,11 +3,15 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
-    <AssemblyName>reStation.Player</AssemblyName>
+    <AssemblyName>reSlate.Player</AssemblyName>
     <RootNamespace>reStation.Player</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <ApplicationIcon>..\..\assets\reStation.ico</ApplicationIcon>
-    <ApplicationTitle>reStation</ApplicationTitle>
+    <ApplicationIcon>..\..\assets\reSlate.ico</ApplicationIcon>
+    <ApplicationTitle>reSlate</ApplicationTitle>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' Or '$(ReStationTestAutomation)' == 'true'">
+    <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
   <ItemGroup>
@@ -29,6 +33,15 @@
     </Reference>
     <Reference Include="reEngine.Core">
       <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="reEngine.Host">
+      <HintPath>$(ReStationLibDir)reEngine.Host.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' Or '$(ReStationTestAutomation)' == 'true'">
+    <Reference Include="Foundation.Automation">
+      <HintPath>$(ReStationLibDir)Foundation.Automation.dll</HintPath>
     </Reference>
   </ItemGroup>
 

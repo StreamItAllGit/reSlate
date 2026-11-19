@@ -3,7 +3,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <AssemblyName>reStation.Compiler</AssemblyName>
+    <AssemblyName>reSlate.Compiler</AssemblyName>
     <RootNamespace>reStation.Compiler</RootNamespace>
   </PropertyGroup>
 

@@ -1,0 +1,94 @@
+{
+  "folders": [
+    {
+      "name": "1. reSlate — Dev",
+      "path": "."
+    },
+    {
+      "name": "2. reSlate — Project Root",
+      "path": ".."
+    }
+  ],
+  "settings": {
+    "dotnet.defaultSolution": "src/reStation.slnx",
+    "files.encoding": "utf8",
+    "files.eol": "\n",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "files.exclude": {
+      "**/bin": true,
+      "**/obj": true,
+      "../Builds": true,
+      "../Releases": true,
+      "../Archive": true,
+      "**/[Dd]esktop.ini": true,
+      "**/[Tt]humbs.db": true
+    }
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "Build reSlate (.NET Release /warnaserror)",
+        "type": "shell",
+        "command": "dotnet",
+        "args": [
+          "build",
+          "src/reStation.slnx",
+          "-c",
+          "Release",
+          "-p:TreatWarningsAsErrors=true"
+        ],
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": "$msCompile"
+      },
+      {
+        "label": "Test reSlate (.NET Release /warnaserror)",
+        "type": "shell",
+        "command": "dotnet",
+        "args": [
+          "test",
+          "src/reStation.slnx",
+          "-c",
+          "Release",
+          "-p:TreatWarningsAsErrors=true"
+        ],
+        "options": {
+          "env": {
+            "APP_ISOLATED_TEST": "1"
+          }
+        },
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        }
+      },
+      {
+        "label": "Audit reSlate Dossier & Quartet",
+        "type": "shell",
+        "command": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${userHome}/.gemini/config/skills/scope/scripts/audit_dossier.ps1",
+          "-ProjectPath",
+          ".."
+        ],
+        "group": {
+          "kind": "test",
+          "isDefault": false
+        }
+      }
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csdevkit"
+    ]
+  }
+}

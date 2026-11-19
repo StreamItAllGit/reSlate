@@ -2,34 +2,59 @@
     "schemaVersion":  1,
     "appId":  "reengine",
     "displayName":  "reEngine",
-    "sdkVersion":  "0.2.1-hf.1",
-    "version":  "0.2.1-hf.1",
-    "updatedAtUtc":  "2026-11-16T00:10:49.123Z",
+    "sdkVersion":  "0.3.0",
+    "version":  "0.3.0",
+    "updatedAtUtc":  "2026-11-18T21:20:40.249Z",
     "artifacts":  [
-                      {
-                          "fileName":  "reEngine.Core.dll",
-                          "fileSizeBytes":  134656,
-                          "sha256Hex":  "55abf39e6eada37fa0ced10cc418ba3ae276130cd390ff39a0606e15e2511ffb"
-                      },
-                      {
-                          "fileName":  "reEngine.Core.xml",
-                          "fileSizeBytes":  50095,
-                          "sha256Hex":  "ff31795f86f7cac4dcc79226be5f72fb5fde425ae37997e7f9c4b63e1c47e79f"
-                      },
-                      {
-                          "fileName":  "reEngine.Core.deps.json",
-                          "fileSizeBytes":  1221,
-                          "sha256Hex":  "2d6f68f3f9fa0456f39809fa52f24432cf40e6aa32bdef8455f7f980f06eb1bf"
-                      },
                       {
                           "fileName":  "LICENSE",
                           "fileSizeBytes":  16726,
                           "sha256Hex":  "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04"
                       },
                       {
-                          "fileName":  "reEngine-Setup-v0.2.1-hf.1-win-x64.exe",
-                          "fileSizeBytes":  72526432,
-                          "sha256Hex":  "21364159268f81303d45f1e80ac8ed1b999f4921912455a31aadcb63cd0d1808"
+                          "fileName":  "reEngine.Core.deps.json",
+                          "fileSizeBytes":  1211,
+                          "sha256Hex":  "03c707dedbb302d68f6038a885b87d84c74f8f449aa3c2ed6f35c451fe373903"
+                      },
+                      {
+                          "fileName":  "reEngine.Core.dll",
+                          "fileSizeBytes":  179200,
+                          "sha256Hex":  "bba1d3a5cd132db2721cea2000ae84fe3bb45ec99b38db79ec7748a63f0237b7"
+                      },
+                      {
+                          "fileName":  "reEngine.Core.xml",
+                          "fileSizeBytes":  76494,
+                          "sha256Hex":  "7e9604e6d13d8d020992489a564a68299a678311abab9440bf9625c9d908819b"
+                      },
+                      {
+                          "fileName":  "reEngine.Host.deps.json",
+                          "fileSizeBytes":  5472,
+                          "sha256Hex":  "86a2d67e1da48e30ec7226b79b9355a6a7558fc33482a1a1f18f57a60401416c"
+                      },
+                      {
+                          "fileName":  "reEngine.Host.dll",
+                          "fileSizeBytes":  71168,
+                          "sha256Hex":  "8fb197c5f6aa5fc3cac53a887ef211cafe3115291392a59bfe3ee80ff9f70480"
+                      },
+                      {
+                          "fileName":  "reEngine.Host.xml",
+                          "fileSizeBytes":  7971,
+                          "sha256Hex":  "2d8c699e62a9d372a562040bd659014aa2f290dc5fa1e6d8b2a2f33c5e950404"
+                      },
+                      {
+                          "fileName":  "reEngine-Setup-v0.3.0-win-x64.exe",
+                          "fileSizeBytes":  74079824,
+                          "sha256Hex":  "678c09a71d03a166feb4124b19bc8972c562ad8d1630714d4677f98acaabf3f5"
+                      },
+                      {
+                          "fileName":  "SDL3.dll",
+                          "fileSizeBytes":  3121664,
+                          "sha256Hex":  "08a8ae941e6fcb14a2ca15fffb4b93732f0f81d965978871141d89c48ecfcfe3"
+                      },
+                      {
+                          "fileName":  "THIRDPARTY_LICENSES.txt",
+                          "fileSizeBytes":  1571,
+                          "sha256Hex":  "b19ef07f6dcd728c2d976942f0089c2a1d8729e54c2df846caef76a49f208608"
                       }
                   ]
 }

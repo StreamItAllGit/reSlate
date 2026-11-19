@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Foundation.Automation</name>
+    </assembly>
+    <members>
+        <member name="T:Foundation.Automation.IRenderSurfaceSnapshotProvider">
+            <summary>
+            Callback interface implemented by custom render surfaces (e.g., Raylib, OpenGL, Vulkan)
+            so Foundation.Automation can snapshot framebuffers to PNG without taking an engine dependency.
+            </summary>
+        </member>
+        <member name="T:Foundation.Automation.Win32VirtualInputDriver">
+            <summary>
+            Dispatches pointer, keyboard, and UI-tree queries strictly to the target window/control
+            using window-scoped Win32 messages and WinForms control semantics without stealing host focus.
+            </summary>
+        </member>
+        <member name="T:Foundation.Automation.WindowSnapshotService">
+            <summary>
+            Captures WinForms, WebView2, or custom RGBA render surfaces offscreen into PNG files
+            without stealing host foreground focus.
+            </summary>
+        </member>
+    </members>
+</doc>

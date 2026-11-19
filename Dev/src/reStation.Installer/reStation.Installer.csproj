@@ -5,14 +5,18 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <AssemblyName>reStation-Setup-v$(Version)-win-x64</AssemblyName>
+    <AssemblyName>reSlate-Setup-v$(Version)-win-x64</AssemblyName>
     <RootNamespace>reStation.Installer</RootNamespace>
-    <ApplicationTitle>reStation Setup</ApplicationTitle>
-    <ApplicationIcon>..\..\assets\reStation.ico</ApplicationIcon>
+    <ApplicationTitle>reSlate Setup</ApplicationTitle>
+    <ApplicationIcon>..\..\assets\reSlate.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="reStation.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="installer.manifest.json" LogicalName="reSlate.Installer.installer.manifest.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -49,7 +53,7 @@
 
   <!-- Packaging-time payload archive (passed by Dev\scripts\build_release.ps1); absent during Debug/test builds. -->
   <ItemGroup Condition="'$(InstallerPayloadZip)' != '' and Exists('$(InstallerPayloadZip)')">
-    <EmbeddedResource Include="$(InstallerPayloadZip)" LogicalName="reStation.Installer.Embedded.payload.zip" />
+    <EmbeddedResource Include="$(InstallerPayloadZip)" LogicalName="reSlate.Installer.Embedded.payload.zip" />
   </ItemGroup>
 
 </Project>

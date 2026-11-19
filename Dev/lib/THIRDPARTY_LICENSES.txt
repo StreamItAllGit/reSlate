@@ -1,0 +1,34 @@
+reEngine Third-Party Software Notices and Licenses
+===================================================
+
+reEngine distributes or depends upon the following third-party open-source
+components across its runtime host and offline toolchain profiles:
+
+1. ppy.SDL3-CS (Managed .NET SDL3 Bindings)
+   - Upstream Project: https://github.com/ppy/SDL3-CS
+   - License: MIT License
+
+2. Simple DirectMedia Layer (SDL3)
+   - Upstream Project: https://libsdl.org/
+   - License: zlib License
+   - Notice: This software uses SDL3 for native cross-platform windowing,
+     audio output, and gamepad event handling without bundling retail media.
+
+3. Ghidra (Headless Analysis Runtime — Full Offline Toolchain Profile, GPL/ and docs/ stripped)
+   - Upstream Project: https://github.com/NationalSecurityAgency/ghidra
+   - License: Apache License, Version 2.0 (Apache-2.0)
+   - Notes: Only the Apache-2.0 headless core (support/analyzeHeadless,
+     Framework, Processors, and headless Base modules) is included. All GPL/
+     and docs/ directories and interactive Swing GUI components are stripped.
+
+4. OpenJDK Minimal Runtime (jlink)
+   - Upstream Project: https://openjdk.org/
+   - License: GNU General Public License, version 2, with the Classpath
+     Exception (GPLv2+CE)
+   - Notes: Minimal headless JRE image generated via jlink with debug symbols,
+     man pages, and header files stripped.
+
+5. 7-Zip (7z.exe / 7z.dll)
+   - Upstream Project: https://www.7-zip.org/
+   - License: GNU LGPL v2.1+ with unRAR restriction / BSD-3-Clause
+   - Notes: See LICENSE-7ZIP.txt for full terms.

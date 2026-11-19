@@ -8,20 +8,21 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Foundation.Retro;
+using reEngine.Core.Resolution;
 
 namespace reStation.Contracts;
 
-/// <summary>Canonical reStation engine identity constants shared by Player, Compiler, Installer, and module manifests.</summary>
+/// <summary>Canonical reSlate (legacy alias reStation) engine identity constants shared by Player, Compiler, Installer, and module manifests.</summary>
 public static class ReStationEngineInfo
 {
     /// <summary>Lowercase Standard 18 application identifier.</summary>
-    public const string AppId = "restation";
+    public const string AppId = "reslate";
     /// <summary>reEngine side-by-side engine identifier.</summary>
-    public const string EngineId = "reStation";
+    public const string EngineId = "reSlate";
     /// <summary>Current engine SemVer.</summary>
-    public const string Version = "0.2.8";
+    public const string Version = "0.3.0";
     /// <summary>Compatible engine track advertised to reEngine.</summary>
-    public const string CompatibleEngineTrack = "0.2.x";
+    public const string CompatibleEngineTrack = "0.3.x";
     /// <summary>Foundation.Retro platform identifier.</summary>
     public const string PlatformId = "ps1";
     /// <summary>Default gitignored user media preload directory relative to the module root.</summary>
@@ -29,7 +30,7 @@ public static class ReStationEngineInfo
     /// <summary>Default relative AOT recipe file embedded in .recomp packages.</summary>
     public const string DefaultAotRecipePath = "aot-recipe.json";
     /// <summary>Engine tracks supported by this host release (primary track first).</summary>
-    public static IReadOnlyList<string> SupportedEngineTracks { get; } = ["0.2.x", "0.1.x"];
+    public static IReadOnlyList<string> SupportedEngineTracks { get; } = ["0.3.x", "0.2.x", "0.1.x"];
 }
 
 /// <summary>PS1-specific extension of <see cref="IRecompModuleManifest"/> describing a dynamically loaded .recomp game module.</summary>
@@ -193,8 +194,8 @@ public sealed class ReStationModuleManifest : IReStationModuleManifest
         if (SchemaVersion < 1) throw new InvalidDataException($"'{sourceLabel}' has invalid schemaVersion ({SchemaVersion}).");
         foreach ((string key, string value) in new[] { ("moduleId", ModuleId), ("engineId", EngineId), ("engineVersion", EngineVersion), ("compatibleEngineTrack", CompatibleEngineTrack) })
             if (string.IsNullOrWhiteSpace(value)) throw new InvalidDataException($"'{sourceLabel}' is missing required '{key}'.");
-        if (!string.Equals(EngineId, ReStationEngineInfo.EngineId, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException($"'{sourceLabel}' targets engine '{EngineId}', expected '{ReStationEngineInfo.EngineId}'.");
+        if (!EngineAliasCatalog.AreEquivalent(EngineId, ReStationEngineInfo.EngineId))
+            throw new InvalidDataException($"'{sourceLabel}' targets engine '{EngineId}', expected '{ReStationEngineInfo.EngineId}' (or legacy alias).");
         if (Path.IsPathRooted(PreloadRomDir)) throw new InvalidDataException($"'{sourceLabel}' preloadRomDir must be relative.");
         if (!ReStationExecutionTierModes.TryNormalize(ExecutionTierMode, out _))
             throw new InvalidDataException($"'{sourceLabel}' has unsupported executionTierMode '{ExecutionTierMode}'.");

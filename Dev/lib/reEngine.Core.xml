@@ -295,6 +295,149 @@
             Removes a leading <c>[HEARTBEAT] </c> prefix produced by <c>Foundation.Core.HeartbeatLogger</c> to avoid duplicate tags.
             </summary>
         </member>
+        <member name="T:reEngine.Core.Decomp.FlexibleCompilerFlagsJsonConverter">
+            <summary>
+            Deserializes <c>compilerFlags</c> cleanly whether serialized as <c>string[]</c>, space-separated <c>string</c>, or <c>null</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.FlexibleCompilerFlagsJsonConverter.Read(System.Text.Json.Utf8JsonReader@,System.Type,System.Text.Json.JsonSerializerOptions)">
+            <inheritdoc />
+        </member>
+        <member name="M:reEngine.Core.Decomp.FlexibleCompilerFlagsJsonConverter.Write(System.Text.Json.Utf8JsonWriter,System.Collections.Generic.IReadOnlyList{System.String},System.Text.Json.JsonSerializerOptions)">
+            <inheritdoc />
+        </member>
+        <member name="T:reEngine.Core.Decomp.D4BuildReport">
+            <summary>
+            Standard 18 <c>d4_build_report.json</c> schema proving zero warnings and zero decompiler tells at <c>D4</c>–<c>D5</c>.
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.SchemaVersion">
+            <summary>Manifest schema version.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.ManifestType">
+            <summary>Document manifest type identifier.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.ModuleName">
+            <summary>Module slug or binary target name.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.Tier">
+            <summary>Target tier identifier (<c>D4</c> or <c>D5</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.CompilerErrorCount">
+            <summary>Total compiler error count recorded during the clean build.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.CompilerWarningCount">
+            <summary>Total compiler warning count recorded during the clean build.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.CompilerFlags">
+            <summary>Compiler flags used to verify the D4 translation units.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.CraftsmanshipTellCount">
+            <summary>Total residual decompiler tell count detected in rewritten translation units.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.IsZeroWarningsVerified">
+            <summary>Canonical Standard 18 zero-warnings verification flag (with v0.2.1 fallback).</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.LegacyZeroWarningsVerified">
+            <summary>Legacy v0.2.1 <c>zeroWarningsVerified</c> alias kept for fixture compatibility.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.IsZeroDecompilerTellsVerified">
+            <summary>Canonical Standard 18 zero-decompiler-tells verification flag (with v0.2.1 fallback).</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.LegacyZeroDecompilerTellsVerified">
+            <summary>Legacy v0.2.1 <c>zeroDecompilerTellsVerified</c> alias kept for fixture compatibility.</summary>
+        </member>
+        <member name="P:reEngine.Core.Decomp.D4BuildReport.ExtensionData">
+            <summary>Forward-compatible unknown JSON properties preserved across round-trips.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.D4StrictnessValidationResult">
+            <summary>
+            Aggregate D4 craftsmanship &amp; clean-room strictness validation outcome.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.D4StrictnessValidationResult.#ctor(System.Boolean,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.String},System.String)">
+            <summary>
+            Aggregate D4 craftsmanship &amp; clean-room strictness validation outcome.
+            </summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.DecompD4StrictnessValidator">
+            <summary>
+            Audits D4/D5 build reports, toolchain flag files, <c>Corpus\tiers\</c>, and <c>d4_rewrites</c> / <c>.decomp</c> payloads.
+            </summary>
+        </member>
+        <member name="F:reEngine.Core.Decomp.DecompD4StrictnessValidator.CanonicalCorpusTiers">
+            <summary>Canonical preserved decompilation tier directory names under <c>Corpus\tiers\</c>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.BareWarnSuppressRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>(?:^|\\s)-w(?:\\s|$)</code><br/>
+            Options:<br/>
+            <code>RegexOptions.CultureInvariant</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match with 2 alternative expressions.<br/>
+                ○ Match if at the beginning of the string.<br/>
+                ○ Match a whitespace character.<br/>
+            ○ Match the string "-w".<br/>
+            ○ Match with 2 alternative expressions, atomically.<br/>
+                ○ Match a whitespace character.<br/>
+                ○ Match if at the end of the string or if before an ending newline.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.CFunctionBodyRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>\\b(?:void|int|uint|short|ushort|char|long|byte|uint8_t|uint16_t|uint32_t|int32_t)\\s+[A-Za-z_][A-Za-z0-9_]*\\s*\\([^;{]*\\)\\s*\\{</code><br/>
+            Options:<br/>
+            <code>RegexOptions.CultureInvariant</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at a word boundary.<br/>
+            ○ Match with 10 alternative expressions.<br/>
+                ○ Match the string "void".<br/>
+                ○ Match the string "int".<br/>
+                ○ Match the string "uint".<br/>
+                ○ Match the string "short".<br/>
+                ○ Match the string "ushort".<br/>
+                ○ Match the string "char".<br/>
+                ○ Match the string "long".<br/>
+                ○ Match the string "byte".<br/>
+                ○ Match a sequence of expressions.<br/>
+                    ○ Match the string "uint".<br/>
+                    ○ Match with 3 alternative expressions.<br/>
+                        ○ Match the string "8_t".<br/>
+                        ○ Match the string "16_t".<br/>
+                        ○ Match the string "32_t".<br/>
+                ○ Match the string "int32_t".<br/>
+            ○ Match a whitespace character atomically at least once.<br/>
+            ○ Match a character in the set [A-Z_a-z].<br/>
+            ○ Match a character in the set [0-9A-Z_a-z] atomically any number of times.<br/>
+            ○ Match a whitespace character atomically any number of times.<br/>
+            ○ Match '('.<br/>
+            ○ Match a character in the set [^;{] greedily any number of times.<br/>
+            ○ Match ')'.<br/>
+            ○ Match a whitespace character atomically any number of times.<br/>
+            ○ Match '{'.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.ValidateD4BuildReportJson(System.String)">
+            <summary>Validates a <c>d4_build_report.json</c> payload for zero warnings, zero decompiler tells, and allowed flags.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.ValidateWorkspace(System.String)">
+            <summary>Audits a workspace or decomp output root for clean <c>Corpus\tiers\</c>, config flags, and zero C bodies in <c>d4_rewrites</c>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.ValidateDecompArchiveCleanRoom(System.String)">
+            <summary>Audits a <c>.decomp</c> ZIP archive to reject embedded C source function bodies.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.DiscoverCorpusTiers(System.String)">
+            <summary>Discovers preserved tier folders inside <c>Corpus\tiers\</c>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.ContainsCFunctionBody(System.String)">
+            <summary>Detects embedded C function bodies or <c>cBody</c>/<c>functionBody</c> schema payloads.</summary>
+        </member>
         <member name="T:reEngine.Core.Decomp.DecompStage">
             <summary>
             Canonical clean-room decompilation pipeline milestones (<c>D0</c>–<c>D5</c>).
@@ -372,29 +515,20 @@
         </member>
         <member name="T:reEngine.Core.Decomp.DecompPipelineCoordinator">
             <summary>
-            Universal <c>D0</c>–<c>D5</c> orchestrator that parses <c>.decomp</c> manifests, resolves installed <c>re*</c>
-            platform engines, delegates stage execution to <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/>, and validates clean-room outputs.
+            Universal <c>D0</c>–<c>D5</c> orchestrator resolving <c>re*</c> engines/aliases and <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/> plugins.
             </summary>
         </member>
         <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.#ctor(System.Collections.Generic.IEnumerable{reEngine.Core.Manifests.IDecompPlatformProvider})">
-            <summary>
-            Initializes a new coordinator with optional in-process <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/> instances.
-            </summary>
+            <summary>Initializes a new coordinator with optional in-process <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/> instances.</summary>
         </member>
         <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.ParseManifest(System.String)">
-            <summary>
-            Parses a JSON or ZIP-packaged <c>.decomp</c> manifest file with fail-closed Zip-Slip validation.
-            </summary>
+            <summary>Parses a JSON or ZIP <c>.decomp</c> package manifest with fail-closed Zip-Slip protection.</summary>
         </member>
         <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.DispatchAsync(reEngine.Core.Decomp.DecompRunOptions,System.String,System.Threading.CancellationToken)">
-            <summary>
-            Resolves the target <c>re*</c> engine, delegates <c>D0</c>–<c>D5</c> execution, and validates clean-room outputs.
-            </summary>
+            <summary>Resolves the platform engine and executes or dry-runs the requested <c>D0</c>–<c>D5</c> stage.</summary>
         </member>
         <member name="M:reEngine.Core.Decomp.DecompPipelineCoordinator.ValidateCleanRoomOutputDirectory(System.String)">
-            <summary>
-            Validates that <paramref name="outputDirectory"/> contains zero retail ROMs, save states, or pre-lifted artifacts.
-            </summary>
+            <summary>Validates that <paramref name="outputDirectory"/> contains zero retail ROMs, save states, or pre-lifted assemblies.</summary>
         </member>
         <member name="T:reEngine.Core.Decomp.ReEngineInstallProfile">
             <summary>
@@ -476,6 +610,15 @@
         <member name="P:reEngine.Core.Manifests.DecompPackageManifest.CompatibleEngineTrack">
             <summary>Compatible engine track selector (e.g., <c>0.2.x</c>, <c>0.1.x</c>).</summary>
         </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.SupportedEngineTracks">
+            <summary>Ordered list of compatible engine tracks supported by this decompilation package.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.DecompProviderAssembly">
+            <summary>Optional relative assembly path or filename providing <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/>.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.PreservedTiers">
+            <summary>Preserved earned research tiers present in upstream <c>Corpus\tiers\</c> (e.g., <c>D1_Raw</c>.. <c>D5_ByteExact</c>).</summary>
+        </member>
         <member name="P:reEngine.Core.Manifests.DecompPackageManifest.DecompSchemaVersion">
             <summary>Standard 18 SemVer of the <c>.decomp</c> container schema.</summary>
         </member>
@@ -536,6 +679,56 @@
         <member name="M:reEngine.Core.Manifests.IDecompPlatformProvider.ValidateCleanRoomOutput(System.String)">
             <summary>Validates that generated outputs are clean-room compliant (zero retail ROM/BIOS/save-state dumps).</summary>
         </member>
+        <member name="T:reEngine.Core.Manifests.EngineManifestModel">
+            <summary>
+            Canonical Standard 18 schema for an installed engine's <c>engine.manifest.json</c> descriptor.
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.SchemaVersion">
+            <summary>Manifest schema version (currently 1).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.EngineId">
+            <summary>Canonical platform engine identifier (e.g., <c>reStation</c> or coded alias <c>reSlate</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.DisplayName">
+            <summary>Installed engine display name.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.Version">
+            <summary>Installed engine semantic version string.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.EngineVersion">
+            <summary>Alternate engine semantic version property accepted on v0.2+/v0.3 manifests.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.CompatibleEngineTrack">
+            <summary>Primary engine track selector (e.g., <c>0.3.x</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.SupportedEngineTracks">
+            <summary>Ordered compatibility tracks supported by this engine build.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.PlatformId">
+            <summary>Target console/platform slug (e.g., <c>psx</c>, <c>nes</c>, <c>n64</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.EntryExecutable">
+            <summary>Relative path to the primary engine entry executable.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.DecompProviderAssembly">
+            <summary>Relative path to the <c>IDecompPlatformProvider</c> assembly for <c>D0</c>–<c>D5</c> dispatch.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.ExecutionTierMode">
+            <summary>Preferred execution tier mode (<c>aotPrimary</c>, <c>jitBringup</c>, <c>threadedIr</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.BackendId">
+            <summary>Default render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.ResolutionScale">
+            <summary>Default pass-through resolution scale factor (1..8).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.ExtensionData">
+            <summary>Forward-compatible unknown JSON properties preserved across round-trips.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.EffectiveVersion">
+            <summary>Resolves the effective semantic version string regardless of legacy field spelling.</summary>
+        </member>
         <member name="T:reEngine.Core.Manifests.RecompPackageManifest">
             <summary>
             Canonical Standard 18 manifest schema for <c>.recomp</c> modules (<c>module.recomp.json</c> / <c>*.recomp</c>).
@@ -561,6 +754,18 @@
         </member>
         <member name="P:reEngine.Core.Manifests.RecompPackageManifest.CompatibleEngineTrack">
             <summary>Compatible engine track selector (e.g., <c>0.1.x</c>, <c>1.x</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.SupportedEngineTracks">
+            <summary>Ordered list of compatible engine tracks supported by this module.</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.BackendId">
+            <summary>Optional preferred render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.ResolutionScale">
+            <summary>Optional integer resolution scale factor requested by this module (1..8).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.RecompPackageManifest.ExecutionTierMode">
+            <summary>Optional execution tier mode (<c>aotPrimary</c>, <c>jitBringup</c>, <c>threadedIr</c>).</summary>
         </member>
         <member name="P:reEngine.Core.Manifests.RecompPackageManifest.PreloadRomDir">
             <summary>Relative preload media directory inside the module root (defaults to <c>data/rom</c>).</summary>
@@ -613,6 +818,26 @@
             Discovers optical discs and ROM images under the module's configured <c>preloadRomDir</c>.
             </summary>
         </member>
+        <member name="T:reEngine.Core.Resolution.EngineAliasCatalog">
+            <summary>
+            Maps coded hardware engine identifiers cleanly to/from legacy <c>re*</c> identifiers per <c>SeriesMap.json</c>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineAliasCatalog.GetEquivalentIds(System.String)">
+            <summary>
+            Returns the requested <paramref name="engineId"/> first followed by any bidirectional alias equivalents.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineAliasCatalog.TryGetAlias(System.String,System.String@)">
+            <summary>
+            Attempts to resolve the single bidirectional alias for <paramref name="engineId"/>.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineAliasCatalog.AreEquivalent(System.String,System.String)">
+            <summary>
+            Returns true if two engine identifiers refer to the same canonical or coded hardware engine.
+            </summary>
+        </member>
         <member name="T:reEngine.Core.Resolution.SemVer">
             <summary>
             Universal Semantic Version (<c>MAJOR.MINOR.PATCH[-prerelease]</c>) supporting <c>-hf.&lt;n&gt;</c> and <c>-nightly.&lt;n&gt;</c>.
@@ -623,6 +848,9 @@
             Universal Semantic Version (<c>MAJOR.MINOR.PATCH[-prerelease]</c>) supporting <c>-hf.&lt;n&gt;</c> and <c>-nightly.&lt;n&gt;</c>.
             </summary>
         </member>
+        <member name="P:reEngine.Core.Resolution.SemVer.Track030Threshold">
+            <summary>Threshold SemVer requiring <c>.ready</c> staging readiness markers on v0.3.0+ engine installs.</summary>
+        </member>
         <member name="M:reEngine.Core.Resolution.SemVer.TryParse(System.String,reEngine.Core.Resolution.SemVer@)">
             <summary>Attempts to parse a SemVer string (with optional leading <c>v</c>).</summary>
         </member>
@@ -630,7 +858,7 @@
             <summary>Compares two semantic versions per SemVer 2.0.0 precedence (stable &gt; prerelease).</summary>
         </member>
         <member name="M:reEngine.Core.Resolution.SemVer.ToString">
-            <summary>Formats the version without a leading <c>v</c>.</summary>
+            <summary>Formats the semantic version without a leading <c>v</c>.</summary>
         </member>
         <member name="T:reEngine.Core.Resolution.InstalledEngineCandidate">
             <summary>
@@ -654,57 +882,45 @@
         </member>
         <member name="T:reEngine.Core.Resolution.EngineTrackMatcher">
             <summary>
-            Matches candidate engine versions against <c>compatibleEngineTrack</c> selectors.
+            Matches candidate engine versions against <c>compatibleEngineTrack</c> or <c>supportedEngineTracks</c>.
             </summary>
         </member>
         <member name="M:reEngine.Core.Resolution.EngineTrackMatcher.IsTrackCompatible(System.String,reEngine.Core.Resolution.SemVer)">
-            <summary>
-            Evaluates whether <paramref name="candidate"/> matches <paramref name="compatibleEngineTrack"/>
-            (<c>X.Y.x</c>, <c>X.Y.*</c>, <c>X.Y</c>, <c>X.x</c>, <c>X.*</c>, or exact <c>X.Y.Z</c>).
-            </summary>
+            <summary>Evaluates whether <paramref name="candidate"/> matches <paramref name="compatibleEngineTrack"/>.</summary>
         </member>
         <member name="T:reEngine.Core.Resolution.EngineVersionResolver">
             <summary>
-            Discovers installed side-by-side <c>re*</c> engines and resolves the highest compatible candidate for a module.
+            Discovers installed side-by-side <c>re*</c> engines and resolves the highest compatible candidate.
             </summary>
         </member>
         <member name="M:reEngine.Core.Resolution.EngineVersionResolver.DiscoverInstalledEngines(System.String,System.String)">
-            <summary>
-            Enumerates installed engine directories under <paramref name="enginesRootDir"/>.
-            </summary>
+            <summary>Enumerates ready side-by-side engines (plus alias equivalents when filtering) while skipping incomplete staging folders.</summary>
         </member>
         <member name="M:reEngine.Core.Resolution.EngineVersionResolver.ResolveForManifest(System.String,reEngine.Core.Manifests.RecompPackageManifest)">
-            <summary>
-            Resolves the highest installed engine matching <paramref name="manifest"/>'s track and minimum version.
-            </summary>
+            <summary>Resolves the highest compatible installed engine matching <paramref name="manifest"/> tracks and minimum version.</summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.EngineVersionResolver.ResolveForManifest(System.String,reEngine.Core.Manifests.RecompPackageManifest,reEngine.Core.Updates.ReEngineSettings)">
+            <summary>Resolves the highest compatible installed engine honoring pinned overrides, <c>supportedEngineTracks</c>, and aliases.</summary>
         </member>
         <member name="T:reEngine.Core.Updates.UpdateCoordinator">
             <summary>
-            Coordinates schema-versioned settings persistence and track-safe engine update checks/staging.
+            Coordinates schema-versioned settings persistence and decoupled track-safe engine update staging.
             </summary>
         </member>
         <member name="M:reEngine.Core.Updates.UpdateCoordinator.#ctor(System.String,System.String)">
-            <summary>
-            Initializes an update coordinator bound to <paramref name="dataDirectory"/> and <paramref name="configPath"/>.
-            </summary>
+            <summary>Initializes an update coordinator bound to <paramref name="dataDirectory"/> and optional <paramref name="configPath"/>.</summary>
         </member>
         <member name="M:reEngine.Core.Updates.UpdateCoordinator.LoadSettings">
-            <summary>Loads <c>settings.json</c> with automatic backup self-healing.</summary>
+            <summary>Loads or self-heals persisted <c>ReEngineSettings</c>.</summary>
         </member>
         <member name="M:reEngine.Core.Updates.UpdateCoordinator.SaveSettings(reEngine.Core.Updates.ReEngineSettings)">
-            <summary>Persists <paramref name="settings"/> atomically with timestamp update.</summary>
+            <summary>Atomically persists updated <paramref name="settings"/>.</summary>
         </member>
         <member name="M:reEngine.Core.Updates.UpdateCoordinator.CheckAndStageAsync(reEngine.Core.Updates.ReEngineSettings,System.String,reEngine.Core.Resolution.SemVer,System.String,System.String,System.Net.Http.HttpMessageHandler,System.String,System.Threading.CancellationToken)">
-            <summary>
-            Checks <paramref name="feedSource"/> for compatible track patches (auto-staging when enabled)
-            and newer breaking releases (alert-only, never overwriting existing tracks).
-            </summary>
+            <summary>Checks <paramref name="feedSource"/> for compatible patches on <paramref name="compatibleEngineTrack"/> and stages updates cleanly.</summary>
         </member>
         <member name="M:reEngine.Core.Updates.UpdateCoordinator.CheckAllInstalledEnginesAsync(reEngine.Core.Updates.ReEngineSettings,System.Collections.Generic.IReadOnlyList{reEngine.Core.Resolution.InstalledEngineCandidate},System.String,System.Net.Http.HttpMessageHandler,System.String,System.Threading.CancellationToken)">
-            <summary>
-            Sweeps every distinct <c>(EngineId, Track)</c> target across <paramref name="installedEngines"/>,
-            fetching the feed manifest once and degrading transient network/socket/JSON faults cleanly.
-            </summary>
+            <summary>Sweeps every installed engine track against <paramref name="feedSource"/> using a 2-second manifest poll timeout.</summary>
         </member>
         <member name="T:reEngine.Core.Updates.ReEngineSettings">
             <summary>
@@ -733,7 +949,19 @@
             <summary>Optional override path to the <c>engines\</c> root directory.</summary>
         </member>
         <member name="P:reEngine.Core.Updates.ReEngineSettings.PreferredResolutionScale">
-            <summary>Optional global pass-through resolution scale preference (1..8).</summary>
+            <summary>Legacy deprecated scale preference read only for migration to <see cref="P:reEngine.Core.Updates.ReEngineSettings.ResolutionScale"/>.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.ResolutionScale">
+            <summary>Canonical Standard 18 integer resolution scale setting (1..8).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.BackendId">
+            <summary>Canonical Standard 18 preferred render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.PinnedEngineVersions">
+            <summary>Explicit per-engine pinned version overrides keyed by engine ID.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.StagedUpdatePath">
+            <summary>Absolute or data-relative path to the latest resumable staged update package directory.</summary>
         </member>
         <member name="P:reEngine.Core.Updates.ReEngineSettings.WindowWidth">
             <summary>Saved manager window width.</summary>
@@ -774,6 +1002,16 @@
             Result of evaluating an update feed against an active engine version and compatibility track.
             </summary>
         </member>
+        <member name="T:reEngine.Core.Updates.UpdatePartMeta">
+            <summary>
+            Resumable download checkpoint sidecar persisted alongside <c>*.part</c> downloads (<c>*.part.meta.json</c>).
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdatePartMeta.#ctor(System.String,System.String,System.String,System.String,System.Int64,System.Int64,System.String)">
+            <summary>
+            Resumable download checkpoint sidecar persisted alongside <c>*.part</c> downloads (<c>*.part.meta.json</c>).
+            </summary>
+        </member>
         <member name="T:reEngine.Core.Updates.MultiEngineUpdateSweepResult">
             <summary>
             Aggregate result of sweeping all distinct <c>(EngineId, Track)</c> targets installed under <c>engines\</c>.
@@ -783,6 +1021,111 @@
             <summary>
             Aggregate result of sweeping all distinct <c>(EngineId, Track)</c> targets installed under <c>engines\</c>.
             </summary>
+        </member>
+        <member name="T:reEngine.Core.Updates.UpdatePackageApplier">
+            <summary>
+            Downloads engine updates with SSRF protection, resumable <c>.part</c> checkpoints, and atomic <c>.staging-&lt;ver&gt;</c> promotion.
+            </summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdatePackageApplier.AssertSafeRemoteUrl(System.Uri,System.Boolean)">
+            <summary>Blocks non-HTTP/HTTPS schemes and private/link-local SSRF targets unless loopback is explicitly permitted for local testing.</summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdatePackageApplier.DownloadResumablePartAsync(System.Uri,System.String,reEngine.Core.Updates.UpdatePartMeta,System.Net.Http.HttpMessageHandler,System.Boolean,System.Nullable{System.TimeSpan},System.Threading.CancellationToken)">
+            <summary>Downloads or resumes an HTTP Range <c>.part</c> payload with <c>.part.meta.json</c> checkpointing and SHA-256 verification.</summary>
+        </member>
+        <member name="M:reEngine.Core.Updates.UpdatePackageApplier.StageAndPromoteArchive(System.String,System.String,System.String,System.String)">
+            <summary>Safely unpacks a verified update ZIP into <c>.staging-&lt;ver&gt;</c>, promotes it to <c>v&lt;Ver&gt;</c>, and writes a <c>.ready</c> marker.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the BareWarnSuppressRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.BareWarnSuppressRegex_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the CFunctionBodyRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.Utilities.IndexOfNonAsciiOrAny_2C6A4C392119C799A1B2E2A347E20C73E6DF9162184EC31A0353B8F866791E16(System.ReadOnlySpan{System.Char})">
+            <summary>Finds the next index of any character that matches a character in the set [-\s].</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.Utilities.IsBoundary(System.ReadOnlySpan{System.Char},System.Int32)">
+            <summary>Determines whether the specified index is a boundary.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.Utilities.IsWordChar(System.Char)">
+            <summary>Determines whether the character is part of the [\w] set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_asciiWordChars">
+            <summary>Supports searching for characters in or not in "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz".</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_ascii_C126800">
+            <summary>Supports searching for characters in or not in "bcilsuv".</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_ascii_FFC1FFFFFEDFFFFFFFFFFFFFFFFFFFFF">
+            <summary>Supports searching for characters in or not in "\0\u0001\u0002\u0003\u0004\u0005\u0006\a\b\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f!\"#$%&amp;'()*+,./0123456789:;&lt;=&gt;?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u007f".</summary>
         </member>
     </members>
 </doc>
