@@ -205,7 +205,7 @@ public sealed class Wave2CliAndFixtureTests : IDisposable
             Console.SetOut(origOut);
         }
         Assert.Equal(0, code);
-        Assert.Contains($"reStation v{ReStationEngineInfo.Version}", sw.ToString(), StringComparison.Ordinal);
+        Assert.Contains($"reSlate v{ReStationEngineInfo.Version}", sw.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]

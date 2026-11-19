@@ -23,22 +23,22 @@ public static class GamepadBindingCode
     /// <summary>Maximum reserved gamepad binding code.</summary>
     public const int MaxCode = 2032;
 
-    /// <summary>South face button (Xbox A / PlayStation Cross).</summary>
+    /// <summary>South face button (A / Cross).</summary>
     public const int South = 2001;
 
-    /// <summary>East face button (Xbox B / PlayStation Circle).</summary>
+    /// <summary>East face button (B / Circle).</summary>
     public const int East = 2002;
 
-    /// <summary>West face button (Xbox X / PlayStation Square).</summary>
+    /// <summary>West face button (X / Square).</summary>
     public const int West = 2003;
 
-    /// <summary>North face button (Xbox Y / PlayStation Triangle).</summary>
+    /// <summary>North face button (Y / Triangle).</summary>
     public const int North = 2004;
 
     /// <summary>Back / View / Select / Share button.</summary>
     public const int Back = 2005;
 
-    /// <summary>Guide / Home / PlayStation button.</summary>
+    /// <summary>Guide / Home controller button.</summary>
     public const int Guide = 2006;
 
     /// <summary>Start / Menu / Options button.</summary>

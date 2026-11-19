@@ -44,7 +44,7 @@ public sealed partial class PsxCdRom : IDisposable
     public long XaSectorsDelivered { get; private set; }
     public byte Mode => _mode;
 
-    /// <summary>Rolling sectors/sec over the last emulated second (0 when idle > 1s).</summary>
+    /// <summary>Rolling sectors/sec over the last virtual second (0 when idle > 1s).</summary>
     public double SectorsPerSec
     {
         get

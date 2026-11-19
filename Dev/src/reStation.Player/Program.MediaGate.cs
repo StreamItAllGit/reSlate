@@ -194,13 +194,7 @@ internal static unsafe partial class Program
         return result;
     }
 
-    internal sealed record HostCliOverrides(
-        string? RequireBackendId,
-        int? AutomationPort,
-        string? AutomationToken,
-        bool RunDoctor);
-
-    private static int RunDoctor(HostCliOverrides hostCli, AppEnvironment env, RecompSettings settings, ReStationLogger logger)
+    private static int RunDoctor(CliOptions options, AppEnvironment env, RecompSettings settings, ReStationLogger logger)
     {
         SandboxResolution sandbox = env.Sandbox;
         bool isolatedTest = string.Equals(Environment.GetEnvironmentVariable(SandboxEnvironmentSeam.EnvIsolatedTest), "1", StringComparison.Ordinal);
@@ -220,7 +214,7 @@ internal static unsafe partial class Program
             $"Containment: isolatedTest={isolatedTest} sandboxActive={sandbox.IsSandboxActive} mode={env.PresentationMode}",
             $"Paths: dataDir={env.DataDirectory} config={env.ConfigFilePath} logDir={env.LogDirectory}",
             $"Execution: dynamicCode={RuntimeFeature.IsDynamicCodeSupported} tier={settings.ExecutionTierMode} compilerPresent={hasCompiler}",
-            $"Host: backend={settings.BackendId} required={hostCli.RequireBackendId ?? "none"} sdl3={hasSdl} sevenZip={has7z} automationCompiled={automationCompiled}",
+            $"Host: backend={settings.BackendId} required={options.RequireBackendId ?? "none"} sdl3={hasSdl} sevenZip={has7z} automationCompiled={automationCompiled}",
             $"DeferredBackends (v0.3.1): {PsxRenderBackendIds.Vulkan}, {PsxRenderBackendIds.ParallelCpu}"
         ];
         foreach (string line in lines)
@@ -231,66 +225,5 @@ internal static unsafe partial class Program
         PsxTelemetrySnapshot docSnap = PsxTelemetrySnapshot.Empty with { FrameNumber = 1, ResolutionScale = settings.ResolutionScale, BackendId = settings.BackendId };
         _ = logger.TryHeartbeat(1, 1, docSnap.ToHeartbeatMetrics(), force: true);
         return 0;
-    }
-
-    internal static string[] ExtractHostCliOverrides(string[] args, out HostCliOverrides overrides)
-    {
-        ArgumentNullException.ThrowIfNull(args);
-        string? reqBackend = null, autoToken = null;
-        int? autoPort = null;
-        bool runDoctor = false;
-        var forwarded = new List<string>(args.Length);
-
-        for (int i = 0; i < args.Length; i++)
-        {
-            string raw = args[i] ?? string.Empty;
-            string trimmed = raw.Trim();
-            string key = trimmed;
-            string? inlineVal = null;
-            int eq = trimmed.StartsWith("--", StringComparison.Ordinal) ? trimmed.IndexOf('=') : -1;
-            if (eq > 2) { key = trimmed[..eq]; inlineVal = trimmed[(eq + 1)..].Trim().Trim('"'); }
-
-            switch (key.ToLowerInvariant())
-            {
-                case "--require-backend":
-                    string rawBackend = (inlineVal ?? ConsumeNextValue(args, ref i, key)).ToLowerInvariant();
-                    if (rawBackend == "gl") rawBackend = PsxRenderBackendIds.OpenGl;
-                    if (rawBackend == "parallelcpu") rawBackend = PsxRenderBackendIds.ParallelCpu;
-                    if (rawBackend is not (PsxRenderBackendIds.OpenGl or PsxRenderBackendIds.Software or PsxRenderBackendIds.Vulkan or PsxRenderBackendIds.ParallelCpu))
-                        throw new ArgumentException($"--require-backend must be '{PsxRenderBackendIds.OpenGl}', '{PsxRenderBackendIds.Software}', '{PsxRenderBackendIds.Vulkan}', or '{PsxRenderBackendIds.ParallelCpu}'.");
-                    reqBackend = rawBackend;
-                    break;
-                case "--automation-port":
-                    string portText = inlineVal ?? ConsumeNextValue(args, ref i, key);
-                    if (!int.TryParse(portText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedPort) || parsedPort is < 0 or > 65535)
-                        throw new ArgumentException("--automation-port must be 0..65535.");
-                    autoPort = parsedPort;
-                    break;
-                case "--automation-token":
-                    autoToken = inlineVal ?? ConsumeNextValue(args, ref i, key);
-                    if (string.IsNullOrWhiteSpace(autoToken))
-                        throw new ArgumentException("Option '--automation-token' requires a non-empty value.");
-                    break;
-                case "--doctor":
-                    runDoctor = true;
-                    break;
-                default:
-                    forwarded.Add(raw);
-                    break;
-            }
-        }
-
-        overrides = new HostCliOverrides(reqBackend, autoPort, autoToken, runDoctor);
-        return forwarded.ToArray();
-    }
-
-    private static string ConsumeNextValue(string[] args, ref int i, string flag)
-    {
-        if (i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]))
-            throw new ArgumentException($"Option '{flag}' requires a value.");
-        string val = args[++i].Trim().Trim('"');
-        if (string.IsNullOrWhiteSpace(val))
-            throw new ArgumentException($"Option '{flag}' requires a non-empty value.");
-        return val;
     }
 }

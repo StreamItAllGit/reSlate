@@ -20,9 +20,22 @@ public sealed class PsxCpuGteAndMdecTests
         new(new RecompSettings(), Path.GetTempPath(), new SoftwareCpuRenderBackend());
 
     [Fact]
-    public void PsxCpu_UnregisteredPc_IncrementsFallbackAndUnwinds()
+    public void PsxCpu_UnregisteredPc_RunsTier3ByDefault_AndInterpreterOracleIncrementsFallbackAndUnwinds()
     {
-        PsxCpu cpu = CreateCpu();
+        PsxCpu tier3Cpu = CreateCpu();
+        tier3Cpu.Bus.Write32(0x80012340U, 0x03E00008U); // JR $ra
+        tier3Cpu.Bus.Write32(0x80012344U, 0x24020063U); // ADDIU $v0, $zero, 99 (delay slot)
+        tier3Cpu.DispatchFunction(0x80012340U);
+
+        Assert.Equal(99U, tier3Cpu.R[2]);
+        Assert.Equal(0L, tier3Cpu.InterpreterFallbackCount);
+        Assert.True(tier3Cpu.Tier3Coordinator.JitDispatchCount + tier3Cpu.Tier3Coordinator.ThreadedIrDispatchCount >= 1L);
+        Assert.False(tier3Cpu.ShouldUnwind);
+
+        using var cpu = new PsxCpu(
+            new RecompSettings { ExecutionTierMode = ReStationExecutionTierModes.InterpreterOracle },
+            Path.GetTempPath(),
+            new SoftwareCpuRenderBackend());
         cpu.Bus.Write32(0x80012340U, 0x03E00008U); // JR $ra
         cpu.Bus.Write32(0x80012344U, 0x24020063U); // ADDIU $v0, $zero, 99 (delay slot)
         cpu.DispatchFunction(0x80012340U);

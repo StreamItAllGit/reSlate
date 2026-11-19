@@ -17,7 +17,7 @@ using reStation.Contracts;
 namespace reStation.Decomp;
 
 /// <summary>
-/// Clean-room <c>MPL-2.0</c> PlayStation 1 (<c>ps1</c>) implementation of <see cref="IReStationDecompProvider"/>
+/// Clean-room <c>MPL-2.0</c> SlateOne / PS1 (<c>ps1</c>) implementation of <see cref="IReStationDecompProvider"/>
 /// executing <c>D0</c>–<c>D5</c> intake, offline Ghidra SLEIGH scripting, C/asset normalization, LP32 parity, D4 craftsmanship gate, and MIPS byte-match checks.
 /// </summary>
 public sealed class PsxDecompPlatformProvider : IReStationDecompProvider

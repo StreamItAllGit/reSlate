@@ -31,7 +31,7 @@ public interface IRecompModule
 /// </summary>
 public interface IReStationHost : IRecompHost
 {
-    /// <summary>The emulated PS1 CPU/machine.</summary>
+    /// <summary>The PS1 static recompilation CPU/machine state.</summary>
     IReStationCpu Cpu { get; }
     /// <summary>Manifest of the loaded module.</summary>
     IReStationModuleManifest ModuleManifest { get; }
@@ -45,7 +45,7 @@ public interface IReStationHost : IRecompHost
     void SetFramePatch(IGameFramePatch? patch);
     /// <summary>Loads a PS-X EXE from gamedata into RAM, sets PC/GP/SP, and activates <paramref name="exeId"/>.</summary>
     bool LoadExecutable(string exeRelativePath, int exeId);
-    /// <summary>Advances the emulated machine by exactly one VBlank frame (cooperatively resuming lifted execution).</summary>
+    /// <summary>Advances the recompiled machine by exactly one VBlank frame (cooperatively resuming lifted execution).</summary>
     void RunFrame();
     /// <summary>Latest engine telemetry snapshot.</summary>
     PsxTelemetrySnapshot GetTelemetry();

@@ -24,11 +24,11 @@ public interface IReStationCpu
     uint Pc { get; set; }
     /// <summary>COP0 status register (SR).</summary>
     uint Cop0Sr { get; set; }
-    /// <summary>Total emulated CPU cycles (33.8688 MHz clock).</summary>
+    /// <summary>Total virtual CPU cycles (33.8688 MHz clock).</summary>
     long TotalCycles { get; set; }
     /// <summary>Cycle at which lifted code must call <see cref="PollEvents"/>.</summary>
     long NextEventCycle { get; }
-    /// <summary>Number of emulated VBlank frames elapsed.</summary>
+    /// <summary>Number of virtual VBlank frames elapsed.</summary>
     long FrameCount { get; }
     /// <summary>Active per-EXE module slot (see <see cref="IRecompModule.ExeId"/>).</summary>
     int ActiveExeId { get; set; }

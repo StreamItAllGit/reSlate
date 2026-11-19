@@ -71,8 +71,8 @@ public sealed class CpuTailJumpTrampolineTests
         var manifest = new ReStationModuleManifest
         {
             ModuleId = "meadowvalley-recomp",
-            Title = "HM",
-            DisplayName = "HM",
+            Title = "MV",
+            DisplayName = "MV",
             EngineId = ReStationEngineInfo.EngineId,
             EngineVersion = ReStationEngineInfo.Version,
             CompatibleEngineTrack = ReStationEngineInfo.CompatibleEngineTrack

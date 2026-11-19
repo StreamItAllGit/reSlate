@@ -42,7 +42,7 @@ public static class PsxCdRomTiming
     public static bool HasStreamingSubmode(byte submode) =>
         (submode & 0x26) != 0 || (submode & 0x12) == 0x12 || (submode & 0x48) == 0x40;
 
-    /// <summary>Sectors per emulated second for a given per-sector latency.</summary>
+    /// <summary>Sectors per virtual second for a given per-sector latency.</summary>
     public static double SectorsPerSecond(long cyclesPerSector) =>
         cyclesPerSector > 0 ? CpuClockHz / (double)cyclesPerSector : 0.0;
 }

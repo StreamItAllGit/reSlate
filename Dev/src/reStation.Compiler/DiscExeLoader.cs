@@ -12,7 +12,7 @@ using reStation.Contracts;
 
 namespace reStation.Compiler;
 
-/// <summary>Parsed 2 KB PlayStation 1 PS-X EXE header.</summary>
+/// <summary>Parsed 2 KB SlateOne (PS1) PS-X EXE header.</summary>
 public readonly record struct PsxExeHeader(
     uint Pc0,
     uint Gp0,

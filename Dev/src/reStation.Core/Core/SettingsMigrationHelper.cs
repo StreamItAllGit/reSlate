@@ -46,7 +46,10 @@ public static class SettingsMigrationHelper
         return new SettingsMigrationResult(migratedPrimary, migratedBak, legacyPath, targetPath);
     }
 
-    internal static SettingsMigrationResult MigrateForConfigPathIfNeeded(string fullConfigPath)
+    /// <summary>
+    /// Atomically migrates legacy <c>&lt;dataDir&gt;\settings.json</c> when <paramref name="fullConfigPath"/> targets <c>config\settings.json</c>.
+    /// </summary>
+    public static SettingsMigrationResult MigrateForConfigPathIfNeeded(string fullConfigPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fullConfigPath);
         string full = Path.GetFullPath(fullConfigPath);

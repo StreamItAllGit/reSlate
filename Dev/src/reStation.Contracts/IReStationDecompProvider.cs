@@ -145,7 +145,7 @@ public sealed class AotRecipeSpec
     [JsonPropertyName("moduleId")]
     public string ModuleId { get; set; } = string.Empty;
 
-    /// <summary>PlayStation disc product/serial code.</summary>
+    /// <summary>SlateOne (PS1) disc product/serial code.</summary>
     [JsonPropertyName("discSerial")]
     public string DiscSerial { get; set; } = string.Empty;
 

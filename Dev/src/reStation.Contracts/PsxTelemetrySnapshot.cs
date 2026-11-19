@@ -9,15 +9,15 @@ using Foundation.Retro;
 namespace reStation.Contracts;
 
 /// <summary>Per-frame engine telemetry captured by the host and emitted through heartbeats, HUD, and crash bundles.</summary>
-/// <param name="FrameNumber">Emulated VBlank frame counter.</param>
-/// <param name="CpuMs">Host milliseconds spent executing lifted/interpreted CPU work this frame.</param>
+/// <param name="FrameNumber">Virtual VBlank frame counter.</param>
+/// <param name="CpuMs">Host milliseconds spent executing lifted/JIT CPU work this frame.</param>
 /// <param name="GpuMs">Host milliseconds spent in the render backend this frame.</param>
 /// <param name="WaitMs">Host milliseconds spent pacing/waiting this frame.</param>
 /// <param name="CurrentFps">Rolling presented frames per second.</param>
 /// <param name="P99FrameMs">Rolling 99th percentile frame time.</param>
 /// <param name="ResolutionScale">Internal resolution multiplier (1, 2, 4, 8).</param>
 /// <param name="BackendId">Active render backend id.</param>
-/// <param name="CdSectorsPerSec">Rolling CD-ROM sectors delivered per emulated second.</param>
+/// <param name="CdSectorsPerSec">Rolling CD-ROM sectors delivered per virtual second.</param>
 /// <param name="MdecMacroblocksPerSec">Rolling MDEC macroblocks decoded per second.</param>
 /// <param name="ActiveSpuVoices">Number of SPU voices with non-zero envelope.</param>
 /// <param name="XaDrops">XA samples dropped due to a full audio ring (0 in healthy playback).</param>

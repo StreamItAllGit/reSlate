@@ -8,7 +8,7 @@ using reEngine.Core.Decomp;
 
 namespace reStation.Decomp;
 
-/// <summary>Parsed 2 KB PlayStation 1 PS-X EXE header (<c>"PS-X EXE"</c>).</summary>
+/// <summary>Parsed 2 KB SlateOne (PS1) PS-X EXE header (<c>"PS-X EXE"</c>).</summary>
 /// <param name="Pc0">Initial program counter (<c>$pc0</c>) canonicalized to KSEG0.</param>
 /// <param name="Gp0">Initial global pointer (<c>$gp0</c>).</param>
 /// <param name="TextAddr">RAM base address (<c>$t_addr</c>) for payload copy.</param>

@@ -33,7 +33,7 @@ public sealed class PgxpTracker
         return false;
     }
 
-    /// <summary>Clears all cached vertices (call once per emulated frame).</summary>
+    /// <summary>Clears all cached vertices (call once per rendered frame).</summary>
     public void ClearFrame() => _entries.Clear();
 
     /// <summary>Packs signed 16-bit screen coordinates exactly like a GP0 vertex word.</summary>

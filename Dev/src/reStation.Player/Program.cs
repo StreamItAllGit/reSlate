@@ -42,12 +42,10 @@ internal static partial class Program
 
     internal static int RunMain(string[] args)
     {
-        HostCliOverrides hostCli;
         CliOptions options;
         try
         {
-            string[] coreArgs = ExtractHostCliOverrides(args, out hostCli);
-            options = CliOptions.Parse(coreArgs);
+            options = CliOptions.Parse(args);
         }
         catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 2; }
 
@@ -55,43 +53,45 @@ internal static partial class Program
         if (options.ShowVersion) { Console.WriteLine($"reSlate v{ReStationEngineInfo.Version}"); return 0; }
 
 #if !DEBUG && !RESTATION_TEST_AUTOMATION
-        if (hostCli.AutomationPort.HasValue)
+        if (options.AutomationPort.HasValue)
         {
             Console.Error.WriteLine("Automation loopback (--automation-port) is disabled in Release builds (ExitCode=2).");
             return 2;
         }
 #endif
 
-        if (hostCli.RequireBackendId is PsxRenderBackendIds.Vulkan or PsxRenderBackendIds.ParallelCpu)
+        if (options.IsDeferredBackendRequired(out string? deferredBackend))
         {
-            Console.Error.WriteLine($"Required render backend '{hostCli.RequireBackendId}' is deferred to v0.3.1 pending shared reEngine.Host GPU abstraction (ExitCode=6).");
-            return 6;
+            Console.Error.WriteLine($"Required render backend '{deferredBackend}' is deferred to v0.3.1 pending shared reEngine.Host GPU abstraction (ExitCode={CliOptions.DeferredBackendExitCode}).");
+            return CliOptions.DeferredBackendExitCode;
         }
-        if (hostCli.RequireBackendId is not null && options.BackendId is not null &&
-            !string.Equals(options.BackendId, hostCli.RequireBackendId, StringComparison.OrdinalIgnoreCase))
+        if (options.RequireBackendId is not null && options.BackendId is not null &&
+            !string.Equals(options.BackendId, options.RequireBackendId, StringComparison.OrdinalIgnoreCase))
         {
-            Console.Error.WriteLine($"Requested --backend '{options.BackendId}' conflicts with --require-backend '{hostCli.RequireBackendId}' (ExitCode=6).");
-            return 6;
+            Console.Error.WriteLine($"Requested --backend '{options.BackendId}' conflicts with --require-backend '{options.RequireBackendId}' (ExitCode={CliOptions.DeferredBackendExitCode}).");
+            return CliOptions.DeferredBackendExitCode;
         }
 
         AppEnvironment env;
         try { env = options.CreateEnvironment(); }
         catch (InvalidOperationException ex) { Console.Error.WriteLine(ex.Message); return 3; }
 
+        SettingsMigrationResult settingsMigration = SettingsMigrationHelper.MigrateForConfigPathIfNeeded(env.ConfigFilePath);
         bool hadConfigFile = File.Exists(env.ConfigFilePath);
         RecompSettings settings = RecompSettings.Load(env.ConfigFilePath).Value;
         options.ApplyOverrides(settings);
-        if (hostCli.RequireBackendId is not null) settings.BackendId = hostCli.RequireBackendId;
 
         using var logger = new ReStationLogger(env.LogDirectory, settings.ShouldEnableRuntimeLogs);
         CrashBundleService.RegisterGlobalHandlers(env.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, logger.GetRecentLines);
         logger.Info("BOOT", $"reSlate v{ReStationEngineInfo.Version} mode={env.PresentationMode} tray={options.TrayOnly} dryRun={env.DryRun} wait={options.ShouldWait} backend={settings.BackendId} scale={settings.ResolutionScale}x");
+        if (settingsMigration.Migrated)
+            logger.Info("CONFIG", $"Migrated legacy settings '{settingsMigration.LegacyPath}' -> '{settingsMigration.CanonicalPath}'.");
 
         try
         {
-            if (hostCli.RunDoctor)
-                return RunDoctor(hostCli, env, settings, logger);
-            return RunApplication(options, hostCli, env, settings, hadConfigFile, logger);
+            if (options.RunDoctor)
+                return RunDoctor(options, env, settings, logger);
+            return RunApplication(options, env, settings, hadConfigFile, logger);
         }
         catch (InvalidOperationException ex) when (IsContainmentViolation(ex.Message))
         {
@@ -109,7 +109,7 @@ internal static partial class Program
     }
 
     private static int RunApplication(
-        CliOptions options, HostCliOverrides hostCli, AppEnvironment env, RecompSettings settings, bool hadConfigFile, ReStationLogger logger)
+        CliOptions options, AppEnvironment env, RecompSettings settings, bool hadConfigFile, ReStationLogger logger)
     {
         ReStationModuleManifest? manifest = null;
         string? moduleDir = null;
@@ -136,19 +136,19 @@ internal static partial class Program
             ? HostVideoSurface.CreateOffscreen(settings, logger, "tray-or-background")
             : HostVideoSurface.Create(winTitle, settings, foreground: true, logger);
 
-        if (hostCli.RequireBackendId is not null &&
-            !string.Equals(video.Backend.BackendId, hostCli.RequireBackendId, StringComparison.OrdinalIgnoreCase))
+        if (options.RequireBackendId is not null &&
+            !string.Equals(video.Backend.BackendId, options.RequireBackendId, StringComparison.OrdinalIgnoreCase))
         {
-            string reqErr = $"Required render backend '{hostCli.RequireBackendId}' could not initialize; active fallback is '{video.Backend.BackendId}' ({video.FallbackReason ?? "unavailable"}).";
+            string reqErr = $"Required render backend '{options.RequireBackendId}' could not initialize; active fallback is '{video.Backend.BackendId}' ({video.FallbackReason ?? "unavailable"}).";
             logger.Error("VIDEO", reqErr);
             Console.Error.WriteLine(reqErr);
-            return 6;
+            return CliOptions.DeferredBackendExitCode;
         }
 
         var bridge = new HostContractBridge();
 #if DEBUG || RESTATION_TEST_AUTOMATION
-        using DebugAutomationHook? automation = hostCli.AutomationPort is { } autoPort
-            ? StartDebugAutomationHook(bridge, autoPort, hostCli.AutomationToken, logger)
+        using DebugAutomationHook? automation = options.AutomationPort is { } autoPort
+            ? StartDebugAutomationHook(bridge, autoPort, options.AutomationToken, logger)
             : null;
 #endif
 
@@ -211,6 +211,8 @@ internal static partial class Program
         }
 
         string resolvedTier = moduleAlc?.ResolvedExecutionTierMode ?? settings.ExecutionTierMode;
+        settings.ExecutionTierMode = resolvedTier;
+        cpu.Tier3Coordinator.ExecutionTierMode = resolvedTier;
         if (options.JitBringup)
         {
             string bringupPath = !string.IsNullOrWhiteSpace(options.ProfilePath)
