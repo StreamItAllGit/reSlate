@@ -20,12 +20,15 @@ internal sealed class HostContractBridge : IHostAutomationTarget
 
     private readonly object _sync = new();
     private readonly ReEngineHostInputMapper _syntheticMapper = new();
-    private readonly Queue<(int X, int Y, string? TargetId)> _pendingClicks = new();
+    private readonly Queue<(int X, int Y, string? TargetId, bool RightClick)> _pendingClicks = new();
     private readonly Queue<string> _pendingKeys = new();
     private IReadOnlyList<HostWidgetBounds> _widgets = Array.Empty<HostWidgetBounds>();
     private byte[] _framebufferRgba = Array.Empty<byte>();
     private int _fbWidth;
     private int _fbHeight;
+#if DEBUG || RESTATION_TEST_AUTOMATION
+    internal DebugAutomationDiagnostics? Diagnostics { get; set; }
+#endif
 
     public HostRenderBackendKind ActiveBackendKind { get; private set; } = HostRenderBackendKind.OpenGl;
     public HostDrawerTabId ActiveDrawerTab { get; private set; } = HostDrawerTabId.Video;
@@ -158,7 +161,15 @@ internal sealed class HostContractBridge : IHostAutomationTarget
     {
         lock (_sync)
         {
-            if (_pendingClicks.Count < MaxQueueSize) _pendingClicks.Enqueue((x, y, targetId));
+            if (_pendingClicks.Count < MaxQueueSize) _pendingClicks.Enqueue((x, y, targetId, false));
+        }
+    }
+
+    public void EnqueuePointerRightClick(int x, int y, string? targetId)
+    {
+        lock (_sync)
+        {
+            if (_pendingClicks.Count < MaxQueueSize) _pendingClicks.Enqueue((x, y, targetId, true));
         }
     }
 
@@ -189,14 +200,17 @@ internal sealed class HostContractBridge : IHostAutomationTarget
         }
     }
 
-    public void DrainCommands(Action<int, int> onPointerClick, Action<int> onSyntheticScancode)
+    public void DrainCommands(Action<int, int> onPointerClick, Action<int> onSyntheticScancode) =>
+        DrainCommands((x, y, _) => onPointerClick(x, y), onSyntheticScancode);
+
+    public void DrainCommands(Action<int, int, byte> onPointerClick, Action<int> onSyntheticScancode)
     {
         ArgumentNullException.ThrowIfNull(onPointerClick);
         ArgumentNullException.ThrowIfNull(onSyntheticScancode);
 
         for (int i = 0; i < 32; i++)
         {
-            (int x, int y, string? targetId) click;
+            (int x, int y, string? targetId, bool rightClick) click;
             IReadOnlyList<HostWidgetBounds> snapshot;
             lock (_sync)
             {
@@ -205,7 +219,7 @@ internal sealed class HostContractBridge : IHostAutomationTarget
                 snapshot = _widgets;
             }
             (int cx, int cy) = ResolveClickCoords(click.x, click.y, click.targetId, snapshot);
-            onPointerClick(cx, cy);
+            onPointerClick(cx, cy, (byte)(click.rightClick ? Sdl3Native.MouseBtnRight : Sdl3Native.MouseBtnLeft));
         }
 
         for (int i = 0; i < 32; i++)

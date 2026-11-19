@@ -131,7 +131,7 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
         string[] logFiles = Directory.GetFiles(logDir, "*.log");
         Assert.NotEmpty(logFiles);
         string logBody = string.Join('\n', logFiles.Select(File.ReadAllText));
-        Assert.Contains("reSlate Doctor v0.3.0-hf.1", logBody, StringComparison.Ordinal);
+        Assert.Contains("reSlate Doctor v0.3.0-hf.2", logBody, StringComparison.Ordinal);
         Assert.Contains("DeferredBackends (v0.3.1): vulkan, parallelCpu", logBody, StringComparison.Ordinal);
     }
 
@@ -214,7 +214,7 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
         int inProcCode = reStation.Installer.Program.RunInstallerCore(["--automation-port", "5199"]);
         Assert.Equal(2, inProcCode);
 
-        string exePath = Path.Combine(Path.GetDirectoryName(installerPePath)!, "reSlate-Setup-v0.3.0-hf.1-win-x64.exe");
+        string exePath = Path.Combine(Path.GetDirectoryName(installerPePath)!, "reSlate-Setup-v0.3.0-hf.2-win-x64.exe");
         if (File.Exists(exePath))
         {
             using var proc = Process.Start(new ProcessStartInfo

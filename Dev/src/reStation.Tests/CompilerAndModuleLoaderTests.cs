@@ -227,7 +227,7 @@ public sealed class CompilerAndModuleLoaderTests : IDisposable
         Assert.True(ModuleAssemblyLoader.WaitForUnload(weakAlc), "Collectible ModuleAssemblyLoader should unload with zero leaks.");
 
         var cacheMgr = new reEngine.Core.Aot.AotCacheManager(dataDir);
-        var activeKey = new reEngine.Core.Aot.AotCacheKey("aotmod", first.RomSha256Hex, ReStationEngineInfo.EngineId, ReStationEngineInfo.Version, "0.3.0-hf.1");
+        var activeKey = new reEngine.Core.Aot.AotCacheKey("aotmod", first.RomSha256Hex, ReStationEngineInfo.EngineId, ReStationEngineInfo.Version, "0.3.0-hf.2");
         _ = await cacheMgr.StoreCompiledAssemblyAsync(activeKey, first.AssemblyPath);
         int evicted = await cacheMgr.EvictStaleEntriesAsync("aotmod", activeKey);
         Assert.Equal(1, evicted);
@@ -307,14 +307,14 @@ public sealed class CompilerAndModuleLoaderTests : IDisposable
 
         var opts = new RecompCompilerOptions(null, null, string.Empty, outDir, "meadow", "SLUS-01115", "Meadow Test")
         {
-            Version = "0.3.0-hf.1"
+            Version = "0.3.0-hf.2"
         };
         var specs = new[] { new GeneratedExeSpec(0, "BOOT.EXE", "BOOT.EXE", "BootExe", "BootModule", 0x80010000U, 0x8001000CU, []) };
         ModuleManifestEmitter.EmitAll(outDir, opts, "Meadow.Recomp", "Meadow", specs, out string manifestPath, out string csprojPath);
 
         ReStationModuleManifest loaded = ReStationModuleManifest.LoadFromFile(manifestPath);
         Assert.Equal("reSlate", loaded.EngineId);
-        Assert.Equal("0.3.0-hf.1", loaded.EngineVersion);
+        Assert.Equal("0.3.0-hf.2", loaded.EngineVersion);
         Assert.Equal("0.3.x", loaded.CompatibleEngineTrack);
         Assert.Equal(["0.3.x", "0.2.x", "0.1.x"], loaded.SupportedEngineTracks);
 

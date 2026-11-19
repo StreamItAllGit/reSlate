@@ -80,6 +80,12 @@ internal sealed partial class ReStationHost
     /// <summary>Requests a quick-load at the next frame boundary (unwinds lifted code when booted).</summary>
     public bool RequestQuickLoad(int slot)
     {
+        string slotPath = QuickSaveManager.GetSlotPath(_dataDirectory, ModuleManifest.ModuleId, slot);
+        if (!File.Exists(slotPath))
+        {
+            _logger.Warn("SAVE", $"Quick-load slot {slot} unavailable (file missing: '{slotPath}').");
+            return false;
+        }
         if (_emuThread is not null && !_emuFinished)
         {
             _cpu.PendingQuickLoadSlot = slot;

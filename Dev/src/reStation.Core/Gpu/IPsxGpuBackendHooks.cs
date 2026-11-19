@@ -26,4 +26,7 @@ public interface IPsxGpuBackendHooks
 
     void RenderUiOverlay(ReadOnlySpan<byte> rgbaPixels, int width, int height, int dstX, int dstY, int canvasW, int canvasH, bool uploadPixels)
         => RenderUiOverlay(rgbaPixels, width, height, uploadPixels);
+
+    /// <summary>Re-blits the last presented display image onto the active default framebuffer (used by inter-VBlank extra swaps).</summary>
+    void ReblitPresentedDisplay() { }
 }

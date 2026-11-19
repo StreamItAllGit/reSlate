@@ -77,7 +77,8 @@ public sealed partial class PsxCpu
         int guard = 0;
         while (TotalCycles < targetVBlank && !ShouldUnwind && !ExitRequested && guard++ < 1024)
         {
-            long nextWake = Math.Clamp(ComputeNextWakeCycle(), TotalCycles + 64, targetVBlank);
+            long minWake = Math.Min(TotalCycles + 64, targetVBlank);
+            long nextWake = Math.Clamp(ComputeNextWakeCycle(), minWake, targetVBlank);
             TotalCycles = nextWake;
             PollEvents();
         }

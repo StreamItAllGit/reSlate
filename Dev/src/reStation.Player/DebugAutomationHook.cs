@@ -26,6 +26,8 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
     private ProxyHostForm? _proxyForm;
     private AutomationLoopbackServer? _server;
     private string _lastWidgetSignature = string.Empty;
+    private string _lastTelemetrySummary = string.Empty;
+    private long _lastTelemetryPushTicks;
     private volatile bool _disposing;
 
     public DebugAutomationHook(
@@ -44,6 +46,8 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
         _serverOptions = new AutomationServerOptions(port, token, ReStationEngineInfo.AppId, allowedSnapshotRoot);
         _width = Math.Max(320, width);
         _height = Math.Max(240, height);
+        if (_target is HostContractBridge hcb)
+            hcb.Diagnostics ??= new DebugAutomationDiagnostics();
     }
 
     public int ListeningPort => _server?.AutomationPort ?? _serverOptions.AutomationPort;
@@ -55,7 +59,7 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
         _staThread = new Thread(RunStaLoop) { IsBackground = true, Name = "reSlate.AutomationProxy" };
         _staThread.SetApartmentState(ApartmentState.STA);
         _staThread.Start();
-        if (!_ready.Wait(TimeSpan.FromSeconds(5)))
+        if (!_ready.Wait(TimeSpan.FromSeconds(30)))
             throw new TimeoutException("Timed out waiting for DebugAutomationHook STA loopback server to bind.");
     }
 
@@ -63,12 +67,27 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
     {
         if (_disposing || _proxyForm is null || _proxyForm.IsDisposed || !_proxyForm.IsHandleCreated) return;
         string sig = BuildWidgetSignature(widgets);
-        if (string.Equals(sig, _lastWidgetSignature, StringComparison.Ordinal)) return;
-        _lastWidgetSignature = sig;
+        bool widgetsChanged = !string.Equals(sig, _lastWidgetSignature, StringComparison.Ordinal);
+
+        string? summary = (_target as HostContractBridge)?.Diagnostics?.TelemetrySummary;
+        long now = Stopwatch.GetTimestamp();
+        bool telemetryChanged = summary is not null
+            && !string.Equals(summary, _lastTelemetrySummary, StringComparison.Ordinal)
+            && ((now - _lastTelemetryPushTicks) >= (Stopwatch.Frequency / 15L) || _lastTelemetryPushTicks == 0);
+        if (!widgetsChanged && !telemetryChanged) return;
+
+        if (widgetsChanged) _lastWidgetSignature = sig;
+        if (telemetryChanged && summary is not null)
+        {
+            _lastTelemetrySummary = summary;
+            _lastTelemetryPushTicks = now;
+        }
 
         try
         {
-            _ = _proxyForm.BeginInvoke(() => _proxyForm.ApplyWidgets(widgets));
+            IReadOnlyList<HostWidgetBounds>? widgetUpdate = widgetsChanged ? widgets : null;
+            string? summaryUpdate = telemetryChanged ? summary : null;
+            _ = _proxyForm.BeginInvoke(() => _proxyForm.ApplyWidgetsAndTelemetry(widgetUpdate, summaryUpdate));
         }
         catch (InvalidOperationException ex)
         {
@@ -124,6 +143,9 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
     {
         private const int WmKeyDown = 0x0100;
         private readonly IHostAutomationTarget _target;
+        private readonly DiagTextBox _diagCommandInput;
+        private readonly Label _diagTelemetry;
+        private bool _clearingDiagInput;
 
         public ProxyHostForm(IHostAutomationTarget target, int width, int height)
         {
@@ -136,12 +158,50 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
             Location = new Point(-32000, -32000);
             ClientSize = new Size(width, height);
             Opacity = 0.0;
+
+            _diagCommandInput = new DiagTextBox(this)
+            {
+                Name = "Diag_CommandInput",
+                Bounds = new Rectangle(0, 0, 120, 20),
+                TabStop = false,
+                Visible = true,
+                Enabled = true
+            };
+            _diagCommandInput.TextChanged += (_, _) =>
+            {
+                if (_clearingDiagInput || string.IsNullOrWhiteSpace(_diagCommandInput.Text)) return;
+                string raw = _diagCommandInput.Text;
+                if (_target is HostContractBridge hcb)
+                    hcb.Diagnostics?.EnqueueRawCommands(raw);
+                _clearingDiagInput = true;
+                try { _diagCommandInput.Text = string.Empty; }
+                finally { _clearingDiagInput = false; }
+            };
+            _diagTelemetry = new Label
+            {
+                Name = "Diag_Telemetry",
+                Text = string.Empty,
+                Bounds = new Rectangle(0, 20, 240, 20),
+                Visible = true,
+                Enabled = true
+            };
+            Controls.Add(_diagCommandInput);
+            Controls.Add(_diagTelemetry);
+        }
+
+        public void ApplyWidgetsAndTelemetry(IReadOnlyList<HostWidgetBounds>? widgets, string? telemetrySummary)
+        {
+            if (telemetrySummary is not null) _diagTelemetry.Text = telemetrySummary;
+            if (widgets is not null) ApplyWidgets(widgets);
         }
 
         public void ApplyWidgets(IReadOnlyList<HostWidgetBounds> widgets)
         {
-            foreach (Control existing in Controls.Cast<Control>().ToArray()) existing.Dispose();
-            Controls.Clear();
+            foreach (Control existing in Controls.OfType<KeyForwardButton>().ToArray())
+            {
+                Controls.Remove(existing);
+                existing.Dispose();
+            }
             foreach (HostWidgetBounds w in widgets)
             {
                 if (string.Equals(w.ControlId, "HostViewport", StringComparison.Ordinal)) continue;
@@ -157,6 +217,11 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
                 int cx = w.Bounds.X + (w.Bounds.Width / 2);
                 int cy = w.Bounds.Y + (w.Bounds.Height / 2);
                 btn.Click += (_, _) => _target.EnqueuePointerClick(cx, cy, id);
+                btn.MouseUp += (_, me) =>
+                {
+                    if (me.Button == MouseButtons.Right && _target is HostContractBridge hcb)
+                        hcb.EnqueuePointerRightClick(cx, cy, id);
+                };
                 Controls.Add(btn);
             }
         }
@@ -170,6 +235,15 @@ internal sealed class DebugAutomationHook : IDisposable, IRenderSurfaceSnapshotP
         {
             if (m.Msg == WmKeyDown) ForwardKeyMessage((int)m.WParam);
             base.WndProc(ref m);
+        }
+
+        private sealed class DiagTextBox(ProxyHostForm parent) : TextBox
+        {
+            protected override void WndProc(ref Message m)
+            {
+                if (m.Msg == WmKeyDown) parent.ForwardKeyMessage((int)m.WParam);
+                base.WndProc(ref m);
+            }
         }
 
         private sealed class KeyForwardButton(ProxyHostForm parent) : Button

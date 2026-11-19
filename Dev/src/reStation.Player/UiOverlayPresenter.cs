@@ -198,10 +198,16 @@ internal sealed class UiOverlayPresenter
         if (s.KeyBindings is not null)
         {
             foreach (Core.Input.BindableAction a in AllBindableActions)
+            {
                 hc.Add(s.KeyBindings.GetScancode(a));
+                hc.Add(s.KeyBindings.GetControllerCode(a));
+            }
         }
         foreach (Core.Input.BindableAction a in AllBindableActions)
+        {
             hc.Add(drawer.GlobalProfile.KeyBindings.GetScancode(a));
+            hc.Add(drawer.GlobalProfile.KeyBindings.GetControllerCode(a));
+        }
         if (drawer.ModuleProfile is not null)
         {
             foreach (GameControlOptionDescriptor opt in drawer.ModuleProfile.ControlOptions)

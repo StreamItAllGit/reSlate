@@ -43,6 +43,9 @@ public sealed class KeyBindingsConfig
     [JsonPropertyName("bindings")]
     public Dictionary<BindableAction, int> Bindings { get; set; } = CreateDefaults(ControlMode.ModernWasdMouse);
 
+    [JsonPropertyName("controllerBindings")]
+    public Dictionary<BindableAction, int> ControllerBindings { get; set; } = CreateControllerDefaults();
+
     public static bool IsMouseCode(int code) => code is >= MinMouseCode and <= MaxMouseCode;
 
     public static bool IsWheelCode(int code) => code is MouseWheelUp or MouseWheelDown;
@@ -63,18 +66,35 @@ public sealed class KeyBindingsConfig
 
     public void SetScancode(BindableAction action, int scancode) => Bindings[action] = NormalizeBindingCode(scancode, 0);
 
-    public void ResetDefaults(ControlMode mode) => Bindings = CreateDefaults(mode);
+    public int GetControllerCode(BindableAction action) => ControllerBindings is not null && ControllerBindings.TryGetValue(action, out int code) ? code : 0;
 
-    /// <summary>Fills missing actions from <paramref name="mode"/> defaults and normalizes keyboard/mouse codes.</summary>
+    public void SetControllerCode(BindableAction action, int controllerCode)
+    {
+        ControllerBindings ??= new Dictionary<BindableAction, int>();
+        ControllerBindings[action] = NormalizeControllerCode(controllerCode, 0);
+    }
+
+    public void ResetDefaults(ControlMode mode)
+    {
+        Bindings = CreateDefaults(mode);
+        ControllerBindings = CreateControllerDefaults();
+    }
+
+    /// <summary>Fills missing actions from <paramref name="mode"/> defaults and normalizes keyboard/mouse and controller codes.</summary>
     public void Clamp(ControlMode mode)
     {
         Bindings ??= new Dictionary<BindableAction, int>();
+        ControllerBindings ??= new Dictionary<BindableAction, int>();
         Dictionary<BindableAction, int> defaults = CreateDefaults(mode);
+        Dictionary<BindableAction, int> ctrlDefaults = CreateControllerDefaults();
         foreach (BindableAction action in Enum.GetValues<BindableAction>())
         {
             Bindings[action] = Bindings.TryGetValue(action, out int sc)
                 ? NormalizeBindingCode(sc, defaults[action])
                 : defaults[action];
+            ControllerBindings[action] = ControllerBindings.TryGetValue(action, out int cc)
+                ? NormalizeControllerCode(cc, ctrlDefaults[action])
+                : ctrlDefaults[action];
         }
     }
 
@@ -200,4 +220,25 @@ public sealed class KeyBindingsConfig
             [BindableAction.QuickLoad] = 66
         };
     }
+
+    /// <summary>Default 1:1 SDL3 controller button/trigger mapping (<c>2001..2032</c>) preserving QuickSave/QuickLoad unbound.</summary>
+    public static Dictionary<BindableAction, int> CreateControllerDefaults() => new()
+    {
+        [BindableAction.DPadUp] = GamepadBindingCode.DPadUp,
+        [BindableAction.DPadDown] = GamepadBindingCode.DPadDown,
+        [BindableAction.DPadLeft] = GamepadBindingCode.DPadLeft,
+        [BindableAction.DPadRight] = GamepadBindingCode.DPadRight,
+        [BindableAction.Cross] = GamepadBindingCode.South,
+        [BindableAction.Circle] = GamepadBindingCode.East,
+        [BindableAction.Square] = GamepadBindingCode.West,
+        [BindableAction.Triangle] = GamepadBindingCode.North,
+        [BindableAction.L1] = GamepadBindingCode.LB,
+        [BindableAction.R1] = GamepadBindingCode.RB,
+        [BindableAction.L2] = GamepadBindingCode.LT,
+        [BindableAction.R2] = GamepadBindingCode.RT,
+        [BindableAction.Start] = GamepadBindingCode.Start,
+        [BindableAction.Select] = GamepadBindingCode.Back,
+        [BindableAction.QuickSave] = GamepadBindingCode.None,
+        [BindableAction.QuickLoad] = GamepadBindingCode.None
+    };
 }

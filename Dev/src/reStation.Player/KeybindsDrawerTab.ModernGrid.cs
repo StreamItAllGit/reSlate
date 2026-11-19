@@ -48,8 +48,8 @@ internal sealed partial class KeybindsDrawerTab
         var dnBtn = new UiRect(scrollX + scrollBtnW + 4, gridY + 1, scrollBtnW, 26);
         UiPaint.Pill(canvas, upBtn, "^", ScrollRowOffset > 0);
         UiPaint.Pill(canvas, dnBtn, "v", ScrollRowOffset < maxOffset);
-        hitBoxes.Add(new DrawerHitBox(upBtn, _ => ScrollBy(-1, total), DrawerAction.MarkDirty));
-        hitBoxes.Add(new DrawerHitBox(dnBtn, _ => ScrollBy(1, total), DrawerAction.MarkDirty));
+        hitBoxes.Add(new DrawerHitBox(upBtn, _ => ScrollBy(-1, total), DrawerAction.MarkDirty, ControlId: "Keybinds_Modern_ScrollUp", Label: "Scroll Up"));
+        hitBoxes.Add(new DrawerHitBox(dnBtn, _ => ScrollBy(1, total), DrawerAction.MarkDirty, ControlId: "Keybinds_Modern_ScrollDown", Label: "Scroll Down"));
 
         int rowsStartY = gridY + 32;
         int visible = Math.Min(VisibleModernRows, total - ScrollRowOffset);
@@ -80,13 +80,16 @@ internal sealed partial class KeybindsDrawerTab
                 Action<RecompSettings>? rightClear = capturedSlot is >= 1 and <= 3
                     ? st => { st.ClearModernActionSlot(desc, capturedSlot); ClearListening(); }
                     : null;
+                string pillId = capturedSlot < 3
+                    ? $"Keybinds_Modern_{desc.ActionId}_Kbm{capturedSlot}"
+                    : $"Keybinds_Modern_{desc.ActionId}_Pad";
                 hitBoxes.Add(new DrawerHitBox(pillRect, _ =>
                 {
                     ListeningAction = null;
                     ListeningModernActionId = desc.ActionId;
                     ListeningSlotIndex = capturedSlot;
                     ListeningLabel = desc.Label;
-                }, DrawerAction.MarkDirty, rightClear));
+                }, DrawerAction.MarkDirty, rightClear, ControlId: pillId, Label: $"{desc.Label} [{capturedSlot}]"));
             }
         }
 

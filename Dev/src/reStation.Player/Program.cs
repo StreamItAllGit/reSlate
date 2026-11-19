@@ -176,7 +176,7 @@ internal static partial class Program
 
         bool isOffscreen = !video.HasWindow;
         double initialFps = ComputeTargetFps(settings, isOffscreen);
-        int hostTargetFps = settings.FrameRateMode == FrameRateMode.Original ? 60 : settings.TargetFps;
+        int hostTargetFps = ResolveHostTargetFps(settings);
         bool unlockHostFps = settings.FrameRateMode == FrameRateMode.Enhanced && settings.TargetFps <= 0;
         using var pacer = new HighResFramePacer(initialFps);
         var hostOptions = new RecompHostOptions
@@ -188,7 +188,8 @@ internal static partial class Program
         };
         using var host = new ReStationHost(cpu, effectiveManifest, env.DataDirectory, hostOptions, pacer, logger)
         {
-            CdSectorsPerSecProvider = () => cpu.CdSectorsPerSec
+            CdSectorsPerSecProvider = () => cpu.CdSectorsPerSec,
+            PresentationTracker = new PresentationFpsTracker()
         };
 
         IRecompGameModule? gameModule = null;

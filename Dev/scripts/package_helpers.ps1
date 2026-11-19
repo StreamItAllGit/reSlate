@@ -174,7 +174,6 @@ Clean-room MPL-2.0 SlateOne static recompilation engine (`reSlate.Decomp` + loca
 ## Download Mirrors & Formats
 - **Setup Installer:** `reSlate-Setup-v__VER__-win-x64.exe` *(Signed Setup Wizard & silent CLI installer)*
 - **Portable Bundle:** `reSlate-v__VER__-win-x64-Portable.zip` *(Standalone no-installer release)*
-- **Google Drive Releases Mirror:** <https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG>
 '@).Replace('__VER__', $Version)
     return [ordered]@{
         "README.md"        = Sanitize-MarkdownForEndUser ($guideSections -join "`r`n`r`n")
@@ -203,7 +202,7 @@ function Ensure-ReleaseHubJunctions([string]$RootDir, [string]$ReleasesDir) {
     }
 }
 
-function Publish-ReleaseBundle([string]$RootDir, [string]$ReleasesDir, [string]$Version, [string]$BuiltInstallerPath, [string]$StageDir, [string]$WorkTemp, $DocMap, [string]$SevenZipExe, $Cert) {
+function Publish-ReleaseBundle([string]$RootDir, [string]$ReleasesDir, [string]$Version, [string]$BuiltInstallerPath, [string]$StageDir, [string]$WorkTemp, $DocMap, [string]$SevenZipExe, $Cert, [switch]$SkipSigning) {
     $relVerDir = Join-Path $ReleasesDir "v$Version"
     $relLatestDir = Join-Path $ReleasesDir "Latest"
     foreach ($d in @($relVerDir, $relLatestDir)) {
@@ -213,7 +212,7 @@ function Publish-ReleaseBundle([string]$RootDir, [string]$ReleasesDir, [string]$
     $installerName = "reSlate-Setup-v$Version-win-x64.exe"
     $installerPath = Join-Path $relVerDir $installerName
     Copy-Item -LiteralPath $BuiltInstallerPath -Destination $installerPath -Force
-    Invoke-AuthenticodeSign $Cert $installerPath
+    if (-not $SkipSigning) { Invoke-AuthenticodeSign $Cert $installerPath }
     foreach ($kv in $DocMap.GetEnumerator()) {
         $outDoc = Join-Path $relVerDir $kv.Key
         Write-Utf8Text $outDoc $kv.Value

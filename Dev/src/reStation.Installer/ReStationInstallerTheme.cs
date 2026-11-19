@@ -14,11 +14,11 @@ internal static class ReStationInstallerTheme
     public const string EngineId = "reSlate";
     public const string LegacyEngineId = "reStation";
     public const string AppId = "reslate";
-    public const string Version = "0.3.0-hf.1";
+    public const string Version = "0.3.0-hf.2";
     public const string Publisher = "StreamItAll";
     public const string StudioName = "StreamItAll";
     public const string SuiteName = "reEngine";
-    public const string UmbrellaSubpath = "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.1";
+    public const string UmbrellaSubpath = "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.2";
     public const string DefaultInstallProfile = "lightweight";
     public const string Subtitle = "SlateOne Static Recompilation Engine & .decomp Provider for reEngine";
     public const string BrandAccentHex = "#38BDF8";

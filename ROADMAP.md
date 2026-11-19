@@ -1,9 +1,9 @@
 # reSlate — Roadmap & Milestones
 
-**Current Active Version:** `0.3.0-hf.1` *(Public Pre-1.0 Beta Hotfix — `268/268` Dual Release & Debug Tests Passing, Stage 2 Sandbox Verified & Live on [GitHub](https://github.com/StreamItAllGit/reSlate) / [Google Drive](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG))*  
-**Next Target Milestone:** `0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu` & Enhancement SDK)*  
+**Current Active Version:** `0.3.0-hf.2` *(Public Pre-1.0 Beta Hotfix — `277/277` Dual Release & Debug Tests Passing, Stage 2 Sandbox Verified & Published via [GitHub Releases](https://github.com/StreamItAllGit/reSlate))*  
+**Next Target Milestone:** `0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu`, Enhancement SDK & Standard QoL)*  
 **Lifecycle State:** [`active.state`](active.state)  
-**Last Updated:** `2026-11-18`
+**Last Updated:** `2026-11-19`
 
 ---
 
@@ -17,9 +17,10 @@ Deliver the canonical, clean-room **SlateOne (`MIPS32 R3000A + GTE`) Static Reco
 
 ---
 
-## 2. Active Milestone (`0.3.1` — Shared `reEngine.Host` GPU (`Vulkan`), `ParallelCpu` & Enhancement SDK)
+## 2. Active In-Dev Milestone (`0.3.1` — Shared `reEngine.Host` GPU (`Vulkan`), `ParallelCpu`, Enhancement SDK & Standard QoL)
 - [ ] **Hardware `Vulkan` (`ExitCode = 6`) & Deterministic `ParallelCpu` Render Backends over `reEngine.Host`:** `VulkanBindings.cs`, `VulkanDeviceContext.cs`, `VulkanRenderBackend.cs`, `VulkanRenderBackend.Pipelines.cs` (`R16UI` VRAM, Hor+ `16:9` wings, PGXP, `GP0(E6h)`/`GP0(C0h)`, `--require-backend` `ExitCode = 6`) and `ParallelCpuRenderBackend.cs` + `ParallelBandRasterizer.cs` (`16px` bands `100%` SHA-256 bit-exact to `"software"` @ `1x`).
 - [ ] **Enhancement SDK (`ISubTickFrameHook` + `<dataDir>\hdpacks\`):** `SubTickInterpolationSdk.cs` (`> 60 Hz` / `Max` enhancement interpolation with hardware VBlank + SPU locked at `60 Hz`), registered configuration keys (`isHdTexturePackEnabled`, `clutSha256Hex`, `rectSha256Hex`), `HdTexturePackStore.cs`, and declarative `Video` drawer options.
+- [ ] **Standard Static-Recomp QoL Host Hooks (`Fast-Forward` & `Cutscene Skip`):** Expose clean, audio-safe Fast-Forward multiplier/toggle (`VBlank` / host pacing multiplier without audio cracks) and module-overridable Cutscene Skip hooks (`ISkipCutsceneHook` / Action IDs) across `reSlate` contracts + `reEngine.Host` (Standard 24 & 33 baseline for all downstream games).
 
 ---
 
@@ -53,6 +54,7 @@ flowchart LR
 ---
 
 ## 4. Completed Milestones
+- [x] **`0.3.0-hf.2` (`2026-11-19`):** Fixed `TryAdvanceToNextVBlank()` `< 64`-cycle `Math.Clamp` `ArgumentException`, unlocked `Original + 30` decimation & inter-VBlank `60–240+ / Max` presentation pacing (`PresentationFpsTracker` + `Program.FrameLoop.Presentation.cs` + `IPsxGpuBackendHooks.ReblitPresentedDisplay`) while locking `60 Hz` VBlank & `735`-sample SPU audio, enabled full controller + `LT`/`RT` trigger rebinding & `0` clearability across all 3 tiers (`Global 1:1`, `Game 1:1`, `Modern PC`), stripped invisible ghost Modern slots, clarified `"VSync (Caps to Monitor Hz)"`, exported `NativeGameActionContext` masks, fixed `libmcrd` async `DeliverCardIoEnd` & `ToT[10]` DCB snapshot parity, and added `DebugAutomationDiagnostics` across `277/277` Release & Debug `/warnaserror` tests (`0` warnings). ([Notes](CHANGELOG.md#030-hf2---2026-11-19))
 - [x] **`0.3.0-hf.1` (`2026-11-18`):** Fixed Setup `reEngine`-root collision in `HasDirectInstallation`, `NormalizeWizardStationInstallDir`, and `DiscoverExistingInstall` (`IsReEngineDirectory` + strict `product_name`/`appId` install-manifest checks) so upgrades pointing at existing `reEngine` folders always resolve to `engines\reSlate\v0.3.0-hf.1\` rather than overwriting `reEngine.exe`, verified across `268/268` dual Release & Debug unit tests (`0` warnings) and 4-drive Stage 2 Sandbox E2E. ([Notes](CHANGELOG.md#030-hf1---2026-11-18))
 - [x] **`0.3.0` (`2026-11-18`):** Launched `reSlate v0.3.0` Public Beta (`StreamItAllGit/reSlate`) with `reSlate` binary/path cutover preserving `reStation.{Contracts,Core}` ABI, `reEngine.Host.Contracts` alignment, live Tier 3 RyuJIT & Zero-RWX IR (`interpreterOracle` quarantine + `isPureStaticReady`), unified `SIO0 0x81` / BIOS `_new_card` Slot 1+2 `.mcr` persistence, `60 Hz` SPU lock with swap-only `TargetFps=30` and single-edge menu input, `D4_CleanSource` 6-tell/`-Wall` craftsmanship gate, `ReStationInstallPathResolver` existing-install & saved-profile auto-detection on Setup, Debug/Test-only loopback UI automation (`ExitCode = 2` in `Release`), `266/266` passing Release & Debug tests (`0` warnings), 4-drive Stage 2 sandbox E2E, scrubbed public Git history, and 7-file `Portable.zip` + signed installer distribution. ([Notes](CHANGELOG.md#030---2026-11-18))
 - [x] **`0.2.8` (`2026-11-16`):** Module-declared `ControlOptions` (`metadataJson`), unstretched Hor+ `16:9` side wings (`4:3` MDEC FMVs), decoupled `60 Hz` VBlank loop, BIOS `CloseEvent` reuse, `ExecOverlay` isolation, bounded SPU audio drain, and `184/184` passing tests. *(Shipped as `reStation`.)*

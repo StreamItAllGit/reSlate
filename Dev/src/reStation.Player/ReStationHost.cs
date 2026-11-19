@@ -68,6 +68,12 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         _cpu.OnVBlankFrame = OnVBlank;
     }
 
+    /// <summary>Optional tracker measuring actual presented display swap FPS vs. 60 Hz VBlank cadence.</summary>
+    internal PresentationFpsTracker? PresentationTracker { get; set; }
+
+    /// <summary>Exposes the 60 Hz hardware VBlank pacer telemetry alongside presented display swap FPS.</summary>
+    internal (double CurrentFps, double P99FrameMs) VBlankTelemetry => (_pacer.CurrentFps, _pacer.P99FrameMs);
+
     public RecompHostOptions Options { get; private set; }
     public IRecompRenderBackend RenderBackend => _cpu.Gpu.Backend;
     public IPsxRenderBackend Backend => _cpu.Gpu.Backend;
@@ -266,10 +272,18 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         }
     }
 
-    public PsxTelemetrySnapshot GetTelemetry() => new(
-        FramesRun, _cpuMs, _gpuMs, _waitMs, _pacer.CurrentFps, _pacer.P99FrameMs, Backend.ScaleFactor, Backend.BackendId,
-        CdSectorsPerSecProvider?.Invoke() ?? 0.0, _mdecPerSec, _cpu.Spu.ActiveVoiceCount, _cpu.Spu.XaDrops,
-        _cpu.Spu.AudioFillRatio, _cpu.Spu.AudioUnderruns);
+    public PsxTelemetrySnapshot GetTelemetry()
+    {
+        (double fps, double p99) = PresentationTracker is { } tracker
+            ? tracker.Snapshot()
+            : (0.0, 0.0);
+        double shownFps = fps > 0.0 ? fps : _pacer.CurrentFps;
+        double shownP99 = fps > 0.0 ? p99 : _pacer.P99FrameMs;
+        return new(
+            FramesRun, _cpuMs, _gpuMs, _waitMs, shownFps, shownP99, Backend.ScaleFactor, Backend.BackendId,
+            CdSectorsPerSecProvider?.Invoke() ?? 0.0, _mdecPerSec, _cpu.Spu.ActiveVoiceCount, _cpu.Spu.XaDrops,
+            _cpu.Spu.AudioFillRatio, _cpu.Spu.AudioUnderruns);
+    }
 
     /// <summary>Optional CD-ROM throughput source (wired by the host once PsxCpu exposes the rolling counter).</summary>
     public Func<double>? CdSectorsPerSecProvider { get; set; }

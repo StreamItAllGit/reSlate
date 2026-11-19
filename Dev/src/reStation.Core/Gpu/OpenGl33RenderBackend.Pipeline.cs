@@ -108,8 +108,16 @@ public sealed unsafe partial class OpenGl33RenderBackend
         DrawBlitQuad(0, SurfaceWidth, SurfaceHeight, 3, _overlayTex, ndcX, ndcY, ndcW, ndcH, 0f, 1f, 1f, -1f, 0, 0, width, height, alphaBlend: true);
     }
 
+    public void ReblitPresentedDisplay()
+    {
+        if (_disposed || !_glReady || !_hasPresented || _displayFbo == 0) return;
+        BlitDisplayToScreen(_lastFullWindow, _lastWidescreen);
+    }
+
     private void BlitDisplayToScreen(bool fullWindow, bool widescreen16By9)
     {
+        _lastFullWindow = fullWindow;
+        _lastWidescreen = widescreen16By9;
         Gl.Disable(GlConst.ScissorTest);
         Gl.Disable(GlConst.Blend);
         int winW = Math.Max(1, SurfaceWidth), winH = Math.Max(1, SurfaceHeight);

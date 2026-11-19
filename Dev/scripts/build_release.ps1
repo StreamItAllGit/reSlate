@@ -9,6 +9,7 @@ param(
     [string]$Version = "",
     [string]$CertThumbprint = "",
     [string]$AuditScriptPath = "",
+    [switch]$SkipSigning,
     [switch]$SkipSourceArchive,
     [switch]$SkipTests
 )
@@ -31,7 +32,7 @@ Get-ChildItem -Path $root -Recurse -Force -ErrorAction SilentlyContinue |
 
 $sevenZip = Join-Path $devDir "assets\native\7z.exe"
 if (-not (Test-Path -LiteralPath $sevenZip)) { throw "7z.exe not found at $sevenZip" }
-$cert = Resolve-CodeSigningCertificate -ExplicitThumbprint $CertThumbprint
+$cert = if ($SkipSigning) { $null } else { Resolve-CodeSigningCertificate -ExplicitThumbprint $CertThumbprint }
 
 Write-Host "[1/7] Enforcing Standard 32 code-only SLOC gate (<= 400 SLOC; Tests\ exempt)..."
 Assert-CodeOnlySlocGate -DevDir $devDir -MaxCodeSloc 400
@@ -120,9 +121,11 @@ if (Test-Path -LiteralPath $settingsExample) {
 Get-ChildItem $stageDir -Include *.pdb, *.xml -Recurse -File | Remove-Item -Force
 Prune-VersionDirectories -ParentDir $buildsRoot -KeepCount 2 -KeepVersionName "v$Version"
 
-Invoke-AuthenticodeSign $cert (Join-Path $stageApp "reSlate.Player.exe")
-Invoke-AuthenticodeSign $cert (Join-Path $stageApp "reSlate.Compiler.exe")
-Invoke-AuthenticodeSign $cert (Join-Path $stageDir "reSlate.exe")
+if (-not $SkipSigning) {
+    Invoke-AuthenticodeSign $cert (Join-Path $stageApp "reSlate.Player.exe")
+    Invoke-AuthenticodeSign $cert (Join-Path $stageApp "reSlate.Compiler.exe")
+    Invoke-AuthenticodeSign $cert (Join-Path $stageDir "reSlate.exe")
+}
 
 Assert-BinaryPurity -AppDir $stageApp -LauncherExe (Join-Path $stageDir "reSlate.exe")
 
@@ -171,18 +174,18 @@ $releasesDir = Join-Path $root "Releases"
 $docMap = Build-EndUserDocMap -RootDir $root -DevDir $devDir -Version $Version
 $relBundle = Publish-ReleaseBundle -RootDir $root -ReleasesDir $releasesDir -Version $Version `
     -BuiltInstallerPath $builtInstaller.FullName -StageDir $stageDir -WorkTemp $workTemp `
-    -DocMap $docMap -SevenZipExe $sevenZip -Cert $cert
+    -DocMap $docMap -SevenZipExe $sevenZip -Cert $cert -SkipSigning:$SkipSigning
 Assert-InstallerPurity -InstallerExe $relBundle.InstallerPath
 
 $resolvedAuditScript = if (-not [string]::IsNullOrWhiteSpace($AuditScriptPath)) { $AuditScriptPath } else { Join-Path $env:USERPROFILE ".gemini\config\skills\dev\scripts\audit_installer.ps1" }
 if (-not [string]::IsNullOrWhiteSpace($AuditScriptPath) -and (-not (Test-Path -LiteralPath $resolvedAuditScript))) {
     throw "Specified -AuditScriptPath not found: $resolvedAuditScript"
 }
-if (Test-Path -LiteralPath $resolvedAuditScript) {
+if ((-not $SkipSigning) -and (Test-Path -LiteralPath $resolvedAuditScript)) {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $resolvedAuditScript -InstallerPath $relBundle.RelVerDir -StagingDir $stageDir -ExpectedVersion $Version
     if ($LASTEXITCODE -ne 0) { throw "audit_installer.ps1 failed ($LASTEXITCODE)" }
 } else {
-    Write-Warning "audit_installer.ps1 not found at '$resolvedAuditScript'; skipping optional audit step."
+    Write-Host "Skipping local audit_installer.ps1 (-SkipSigning or script absent)."
 }
 
 Write-Host "[6/7] Publishing SharedLibs\reSlate\v$Version and Latest..."

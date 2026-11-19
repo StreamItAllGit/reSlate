@@ -11,6 +11,7 @@ public sealed partial class PsxBiosHle
     {
         public string Name = string.Empty;
         public bool WriteMode;
+        public bool AsyncMode;
         public int Cursor;
         public MemoryStream Buffer = new();
         public void Dispose() => Buffer.Dispose();
@@ -88,13 +89,28 @@ public sealed partial class PsxBiosHle
 
     private uint OpenCardFile(string name, uint flags)
     {
-        bool write = (flags & 0x0202U) != 0;
-        var f = new OpenMemCardFile { Name = name, WriteMode = write };
-        if (!write)
+        bool asyncMode = (flags & 0x8000U) != 0U;
+        bool create = (flags & 0x0200U) != 0U;
+        bool write = (flags & 0x0202U) != 0U;
+        var f = new OpenMemCardFile { Name = name, WriteMode = write, AsyncMode = asyncMode };
+        byte[]? existing = MemCard.ReadFile(name);
+        if (!create)
         {
-            byte[]? data = MemCard.ReadFile(name);
-            if (data is null) { f.Dispose(); return 0xFFFFFFFFU; }
-            f.Buffer.Write(data, 0, data.Length);
+            if (existing is null) { f.Dispose(); return 0xFFFFFFFFU; }
+            f.Buffer.Write(existing, 0, existing.Length);
+        }
+        else
+        {
+            int blocks = (int)((flags >> 16) & 0xFFFFU);
+            if (blocks > 0)
+            {
+                byte[] zeroBuf = new byte[blocks * MemCardMcrStore.BlockSize];
+                f.Buffer.Write(zeroBuf, 0, zeroBuf.Length);
+            }
+            else if (existing is not null)
+            {
+                f.Buffer.Write(existing, 0, existing.Length);
+            }
         }
         int fd = _nextFd++; _openFiles[fd] = f; return (uint)fd;
     }
@@ -113,16 +129,20 @@ public sealed partial class PsxBiosHle
         byte[] raw = f.Buffer.ToArray();
         int take = Math.Clamp(len, 0, Math.Max(0, raw.Length - f.Cursor));
         for (int i = 0; i < take; i++) _cpu.Bus.Write8(dst + (uint)i, raw[f.Cursor + i]);
+        if (take > 0) _cpu.Bus.NotifyRamWriteRange(dst, (uint)take);
         f.Cursor += take;
+        if (f.AsyncMode) { DeliverCardIoEnd(); return 0U; }
         return (uint)take;
     }
 
     private uint WriteCardFile(int fd, uint src, int len)
     {
         if (!_openFiles.TryGetValue(fd, out var f)) return 0xFFFFFFFFU;
+        f.WriteMode = true;
         byte[] tmp = new byte[Math.Max(0, len)];
         for (int i = 0; i < tmp.Length; i++) tmp[i] = _cpu.Bus.Read8(src + (uint)i);
         f.Buffer.Position = f.Cursor; f.Buffer.Write(tmp, 0, tmp.Length); f.Cursor += tmp.Length;
+        if (f.AsyncMode) { DeliverCardIoEnd(); return 0U; }
         return (uint)tmp.Length;
     }
 
@@ -134,7 +154,15 @@ public sealed partial class PsxBiosHle
         return (uint)fd;
     }
 
-    private uint FirstFile(string pattern, uint dirEntryAddr) { _dirSearch = MemCard.ListFiles(pattern); _dirCursor = 0; return NextFile(dirEntryAddr); }
+    private uint FirstFile(string pattern, uint dirEntryAddr)
+    {
+        if (_cpu.Bus.Read32(KernelToTDcbAddr) == DcbTableAddr)
+            _cpu.Bus.Write32(DcbTableAddr + 0x34U, DcbFirstFileStubAddr);
+        _dirSearch = MemCard.ListFiles(pattern);
+        _dirCursor = 0;
+        DeliverCardIoEnd();
+        return NextFile(dirEntryAddr);
+    }
 
     private uint NextFile(uint dirEntryAddr)
     {
@@ -143,6 +171,9 @@ public sealed partial class PsxBiosHle
         WriteCString(dirEntryAddr, item.Name, 20);
         _cpu.Bus.Write32(dirEntryAddr + 20, 0);
         _cpu.Bus.Write32(dirEntryAddr + 24, (uint)item.SizeBytes);
+        _cpu.Bus.Write32(dirEntryAddr + 28, 0U);
+        _cpu.Bus.Write32(dirEntryAddr + 32, (uint)item.FirstBlock);
+        _cpu.Bus.NotifyRamWriteRange(dirEntryAddr, 40U);
         return dirEntryAddr;
     }
 }

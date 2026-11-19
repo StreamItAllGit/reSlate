@@ -85,10 +85,14 @@ public static class ModernInputController
     {
         foreach ((BindableAction action, PsxPadButton button) in ButtonMap)
         {
-            if (IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(action))) state.Buttons |= button;
+            if (IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(action)) ||
+                IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetControllerCode(action)))
+                state.Buttons |= button;
         }
-        state.QuickSave |= IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(BindableAction.QuickSave));
-        state.QuickLoad |= IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(BindableAction.QuickLoad));
+        state.QuickSave |= IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(BindableAction.QuickSave)) ||
+                           IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetControllerCode(BindableAction.QuickSave));
+        state.QuickLoad |= IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetScancode(BindableAction.QuickLoad)) ||
+                           IsCodeDown(keyboardState, mouseButtonsMask, in state, kb.GetControllerCode(BindableAction.QuickLoad));
     }
 
     private static void ApplyModernModuleProfile(
@@ -165,9 +169,20 @@ public static class ModernInputController
         activeBuffer.Clear();
         pressedBuffer.Clear();
         float moveX = 0f, moveY = 0f, lookX = 0f, lookY = 0f;
+        byte kbmMoveMask = 0, dpadClaimedByNonMoveMask = 0;
 
         foreach (GameActionDescriptor action in profileProvider.ModernActions)
         {
+            byte moveBit = GetMoveBit(action.ActionId);
+            if (moveBit != 0)
+            {
+                if (IsAnyKbmDown(keyboardState, mouseButtonsMask, in state, settings.GetModernActionBindings(action)))
+                    kbmMoveMask |= moveBit;
+            }
+            else
+            {
+                dpadClaimedByNonMoveMask |= GetClaimedDpadMask(settings.GetModernControllerBindings(action));
+            }
             if (!IsActionDown(keyboardState, mouseButtonsMask, in state, settings, action)) continue;
             activeBuffer.Add(action.ActionId);
             if (!previousActiveActions.Contains(action.ActionId)) pressedBuffer.Add(action.ActionId);
@@ -189,9 +204,45 @@ public static class ModernInputController
             state.RawLeftStickY,
             state.ControllerConnected)
         {
-            ModuleOptions = settings.MetadataJson
+            ModuleOptions = settings.MetadataJson,
+            GamepadButtonsMask = state.GamepadButtonsMask,
+            KbmMoveMask = kbmMoveMask,
+            ControllerDpadClaimedByNonMoveMask = dpadClaimedByNonMoveMask
         };
         nativeHook.ApplyNativeActions(cpu, CollectionsMarshal.AsSpan(activeBuffer), CollectionsMarshal.AsSpan(pressedBuffer), in ctx, gameplay, out releaseMouseCapture);
+    }
+
+    private static byte GetMoveBit(string actionId)
+    {
+        if (actionId.Equals("moveForward", StringComparison.OrdinalIgnoreCase) || actionId.Equals("moveUp", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (actionId.Equals("moveBackward", StringComparison.OrdinalIgnoreCase) || actionId.Equals("moveBack", StringComparison.OrdinalIgnoreCase) || actionId.Equals("moveDown", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (actionId.Equals("moveLeft", StringComparison.OrdinalIgnoreCase) || actionId.Equals("strafeLeft", StringComparison.OrdinalIgnoreCase)) return 4;
+        if (actionId.Equals("moveRight", StringComparison.OrdinalIgnoreCase) || actionId.Equals("strafeRight", StringComparison.OrdinalIgnoreCase)) return 8;
+        return 0;
+    }
+
+    private static byte GetClaimedDpadMask(IReadOnlyList<int> padCodes)
+    {
+        byte mask = 0;
+        for (int i = 0; i < padCodes.Count; i++)
+        {
+            mask |= padCodes[i] switch
+            {
+                GamepadBindingCode.DPadUp => (byte)1,
+                GamepadBindingCode.DPadDown => (byte)2,
+                GamepadBindingCode.DPadLeft => (byte)4,
+                GamepadBindingCode.DPadRight => (byte)8,
+                _ => (byte)0
+            };
+        }
+        return mask;
+    }
+
+    private static bool IsAnyKbmDown(ReadOnlySpan<byte> keys, uint mouseMask, in HostInputState st, IReadOnlyList<int> kbm)
+    {
+        for (int i = 0; i < kbm.Count; i++)
+            if (IsCodeDown(keys, mouseMask, in st, kbm[i])) return true;
+        return false;
     }
 
     private static bool IsActionDown(ReadOnlySpan<byte> keys, uint mouseMask, in HostInputState st, RecompSettings settings, GameActionDescriptor action)

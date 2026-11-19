@@ -129,7 +129,7 @@ internal sealed class SlideOverSettingsDrawer
         IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleMouseCapture(bindingCode, settings, configPath, _globalProfile, _globalProfilePath, _moduleProfile);
 
     public bool TryHandleGamepadCapture(int gamepadCode, RecompSettings settings, string configPath) =>
-        IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleGamepadCapture(gamepadCode, settings, configPath, _moduleProfile);
+        IsOpen && ActiveTab == 2 && KeybindsTab.TryHandleGamepadCapture(gamepadCode, settings, configPath, _globalProfile, _globalProfilePath, _moduleProfile);
 
     public bool TryScrollKeybinds(int deltaRows)
     {
@@ -202,7 +202,7 @@ internal sealed class SlideOverSettingsDrawer
             _hitBoxes.Add(new DrawerHitBox(tr, st => { st.FrameRateMode = FrameRateMode.Enhanced; st.TargetFps = tf; }, DrawerAction.MarkDirty, ControlId: $"Video_TargetFps_{lbl}", Label: lbl));
         }
 
-        AddToggle(c, new UiRect(x, y + 250, w, 38), "VSync", s.IsVsyncEnabled, st => st.IsVsyncEnabled = !st.IsVsyncEnabled, DrawerAction.ToggleVsync, "Video_ToggleVsync");
+        AddToggle(c, new UiRect(x, y + 250, w, 38), "VSync (Caps to Monitor Hz)", s.IsVsyncEnabled, st => st.IsVsyncEnabled = !st.IsVsyncEnabled, DrawerAction.ToggleVsync, "Video_ToggleVsync");
         AddToggle(c, new UiRect(x, y + 294, w, 38), "16:9 Widescreen", s.IsWidescreen16By9, st => st.IsWidescreen16By9 = !st.IsWidescreen16By9, DrawerAction.MarkDirty, "Video_ToggleWidescreen");
         AddToggle(c, new UiRect(x, y + 338, w, 38), "PGXP Precision", s.IsPgxpEnabled, st => st.IsPgxpEnabled = !st.IsPgxpEnabled, DrawerAction.MarkDirty, "Video_TogglePgxp");
         AddToggle(c, new UiRect(x, y + 382, w, 38), "Fullscreen", s.IsFullscreen, st => st.IsFullscreen = !st.IsFullscreen, DrawerAction.ToggleFullscreen, "Video_ToggleFullscreen");

@@ -185,14 +185,7 @@ public sealed class RecompSettings
         ArgumentNullException.ThrowIfNull(action);
         int norm = KeyBindingsConfig.NormalizeControllerCode(controllerCode, 0);
         ModernControllerBindings ??= new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase);
-        if (norm <= 0) { ModernControllerBindings[action.ActionId] = Array.Empty<int>(); return; }
-        var list = new List<int>(GetModernControllerBindings(action));
-        list.RemoveAll(c => c == norm);
-        if (list.Count == 0) list.Add(norm);
-        else list[0] = norm;
-        if (list.Count > GameActionDescriptor.MaxBindingsPerDevice)
-            list.RemoveRange(GameActionDescriptor.MaxBindingsPerDevice, list.Count - GameActionDescriptor.MaxBindingsPerDevice);
-        ModernControllerBindings[action.ActionId] = list.ToArray();
+        ModernControllerBindings[action.ActionId] = norm > 0 ? new[] { norm } : Array.Empty<int>();
     }
 
     public void ClearModernActionSlot(GameActionDescriptor action, int slotIndex)

@@ -25,7 +25,7 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     private uint _vramTex, _vramFbo, _vramColorTex, _wideFbo, _wideColorTex, _displayFbo, _displayTex, _scratchFbo, _scratchTex, _presentTex, _overlayTex;
     private int _uDrawVramTex, _uDrawStpPass, _uDrawScale, _uBlitVramTex, _uBlitColorTex, _uBlitMode, _uBlitDstRect, _uBlitSrcRect, _uBlitDispInfo;
     private PgxpTracker? _pgxp;
-    private bool _glReady, _hasPresented, _hasCachedWideFrame, _disposed;
+    private bool _glReady, _hasPresented, _hasCachedWideFrame, _lastFullWindow, _lastWidescreen, _disposed;
 
     /// <summary>Requires bindings already initialized against a current GL 3.3 Core context.</summary>
     public OpenGl33RenderBackend(OpenGl33Bindings gl)

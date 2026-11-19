@@ -11,10 +11,16 @@ namespace reStation.Core.Bios;
 public sealed partial class PsxBiosHle
 {
     private const uint KernelToT0Addr = 0x80000100U;
+    private const uint KernelToTDcbAddr = 0x80000150U;
     private const uint IntRpTableAddr = 0x80000200U;
     private const int IntRpPriorityCount = 4;
     private const uint C0TableAddr = 0x80000500U;
     private const uint C0FastDsrTargetAddr = 0x80000540U;
+    private const uint DcbTableAddr = 0x80000600U;
+    private const uint DcbEntrySize = 0x50U;
+    private const uint DcbBuNameAddr = 0x800006E0U;
+    private const uint DcbCdNameAddr = 0x800006E8U;
+    private const uint DcbFirstFileStubAddr = 0x800006F4U;
 
     private uint _lastFailedEventHandle;
     private int _failedEventPolls;
@@ -27,6 +33,20 @@ public sealed partial class PsxBiosHle
             _cpu.Bus.Write32(KernelToT0Addr, IntRpTableAddr);
         if (_cpu.Bus.Read32(C0TableAddr + 0x18U) == 0U)
             _cpu.Bus.Write32(C0TableAddr + 0x18U, C0FastDsrTargetAddr);
+        if (_cpu.Bus.Read32(KernelToTDcbAddr) == 0U || _cpu.Bus.Read32(KernelToTDcbAddr + 4U) == 0U)
+        {
+            ZeroRam(DcbTableAddr, DcbEntrySize * 2U);
+            WriteCString(DcbBuNameAddr, "bu", 4);
+            WriteCString(DcbCdNameAddr, "cdrom", 8);
+            _cpu.Bus.Write32(DcbFirstFileStubAddr, 0x03E00008U);
+            _cpu.Bus.Write32(DcbFirstFileStubAddr + 4U, 0U);
+            _cpu.Bus.Write32(DcbTableAddr, DcbBuNameAddr);
+            _cpu.Bus.Write32(DcbTableAddr + 0x34U, DcbFirstFileStubAddr);
+            _cpu.Bus.Write32(DcbTableAddr + DcbEntrySize, DcbCdNameAddr);
+            _cpu.Bus.Write32(DcbTableAddr + DcbEntrySize + 0x34U, DcbFirstFileStubAddr);
+            _cpu.Bus.Write32(KernelToTDcbAddr, DcbTableAddr);
+            _cpu.Bus.Write32(KernelToTDcbAddr + 4U, DcbEntrySize * 2U);
+        }
     }
 
     private void SysDeqIntRp(uint prio, uint node)
@@ -368,5 +388,6 @@ public sealed partial class PsxBiosHle
         }
         _lastVBlankEventSequence = -1;
         _lastVBlankIntRpSequence = -1;
+        EnsureKernelTables();
     }
 }

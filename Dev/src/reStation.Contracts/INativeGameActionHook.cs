@@ -69,6 +69,15 @@ public readonly record struct NativeGameActionContext(
     /// <summary>Per-game option overrides resolved from Standard 18 <c>metadataJson</c>.</summary>
     public IReadOnlyDictionary<string, string>? ModuleOptions { get; init; }
 
+    /// <summary>Bitmask indexed by <c>code - GamepadBindingCode.MinCode</c> for currently pressed SDL3 gamepad controls.</summary>
+    public uint GamepadButtonsMask { get; init; }
+
+    /// <summary>Directional bitmask driven by bound KBM/mouse move actions (<c>1=Up, 2=Down, 4=Left, 8=Right</c>).</summary>
+    public byte KbmMoveMask { get; init; }
+
+    /// <summary>Directional bitmask of D-pad inputs claimed by non-move Modern PC actions (<c>1=DPadUp, 2=DPadDown, 4=DPadLeft, 8=DPadRight</c>).</summary>
+    public byte ControllerDpadClaimedByNonMoveMask { get; init; }
+
     /// <summary>Reads a game-specific option override or falls back to <paramref name="defaultValue"/>.</summary>
     public string GetOption(string optionId, string defaultValue = "") =>
         ModuleOptions is not null && !string.IsNullOrWhiteSpace(optionId)

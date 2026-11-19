@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-hf.2] - 2026-11-19
+### Added
+- **All-Tier Controller Rebinding & `KeyBindingsConfig.ControllerBindings` (`Global 1:1`, `Game 1:1`, `Modern PC`):** Added `[Label | KBM | Gamepad]` slots (`KeybindsDrawerTab.ClassicGrid.cs`) to both `Global 1:1` and `Game 1:1`, `LT`/`RT` trigger capture (`PollControllerTriggerCapture`), Right-Click and `Del`/`Bksp` clearability (`0` preserved across `Clamp()`), live `UiOverlayPresenter.ComputeBindingsDigest` invalidation, and additive `NativeGameActionContext` masks (`GamepadButtonsMask`, `KbmMoveMask`, `ControllerDpadClaimedByNonMoveMask`).
+- **Rolling Presentation Swap Tracker (`PresentationFpsTracker`) & Debug/Test E2E Diagnostics:** Decoupled real displayed swap FPS telemetry from the `60 Hz` PS1 VBlank pacer and added `#if DEBUG || RESTATION_TEST_AUTOMATION`-only `DebugAutomationDiagnostics` (`pad:`, `key:`, `audio:wav:`, `mem:watch:` virtual controller/keyboard injection, live SPU `.wav`/RMS audio tap, and guest RAM telemetry) alongside `DebugAutomationHook`'s `30s` STA loopback readiness wait and `15 Hz` telemetry push.
+
+### Changed
+- **Clean Single-Slot Modern Controller Replacement & VSync Clarity:** Updated `RecompSettings.SetModernControllerSlot` to replace controller bindings cleanly without retaining invisible trailing default slots, removed `ApplyDirectControllerFallback` from overriding custom 1:1 controller bindings, and clarified the Video drawer label to `"VSync (Caps to Monitor Hz)"`.
+
+### Fixed
+- **VBlank Clamp Crash (`TryAdvanceToNextVBlank`):** Clamped `minWake = Math.Min(TotalCycles + 64, targetVBlank)` in `PsxCpu.Scheduling.cs` so intermediate wakes within `1..63` cycles of `targetVBlank` no longer throw `ArgumentException`.
+- **Accurate `30 FPS` Decimation & Inter-VBlank `60–240+ / Max` Presentation:** Fixed `Program.ResolveHostTargetFps` in `Program.cs` and `Program.EventPump.cs` so `Original` + `30 FPS` decimates cleanly (`~30.0 FPS`), unlocked inter-VBlank host presentation pacing (`Program.FrameLoop.Presentation.cs` + `IPsxGpuBackendHooks.ReblitPresentedDisplay()`) when `Enhanced` targets `120`/`144`/`240`/`Max` while keeping hardware VBlank and `735`-sample SPU audio locked at `60 Hz` / `44.1 kHz`.
+- **`libmcrd` Async Card I/O & `ToT[10]` Quick-Save Snapshot Restoration:** Updated `PsxBiosHle.MemCard` (`OpenCardFile`, `ReadCardFile`, `WriteCardFile`, `FirstFile`) to honor async `0x8000` flags (`DeliverCardIoEnd` completion and `0` return) and preserved `EnsureKernelTables()` `ToT[10]` DCB pointers (`0x80000150 -> 0x80000600`) across `RestoreSnapshot`, expanding verification to **`277/277`** Release + Debug `/warnaserror` tests (`0` warnings).
+
 ## [0.3.0-hf.1] - 2026-11-18
 ### Fixed
 - **Installer `reEngine` Root Collision Guard (`HasDirectInstallation` & `NormalizeWizardStationInstallDir`):** Updated `ReStationInstallerBootstrap.HasDirectInstallation` and `ReStationWizardPathNormalizer` to reject populated `reEngine` directories (via `IsReEngineDirectory` and strict `"product_name"` / `"appId"` inspection inside `app\install-manifest.json`) before falling back to `HasDirectInstallation`, preventing `reSlate-Setup` from treating `reEngine`'s manifest as a direct `reSlate` installation and overwriting `reEngine.exe` instead of installing into `engines\reSlate\v0.3.0-hf.1\`.

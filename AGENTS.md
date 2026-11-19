@@ -1,6 +1,6 @@
 # Project Context: reSlate (`Personal/reStation`)
 
-- **Role:** SlateOne (R3000A) Static Recompilation Engine & `.decomp` Lifter (`v0.3.0-hf.1` Public Beta -> Next: `v0.3.1` `Vulkan`/`ParallelCpu`/Enhancement SDK; outputs `reSlate.*`, `engines\reSlate\v0.3.0-hf.1\`, `SharedLibs\reSlate\v0.3.0-hf.1\`, preserving `reStation.{Contracts,Core}` ABI & `reStation.*` namespaces).
+- **Role:** SlateOne (R3000A) Static Recompilation Engine & `.decomp` Lifter (`v0.3.0-hf.2` Public Beta -> Next: `v0.3.1` `Vulkan`/`ParallelCpu`/Enhancement SDK/Fast-Forward/Cutscene Skip; `277/277` Release & Debug tests; outputs `reSlate.*`, `engines\reSlate\v0.3.0-hf.2\`, `SharedLibs\reSlate\v0.3.0-hf.2\`, preserving `reStation.{Contracts,Core}` ABI & `reStation.*` namespaces).
 - **Boundaries:** `Foundation\`, `reEngine\`, `_DevBible\` & `Research\*` (zero `Corpus\`) RO; `.recomp` supplies `data\rom\`; `APP_ISOLATED_TEST=1`; Debug/Test-only `Foundation.Automation` (`ExitCode=2` in `Release`); user `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v<Ver>\` (+ `.ready`, `data\config\settings.json`, `data\memcards\`).
 
 ## 1. Quartet, Security & State
@@ -13,4 +13,4 @@
 ## 3. Governance & Notion
 - **Notion (`🛠️ Projects`):** `<NOTION_PAGE_ID>` (local UUIDs in gitignored `Dev\data\notion_hub.local.json`; `Project = "reSlate"` in `<NOTION_TASK_LIST_COLLECTION>`)
 - **Public Gate:** Public Beta (`--prerelease`); `isPublicRepo: true`, `requireHumanReviewBeforePush: false` (`StreamItAllGit/reSlate`).
-- **4-Channel Release:** GitHub `--prerelease` (7-file w/ `Portable.zip`), Google Drive mirror (`13tsUPvPsycAB1HFL_eUukCBATe3vEWhG`), Discord `/post` (`active.state`), Notion public site (`*.notion.site` pending OAuth reconnect).
+- **Release Channels:** GitHub `--prerelease` (7-file w/ `Portable.zip`), Discord `/post` (`active.state`), Notion public site (`*.notion.site` manual-only).

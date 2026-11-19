@@ -1,6 +1,6 @@
 # reSlate — System Architecture & Symbol Map
 
-- **Synced Version:** `0.3.0-hf.1` (`2026-11-18` · Public Beta Hotfix · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`; repository path `Personal/reStation`)
+- **Synced Version:** `0.3.0-hf.2` (`2026-11-19` · Public Beta Hotfix · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`; repository path `Personal/reStation`)
 - **Scope:** Runtime Context, Assembly Dependency Graph, Execution Pipelines, File Inventory & Data Stores
 - **License:** Mozilla Public License Version 2.0 (`MPL-2.0`, root [`LICENSE`](../../LICENSE))
 
@@ -56,7 +56,7 @@ flowchart LR
     CMP["reSlate.Compiler.exe (net8.0)"]
     PLY["reSlate.Player.exe (net8.0 / Debug net8.0-windows)"]
     LNC["reSlate.exe (net8.0-windows SingleFile Stub)"]
-    INS["reSlate-Setup-v0.3.0-hf.1-win-x64.exe (net8.0-windows)"]
+    INS["reSlate-Setup-v0.3.0-hf.2-win-x64.exe (net8.0-windows)"]
     TST["reStation.Tests.dll (xUnit, APP_ISOLATED_TEST=1)"]
 
     EXT --> CON
@@ -99,16 +99,17 @@ flowchart LR
 1. [`Program.cs`](../src/reStation.Player/Program.cs) parses CLI directly via `CliOptions.Parse(args)`, migrates `<dataDir>\settings.json` to `<dataDir>\config\settings.json` non-destructively via `SettingsMigrationHelper.MigrateForConfigPathIfNeeded`, handles `--doctor` diagnostics and `--require-backend vulkan|parallelCpu` (`ExitCode = 6`), and resolves verified media (`PlayerMediaResolver`).
 2. [`PlayerLocalAotCompiler.EnsureCompiledInCacheAsync`](../src/reStation.Core/Aot/PlayerLocalAotCompiler.cs) probes `reSlate.Compiler` -> `reStation.Compiler` to compile `<Game>.Generated.dll` into `<dataDir>\cache\`. [`ModuleAssemblyLoader`](../src/reStation.Player/ModuleAssemblyLoader.cs) shares `"reEngine.Host"`, synchronizes `resolvedTier` onto both `settings.ExecutionTierMode` and `cpu.Tier3Coordinator.ExecutionTierMode`, and lets `PsxCpu.Call`/`DispatchFunction` execute compiled AOT first, native `Tier3ExecutionCoordinator` (`RyuJitBlockBackend` / Zero-RWX `ThreadedIrBackend`) second, or fail closed in `staticAotOnly` (`PsxInterpreter` quarantined strictly to `interpreterOracle`). `JitBringupRecorder` writes canonical `isPureStaticReady` (`false` during active bring-up) + `[Obsolete]` `isR4PromotionReady` backward-compat field.
 
-### C. Frame Timing, SIO0 Memory Cards, Input & Host Bridge
-1. [`ReStationHost`](../src/reStation.Player/ReStationHost.cs) keeps hardware VBlank and `PsxSpu.RenderFrames(735)` locked at `60.0 Hz` (`44.1 kHz` audio); [`PsxCpu.Scheduling`](../src/reStation.Core/Cpu/PsxCpu.Scheduling.cs) tracks `VBlankSequence` cleanly with `IntRP`/`KernelEvent` de-duplication (`PsxBiosHle.Events`) so `VSync(2)` runs at `30 Hz` guest logic; [`Program.FrameLoop`](../src/reStation.Player/Program.FrameLoop.cs) decimates only swap/presentation on `TargetFps == 30`; [`Program.EventPump`](../src/reStation.Player/Program.EventPump.cs) ignores `SDL_KeyboardEvent.repeat != 0` and isolates `PollLiveSubTickLook` from keyboard latches.
-2. [`SioMemCardProtocol`](../src/reStation.Core/Hardware/SioMemCardProtocol.cs) + [`PsxBiosHle.MemCard`](../src/reStation.Core/Bios/PsxBiosHle.MemCard.cs) + [`MemCardMcrStore`](../src/reStation.Core/Bios/MemCardMcrStore.cs) unify hardware `SIO0 0x81` (`0x52`/`0x57`/`0x53`, explicit dock `0x58..0x5F` NACK, `FLAG 0x08`) and BIOS `B0:0x4E/0x4F/0x50` `_new_card` over Slot 1+2 `<dataDir>\memcards\` (auto-migrating `<dataDir>\saves\memcard_*.mcr`) with `"MCD2"` `"RSTX"` quick-saves (`QuickSaveTrailer`).
-3. [`HostContractBridge`](../src/reStation.Player/HostContractBridge.cs) exposes `reEngine.Host.Contracts.IHostAutomationTarget` (`HostWidgetBounds`, `F3HudTelemetry`, `HostInputMapper`); in `Debug`/`RESTATION_TEST_AUTOMATION` builds [`DebugAutomationHook`](../src/reStation.Player/DebugAutomationHook.cs) runs `127.0.0.1` loopback automation for [`run_stage2_sandbox_e2e.ps1`](../scripts/run_stage2_sandbox_e2e.ps1), while pure `Release` rejects `--automation-port` with `ExitCode = 2`.
+### C. Frame Timing, SIO0 Memory Cards, 3-Tier Input & Host Bridge
+1. [`ReStationHost`](../src/reStation.Player/ReStationHost.cs) keeps hardware VBlank and `PsxSpu.RenderFrames(735)` locked at `60.0 Hz` (`44.1 kHz` audio); [`PsxCpu.Scheduling`](../src/reStation.Core/Cpu/PsxCpu.Scheduling.cs) clamps `minWake = Math.Min(TotalCycles + 64, targetVBlank)` inside `TryAdvanceToNextVBlank()` and tracks `VBlankSequence` cleanly with `IntRP`/`KernelEvent` de-duplication (`PsxBiosHle.Events`); [`PresentationFpsTracker`](../src/reStation.Player/PresentationFpsTracker.cs) + [`Program.FrameLoop.Presentation`](../src/reStation.Player/Program.FrameLoop.Presentation.cs) handle `Original` `30`/`60` FPS decimation, fractional inter-VBlank swap budgets (`120`/`144`/`240`/`Max` when VSync is off), and `IPsxGpuBackendHooks.ReblitPresentedDisplay()` double-buffered OpenGL backbuffer re-blits; [`Program.EventPump`](../src/reStation.Player/Program.EventPump.cs) captures `LT`/`RT` triggers across both Modern and `1:1` controller pills while filtering repeat key events.
+2. [`KeyBindingsConfig`](../src/reStation.Core/Input/KeyBindingsConfig.cs) + [`KeybindsDrawerTab.ClassicGrid`](../src/reStation.Player/KeybindsDrawerTab.ClassicGrid.cs) + [`HostInputMapper`](../src/reStation.Player/HostInputMapper.cs) + [`ModernInputController`](../src/reStation.Core/Input/ModernInputController.cs) deliver full KBM + controller rebinding and clearability (`0`) across `Global 1:1`, `Game 1:1`, and `Modern PC` (with unbound-only `L3`/`R3` passthrough, ghost-slot trimming in `RecompSettings.SetModernControllerSlot`, and `NativeGameActionContext` masks).
+3. [`SioMemCardProtocol`](../src/reStation.Core/Hardware/SioMemCardProtocol.cs) + [`PsxBiosHle.MemCard`](../src/reStation.Core/Bios/PsxBiosHle.MemCard.cs) + [`PsxBiosHle.Events`](../src/reStation.Core/Bios/PsxBiosHle.Events.cs) + [`MemCardMcrStore`](../src/reStation.Core/Bios/MemCardMcrStore.cs) unify hardware `SIO0 0x81` (`0x52`/`0x57`/`0x53`, explicit dock `0x58..0x5F` NACK, `FLAG 0x08`) and BIOS `B0:0x4E/0x4F/0x50` `_new_card` + `libmcrd` async `OpenCardFile`/`ReadCardFile`/`WriteCardFile`/`FirstFile` `DeliverCardIoEnd` completion over Slot 1+2 `<dataDir>\memcards\` (auto-migrating `<dataDir>\saves\memcard_*.mcr`) with `"MCD2"` `"RSTX"` quick-saves (`QuickSaveTrailer`) and `EnsureKernelTables()` restoring `ToT[10]` DCB pointers (`0x80000150 -> 0x80000600`) across `RestoreSnapshot`.
+4. [`HostContractBridge`](../src/reStation.Player/HostContractBridge.cs) exposes `reEngine.Host.Contracts.IHostAutomationTarget` (`HostWidgetBounds`, `F3HudTelemetry`, `HostInputMapper`); in `Debug`/`RESTATION_TEST_AUTOMATION` builds [`DebugAutomationHook`](../src/reStation.Player/DebugAutomationHook.cs) (`30s` STA loopback readiness wait, `15 Hz` telemetry push) + [`DebugAutomationDiagnostics`](../src/reStation.Player/DebugAutomationDiagnostics.cs) (empty default watches; `pad:` / `key:` virtual injection, `audio:wav:` live SPU WAV/RMS tap, & `mem:watch:` RAM inspection) run `127.0.0.1` loopback automation for [`run_stage2_sandbox_e2e.ps1`](../scripts/run_stage2_sandbox_e2e.ps1), while pure `Release` strips `Foundation.Automation` and rejects `--automation-port` with `ExitCode = 2`.
 
 ---
 
-## 4. File & Symbol Lookup Registry (`180` Tracked `Dev\src` + `Dev\scripts` Files · `138` Non-Test `.cs`/`.ps1` — Max `355` Code SLOC)
+## 4. File & Symbol Lookup Registry (`Dev\src` + `Dev\scripts` Non-Test Files `<= 375` Code SLOC)
 
-All non-test C# and PowerShell source files comply strictly with the `400` code-only SLOC limit (`0` files over `400`). Key `v0.3.0` additions/splits and modified anchors include:
+All non-test C# and PowerShell source files comply strictly with the `400` code-only SLOC limit (`0` files over `400`). Key `v0.3.0`–`v0.3.0-hf.2` anchors include:
 
 | File | Lines | CodeSLOC | Primary Exports & Responsibility |
 | :--- | ---: | ---: | :--- |
@@ -117,10 +118,10 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 | `Dev/scripts/run_stage2_sandbox_e2e.ps1` | 238 | 218 | 4-step visible Stage 2 Sandbox E2E (`run_sandbox_e2e.py`, visible `Setup Wizard`, visible SDL3 MediaGate & F1/F3 Player, Release `ExitCode=2`) |
 | `Dev/scripts/stage2_e2e_helpers.ps1` | 283 | 255 | `Win32VisibleWindow`, `Show-VisibleWindowOnTop`, `Send-WindowClose`, loopback tree/PNG assertions & 4-drive child env |
 | `Dev/scripts/sanitize_release_docs.ps1` | 191 | 171 | Relative link rewriter, clean-room trademark scrub outside legal footer, end-user doc sanitization |
-| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 206 | 138 | `ReStationEngineInfo` (`AppId="reslate"`, `EngineId="reSlate"`, `0.3.0-hf.1`, `0.3.x`), `EngineAliasCatalog.AreEquivalent` manifest check |
+| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 206 | 138 | `ReStationEngineInfo` (`AppId="reslate"`, `EngineId="reSlate"`, `0.3.0-hf.2`, `0.3.x`), `EngineAliasCatalog.AreEquivalent` manifest check |
 | `Dev/src/reStation.Contracts/IPsxRenderBackend.cs` | 56 | 21 | `PsxRenderBackendIds` (`opengl`, `software`, `v0.3.1`-deferred `vulkan`/`parallelCpu`) |
 | `Dev/src/reStation.Core/Bios/MemCardMcrStore.cs` | 375 | 342 | Slot 1+2 128 KB `.mcr` store under `<dataDir>\memcards\`, `<dataDir>\saves\` auto-migration, dirty VBlank debounce, raw bytes |
-| `Dev/src/reStation.Core/Bios/PsxBiosHle.MemCard.cs` | 148 | 125 | BIOS `B0:0x4E/0x4F` 128B transfers (`NotifyRamWriteRange`), `A0:0xAB/0xAC`, `B0:0x50` `_new_card` |
+| `Dev/src/reStation.Core/Bios/PsxBiosHle.MemCard.cs` / `.Events.cs` | 179 / 393 | 156 / 360 | BIOS `B0:0x4E/0x4F/0x50`, `A0:0xAB/0xAC`, async `libmcrd` `DeliverCardIoEnd`, & `EnsureKernelTables()` `ToT[10]` DCB (`0x80000150 -> 0x80000600`) snapshot parity |
 | `Dev/src/reStation.Core/Bringup/JitBringupRecorder.cs` | 340 | 285 | `BringupProfileDocument.IsPureStaticReady` + write-never legacy `isR4PromotionReady` read compat, `[JsonIgnore]` `IsBringupCaptureClean` |
 | `Dev/src/reStation.Core/Core/CliOptions.cs` | 284 | 258 | Unified CLI (`--require-backend`, `--save-dir`, `--fixture`, `--dump-audio`, `--automation-port/token`, `--doctor`, `--execution-tier`) |
 | `Dev/src/reStation.Core/Core/SettingsMigrationHelper.cs` | 104 | 76 | Atomic non-destructive `<dataDir>\settings.json` -> `<dataDir>\config\settings.json` migrator |
@@ -131,9 +132,10 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 | `Dev/src/reStation.Installer/Program.cs` | 400 | 355 | Installer CLI dispatch, interactive WinForms wizard launcher, `ResolveInitialPaths` wiring & post-install actions |
 | `Dev/src/reStation.Installer/ReStationInstallPathResolver.cs` | 346 | 282 | HKCU existing `reSlate`/`reEngine`/`reStation` + `LastInstallBaseDir` path & saved profile discovery (rejecting poisoned `reEngine` `Uninstall\reSlate` entries; `SandboxResolution.IsSandboxActive`- & `ShouldSuppressHostMutations`-gated) |
 | `Dev/src/reStation.Installer/ReStationInstallerBootstrap.cs` / `ReStationWizardPathNormalizer.cs` | 340 / 313 | 301 / 259 | Strict `product_name`/`appId` `install-manifest.json` verification, `IsReEngineDirectory` guard before direct-install fallback, Setup auto-sort |
-| `Dev/src/reStation.Player/Program.cs` / `.EventPump.cs` / `.FrameLoop.cs` / `.MediaGate.cs` | 373 / 243 / 385 / 229 | 330 / 228 / 348 / 209 | Direct `CliOptions` entrypoint, `SettingsMigrationHelper` wiring, `60 Hz` SPU lock, repeat filtering, `--doctor` |
-| `Dev/src/reStation.Player/HostContractBridge.cs` / `DebugAutomationHook.cs` | 263 / 232 | 233 / 203 | `reEngine.Host.Contracts.IHostAutomationTarget` bridge & `#if DEBUG || RESTATION_TEST_AUTOMATION` STA loopback |
-| `Dev/src/reStation.Tests/*.cs` (`30` suites) | 120..530 | 101..450 | `268/268` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
+| `Dev/src/reStation.Player/Program.cs` / `.EventPump.cs` / `.FrameLoop.cs` / `.FrameLoop.Presentation.cs` / `.MediaGate.cs` | 374 / 247 / 413 / 123 / 229 | 331 / 232 / 376 / 105 / 209 | Direct `CliOptions` entrypoint, `ResolveHostTargetFps` (`Original+30` & `>60/Max` inter-VBlank OpenGL swaps), `PresentationFpsTracker`, `60 Hz` SPU lock, `LT`/`RT` trigger capture, `--doctor` |
+| `Dev/src/reStation.Player/KeybindsDrawerTab.ClassicGrid.cs` / `PresentationFpsTracker.cs` | 92 / 88 | 76 / 70 | `[Label \| KBM \| Gamepad]` `Global 1:1`/`Game 1:1` slots & rolling 120-frame displayed swap FPS tracker |
+| `Dev/src/reStation.Player/HostContractBridge.cs` / `DebugAutomationHook.cs` / `DebugAutomationDiagnostics.cs` | 263 / 306 / 370 | 233 / 272 / 344 | `reEngine.Host.Contracts.IHostAutomationTarget` bridge & `#if DEBUG \|\| RESTATION_TEST_AUTOMATION` `30s`-ready STA loopback + `pad:`/`key:`/`audio:wav:`/`mem:watch:` diagnostics |
+| `Dev/src/reStation.Tests/*.cs` (`32` suites) | 120..530 | 101..450 | `277/277` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
 
 ---
 
@@ -141,9 +143,9 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 
 | Persistence File / Store | Owning Component | Schema Keys |
 | :--- | :--- | :--- |
-| `<dataDir>\config\settings.json` (`Dev\data\settings.example.json`) | `RecompSettings` + `SettingsMigrationHelper` | Auto-migrated from `<dataDir>\settings.json`; `appId` (`"reslate"`), `executionTierMode`, `backendId`, `resolutionScale`, `isWidescreen16By9`, `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `modernActionBindings`, `modernControllerBindings`, `metadataJson` |
-| `<dataDir>\settings.controls.json` | `GlobalControllerProfile` | Global PS1 1:1 scancode bindings |
-| `<dataDir>\cache\<moduleId>\<romSha256_16>-reSlate-0.3.0-hf.1-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
+| `<dataDir>\config\settings.json` (`Dev\data\settings.example.json`) | `RecompSettings` + `SettingsMigrationHelper` | Auto-migrated from `<dataDir>\settings.json`; `appId` (`"reslate"`), `executionTierMode`, `backendId`, `resolutionScale`, `isWidescreen16By9`, `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `keyBindings` (`bindings` + nested `controllerBindings`), `modernActionBindings`, `modernControllerBindings`, `metadataJson` |
+| `<dataDir>\settings.controls.json` | `GlobalControllerProfile` | Global PS1 `1:1` KBM + `controllerBindings` |
+| `<dataDir>\cache\<moduleId>\<romSha256_16>-reSlate-0.3.0-hf.2-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
 | `<dataDir>\saves\*.rst1` | `QuickSaveManager` + `QuickSaveTrailer` | Version 1 binary snapshot + `"RSTX"` additive sections (incl. `"MCD2"`) |
 | `<dataDir>\memcards\memcard_<id>_slot{1,2}.mcr` | `MemCardMcrStore` + `SioMemCardProtocol` | Dual 128 KB PS1 memory cards (non-destructively migrated from `<dataDir>\saves\memcard_*.mcr`) |
 | `Dev\logs\` & `<InstallDir>\logs\` | `ReStationLogger` | `runtime.log` (`<=15s` heartbeats), `crashes\crash_*.json`, `screenshots\` |
@@ -162,7 +164,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 
 ## 7. Security & Privacy Model
 
-- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0-hf.1\` (`v0.2.8` under `reStation\`; `LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
+- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0-hf.2\` (`v0.2.8` under `reStation\`; `LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
 - **No Auto-Start / No Telemetry:** `AllowAutoStart = false`; zero background listeners or network sockets.
 - **Human-Gated Legacy Cleanup:** Stranded `v0.1.1` cleanup requires explicit `--migrate-legacy` + `--confirm-legacy-cleanup` (or interactive modal `Yes`) and always preserves `data\rom\`.
 
@@ -170,7 +172,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`268/268` passing in both configurations across `30` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`277/277` passing in both configurations across `32` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
 - **Debug/Test-Only `Foundation.Automation` Stage 2 Sandbox E2E (`v0.3.0`):** `Dev\scripts\run_stage2_sandbox_e2e.ps1` runs `Foundation\Dev\tools\run_sandbox_e2e.py` against the 4-drive Sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE`, asserting `hostDiffCount == 0`), drives a visible `-p:ReStationTestAutomation=true` Setup Wizard (`InstallerAutomationHook` inside `O:\` sandbox), drives visible SDL3 MediaGate & live `RunHostLoop` F1 Drawer / F3 HUD button interactions + `settings.json` persistence (`DebugAutomationHook` + `SDL3.dll`), and verifies pure `Release` rejects `--automation-port` with `ExitCode = 2` on both `reSlate.Player.exe` (`Assert-BinaryPurity`) and `reSlate-Setup` (`Assert-InstallerPurity`).
 
 ---

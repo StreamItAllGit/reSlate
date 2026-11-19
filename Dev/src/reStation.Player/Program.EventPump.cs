@@ -170,9 +170,11 @@ internal static unsafe partial class Program
         {
             video.Backend.ScaleFactor = settings.ResolutionScale;
             cpu.Pgxp.IsEnabled = settings.IsPgxpEnabled;
-            int targetFps = settings.FrameRateMode == FrameRateMode.Original ? 60 : settings.TargetFps;
+            int targetFps = ResolveHostTargetFps(settings);
             bool unlockFps = settings.FrameRateMode == FrameRateMode.Enhanced && settings.TargetFps <= 0;
+            bool fpsChanged = host.TargetFps != targetFps || host.Options.UnlockFps != unlockFps;
             host.SetTargetFps(targetFps, unlockFps);
+            if (fpsChanged) host.PresentationTracker?.Reset();
             pacer.TargetFps = ComputeTargetFps(settings, st.IsOffscreen);
             overlay.MarkDirty();
             st.UiDirty = true;
@@ -229,7 +231,9 @@ internal static unsafe partial class Program
             : 0u;
         uint edge = trig & ~st.PrevCaptureTriggerMask;
         st.PrevCaptureTriggerMask = trig;
-        if (!drawer.IsOpen || drawer.ActiveTab != 2 || !drawer.KeybindsTab.IsListening || drawer.KeybindsTab.ListeningSlotIndex != 3)
+        bool padListening = (!string.IsNullOrWhiteSpace(drawer.KeybindsTab.ListeningModernActionId) && drawer.KeybindsTab.ListeningSlotIndex == 3)
+            || (drawer.KeybindsTab.ListeningAction.HasValue && drawer.KeybindsTab.ListeningSlotIndex == 1);
+        if (!drawer.IsOpen || drawer.ActiveTab != 2 || !drawer.KeybindsTab.IsListening || !padListening)
             return;
         if ((edge & 1u) != 0 && drawer.TryHandleGamepadCapture(GamepadBindingCode.LT, settings, env.ConfigFilePath))
         {

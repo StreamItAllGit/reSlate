@@ -231,14 +231,14 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("Prune-MinorVersionArchives", sanitizeScript, StringComparison.Ordinal);
         Assert.Contains("RequireAllFourDrives", e2eScript, StringComparison.Ordinal);
 
-        Assert.Equal("0.3.0-hf.1", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.Equal("0.3.0-hf.2", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.3.0-hf.1", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.0-hf.2", appManifest.RootElement.GetProperty("version").GetString());
         Assert.Equal("reslate", appManifest.RootElement.GetProperty("appId").GetString());
 
         using JsonDocument settingsExample = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "data", "settings.example.json")));
         Assert.Equal("reslate", settingsExample.RootElement.GetProperty("appId").GetString());
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.1", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.2", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
     }
 
     [Fact]
@@ -305,7 +305,7 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
 
         using JsonDocument doc = JsonDocument.Parse(stdout);
         Assert.True(doc.RootElement.GetProperty("dryRun").GetBoolean());
-        Assert.Equal("0.3.0-hf.1", doc.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.0-hf.2", doc.RootElement.GetProperty("version").GetString());
         Assert.Contains("run_sandbox_e2e.py", doc.RootElement.GetProperty("sandboxRunner").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 

@@ -56,7 +56,11 @@ internal static unsafe class HostInputMapper
         ISet<string> prevNativeActions,
         List<string> activeNativeBuffer,
         List<string> pressedNativeBuffer,
-        out bool releaseMouseCapture)
+        out bool releaseMouseCapture
+#if DEBUG || RESTATION_TEST_AUTOMATION
+        , DebugAutomationDiagnostics? diagnostics = null
+#endif
+        )
     {
         if (drawerOpen)
         {
@@ -104,11 +108,17 @@ internal static unsafe class HostInputMapper
             RightStickY = controllerConnected ? ReadAxis(gamepad, 3) : 0f,
             GamepadButtonsMask = controllerConnected ? ReadGamepadButtonsMask(gamepad) : 0u
         };
+#if DEBUG || RESTATION_TEST_AUTOMATION
+        diagnostics?.ApplyVirtualOverrides(mergedKeys, ref st);
+#endif
         ModernInputController.ApplyProfileBindings(mergedKeys, mergedMouseMask, cpu, settings, globalBindings, profileProvider, ref st);
 
-        if (controllerConnected && !(settings.InputProfileMode == InputProfileMode.PerGameModern && profileProvider is not null))
+        if (st.ControllerConnected && !(settings.InputProfileMode == InputProfileMode.PerGameModern && profileProvider is not null) && gamepad != IntPtr.Zero)
         {
-            ApplyDirectControllerFallback(gamepad, ref st);
+            KeyBindingsConfig? activeKb = settings.InputProfileMode == InputProfileMode.GlobalController
+                ? (globalBindings ?? settings.KeyBindings)
+                : settings.KeyBindings;
+            ApplyStickClickPassthrough(gamepad, activeKb, ref st);
         }
 
         if (cpu is PsxCpu livePsxCpu)
@@ -151,24 +161,20 @@ internal static unsafe class HostInputMapper
         return mask;
     }
 
-    private static void ApplyDirectControllerFallback(IntPtr gamepad, ref HostInputState st)
+    internal static void ApplyStickClickPassthrough(IntPtr gamepad, KeyBindingsConfig? activeKb, ref HostInputState st)
     {
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 0) != 0) st.Buttons |= PsxPadButton.Cross;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 1) != 0) st.Buttons |= PsxPadButton.Circle;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 2) != 0) st.Buttons |= PsxPadButton.Square;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 3) != 0) st.Buttons |= PsxPadButton.Triangle;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 4) != 0) st.Buttons |= PsxPadButton.Select;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 6) != 0) st.Buttons |= PsxPadButton.Start;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 7) != 0) st.Buttons |= PsxPadButton.L3;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 8) != 0) st.Buttons |= PsxPadButton.R3;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 9) != 0) st.Buttons |= PsxPadButton.L1;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 10) != 0) st.Buttons |= PsxPadButton.R1;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 11) != 0) st.Buttons |= PsxPadButton.Up;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 12) != 0) st.Buttons |= PsxPadButton.Down;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 13) != 0) st.Buttons |= PsxPadButton.Left;
-        if (Sdl3Native.SDL_GetGamepadButton(gamepad, 14) != 0) st.Buttons |= PsxPadButton.Right;
-        if (ReadRawAxis(gamepad, 4) >= 0.4f) st.Buttons |= PsxPadButton.L2;
-        if (ReadRawAxis(gamepad, 5) >= 0.4f) st.Buttons |= PsxPadButton.R2;
+        if (!IsControllerCodeBound(activeKb, GamepadBindingCode.L3) && Sdl3Native.SDL_GetGamepadButton(gamepad, 7) != 0)
+            st.Buttons |= PsxPadButton.L3;
+        if (!IsControllerCodeBound(activeKb, GamepadBindingCode.R3) && Sdl3Native.SDL_GetGamepadButton(gamepad, 8) != 0)
+            st.Buttons |= PsxPadButton.R3;
+    }
+
+    internal static bool IsControllerCodeBound(KeyBindingsConfig? kb, int code)
+    {
+        if (kb?.ControllerBindings is null) return false;
+        foreach (int bound in kb.ControllerBindings.Values)
+            if (bound == code) return true;
+        return false;
     }
 
     private static float ReadRawAxis(IntPtr gamepad, int axis) =>
