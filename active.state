@@ -7,11 +7,11 @@
   "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.2.8",
-  "activeMilestone": "0.3.0",
+  "version": "0.3.0",
+  "activeMilestone": "0.3.1",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-18",
-  "lastVersionDate": "2026-11-16",
+  "lastVersionDate": "2026-11-18",
   "productionSubpath": "StreamItAll\\reEngine\\engines\\reSlate",
   "supersededBy": null,
   "tasklistDetailLevel": 3,
@@ -23,11 +23,11 @@
   "gates": {
     "isGate0ScopePassed": true,
     "isGate1PlanPassed": true,
-    "isGate2BuildPassed": false,
-    "isInspecterVerified": false,
+    "isGate2BuildPassed": true,
+    "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "Product renamed reSlate (repo path remains Personal/reStation). Plan 0.3.0.2026-11-18.md locked (@dean Gate 1 PASS; 3 open reports archived). v0.3.0 targets: RS-301..303, RS-307, RS-308 (AppId=reslate, EngineId=reSlate, live Tier3ExecutionCoordinator native JIT + interpreterOracle quarantine, reEngine.Host.Contracts, data\\config\\settings.json, SIO0/BIOS + Slot 1+2 data\\memcards\\, 60 Hz SPU lock + decimated TargetFps=30 + single-edge input, canonical isPureStaticReady, D4_CleanSource 6-tell/-Wall gate, Debug/Test Foundation.Automation Stage 2 E2E, 7-file Portable.zip, pre-public scrub + human gate). RS-304..306 (Vulkan/ParallelCpu/Enhancement SDK) moved to v0.3.1 pending shared reEngine.Host GPU/Input/Audio layer (proposal 0.3.0.2026-11-18_1850 filed).",
+  "notes": "reSlate v0.3.0 pre-package verified (258/258 Release+Debug tests, 0 warnings; @dean Gate 2 PASS; @inspecter PASS; Step 3 docs synced). Outputs cut over to reSlate (AppId=reslate, EngineId=reSlate, reStation.{Contracts,Core} ABI intact, .ready marker, data\\config\\settings.json, Slot 1+2 data\\memcards\\, live Tier 3 RyuJIT/Zero-RWX + interpreterOracle quarantine, canonical isPureStaticReady, 60 Hz SPU lock + swap-only TargetFps=30 + single-edge input, D4_CleanSource 6-tell/-Wall gate, Debug/Test Foundation.Automation ExitCode=2 in Release). Pending Phase 4 packaging/Stage 2 E2E/git-filter-repo scrub + Phase 5 human push gate (isPublicRepo stays false). Next milestone v0.3.1 adds shared reEngine.Host Vulkan, ParallelCpu & Enhancement SDK.",
   "discordPost": {
     "isEnabled": true,
     "serverName": null,
@@ -38,5 +38,5 @@
     "secretEnvKey": "DISCORD_WEBHOOK_FOUNDATION",
     "autoPostOnRelease": true
   },
-  "updatedAtUtc": "2026-11-19T00:01:00.000Z"
+  "updatedAtUtc": "2026-11-19T01:42:00.000Z"
 }
