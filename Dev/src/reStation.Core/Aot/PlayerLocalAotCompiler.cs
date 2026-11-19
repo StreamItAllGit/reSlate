@@ -115,7 +115,7 @@ public sealed class PlayerLocalAotCompiler
                 cleanCheck);
         }
 
-        string stagingDir = Path.Combine(Path.GetTempPath(), $"restation-local-aot-{Guid.NewGuid():N}");
+        string stagingDir = Path.Combine(Path.GetTempPath(), $"reslate-local-aot-{Guid.NewGuid():N}");
         Directory.CreateDirectory(stagingDir);
         try
         {
@@ -158,32 +158,48 @@ public sealed class PlayerLocalAotCompiler
         }
     }
 
-    /// <summary>Locates <c>reStation.Compiler.exe</c> or <c>reStation.Compiler.dll</c> relative to runtime directories.</summary>
+    private static readonly string[] RuntimeCompilerProbeNames =
+        ["reSlate.Compiler.exe", "reSlate.Compiler.dll", "reStation.Compiler.exe", "reStation.Compiler.dll"];
+    private static readonly string[] BinCompilerProbeNames =
+        ["reSlate.Compiler.dll", "reSlate.Compiler.exe", "reStation.Compiler.dll", "reStation.Compiler.exe"];
+
+    /// <summary>Locates <c>reSlate.Compiler</c> (with <c>reStation.Compiler</c> fallback) relative to runtime directories.</summary>
     public static string? ResolveCompilerToolPath(string? explicitPath = null)
     {
         if (!string.IsNullOrWhiteSpace(explicitPath))
             return File.Exists(explicitPath) ? Path.GetFullPath(explicitPath) : null;
 
         string? asmDir = Path.GetDirectoryName(typeof(PlayerLocalAotCompiler).Assembly.Location);
-        string?[] baseDirs = [AppContext.BaseDirectory, asmDir];
-        foreach (string? dir in baseDirs)
-        {
-            if (string.IsNullOrWhiteSpace(dir)) continue;
-            string exe = Path.Combine(dir, "reStation.Compiler.exe");
-            if (File.Exists(exe)) return exe;
-            string dll = Path.Combine(dir, "reStation.Compiler.dll");
-            if (File.Exists(dll)) return dll;
-        }
+        if (ResolveCompilerToolPathInDirs([AppContext.BaseDirectory, asmDir], RuntimeCompilerProbeNames) is { } found)
+            return found;
 
         var cursor = new DirectoryInfo(AppContext.BaseDirectory);
         for (int depth = 0; depth < 6 && cursor is not null; depth++, cursor = cursor.Parent)
         {
             foreach (string cfg in new[] { "Release", "Debug" })
             {
-                string candidate = Path.Combine(cursor.FullName, "Dev", "src", "reStation.Compiler", "bin", cfg, "net8.0", "reStation.Compiler.dll");
+                string[] binDirs =
+                [
+                    Path.Combine(cursor.FullName, "Dev", "src", "reStation.Compiler", "bin", cfg, "net8.0"),
+                    Path.Combine(cursor.FullName, "reStation.Compiler", "bin", cfg, "net8.0")
+                ];
+                if (ResolveCompilerToolPathInDirs(binDirs, BinCompilerProbeNames) is { } binFound)
+                    return binFound;
+            }
+        }
+        return null;
+    }
+
+    internal static string? ResolveCompilerToolPathInDirs(IEnumerable<string?> directories, string[]? probeNames = null)
+    {
+        string[] names = probeNames ?? RuntimeCompilerProbeNames;
+        foreach (string? dir in directories)
+        {
+            if (string.IsNullOrWhiteSpace(dir)) continue;
+            foreach (string name in names)
+            {
+                string candidate = Path.Combine(dir, name);
                 if (File.Exists(candidate)) return candidate;
-                string directSrc = Path.Combine(cursor.FullName, "reStation.Compiler", "bin", cfg, "net8.0", "reStation.Compiler.dll");
-                if (File.Exists(directSrc)) return directSrc;
             }
         }
         return null;
@@ -192,7 +208,7 @@ public sealed class PlayerLocalAotCompiler
     private async Task<string> CompileWithCliAsync(LocalAotCompileRequest req, CancellationToken ct)
     {
         string compilerPath = ResolveCompilerToolPath(_explicitCompilerPath)
-            ?? throw new FileNotFoundException("Unable to locate 'reStation.Compiler' for local AOT compilation.");
+            ?? throw new FileNotFoundException("Unable to locate 'reSlate.Compiler' (or 'reStation.Compiler') for local AOT compilation.");
 
         string recipeFile = Path.Combine(req.StagingOutputDir, ReStationEngineInfo.DefaultAotRecipePath);
         File.WriteAllText(recipeFile, JsonSerializer.Serialize(req.Recipe, ReStationModuleManifest.JsonOptions), new UTF8Encoding(false));
@@ -236,7 +252,7 @@ public sealed class PlayerLocalAotCompiler
         psi.ArgumentList.Add(ReStationExecutionTierModes.Normalize(req.Recipe.ExecutionTierMode));
         psi.ArgumentList.Add("--compile-generated-dll");
 
-        using Process proc = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start reStation.Compiler.");
+        using Process proc = Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start '{Path.GetFileName(compilerPath)}'.");
         Task<string> stdoutTask = proc.StandardOutput.ReadToEndAsync(ct);
         Task<string> stderrTask = proc.StandardError.ReadToEndAsync(ct);
         await proc.WaitForExitAsync(ct).ConfigureAwait(false);

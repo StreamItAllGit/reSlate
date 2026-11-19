@@ -69,7 +69,7 @@ public static class ModuleManifestEmitter
             EngineId = ReStationEngineInfo.EngineId,
             EngineVersion = ReStationEngineInfo.Version,
             CompatibleEngineTrack = ReStationEngineInfo.CompatibleEngineTrack,
-            SupportedEngineTracks = [ReStationEngineInfo.CompatibleEngineTrack, "0.1.x"],
+            SupportedEngineTracks = ReStationEngineInfo.SupportedEngineTracks.ToArray(),
             ExecutionTierMode = ReStationExecutionTierModes.Normalize(options.ExecutionTierMode),
             AotRecipe = aotRecipeRelativePath,
             PreloadRomDir = ReStationEngineInfo.DefaultPreloadRomDir,
@@ -88,7 +88,7 @@ public static class ModuleManifestEmitter
     internal static (bool Success, string? DllPath, string Diagnostic) CompileModuleAssembly(
         string csprojPath, string outDir, string assemblyName, CancellationToken ct)
     {
-        string tempRoot = Path.Combine(Path.GetTempPath(), $"restation-modbuild-{Guid.NewGuid():N}");
+        string tempRoot = Path.Combine(Path.GetTempPath(), $"reslate-modbuild-{Guid.NewGuid():N}");
         string tempOut = Path.Combine(tempRoot, "bin");
         string tempObj = Path.Combine(tempRoot, "obj") + Path.DirectorySeparatorChar;
         Directory.CreateDirectory(tempOut);
@@ -174,9 +174,11 @@ public static class ModuleManifestEmitter
         sb.AppendLine($"        Title = \"{Escape(options.Title)}\",");
         sb.AppendLine($"        DisplayName = \"{Escape(options.Title)}\",");
         sb.AppendLine($"        Version = \"{Escape(version)}\",");
+        string supportedTracksLiteral = string.Join(", ", ReStationEngineInfo.SupportedEngineTracks.Select(t => $"\"{Escape(t)}\""));
         sb.AppendLine($"        EngineId = \"{Escape(ReStationEngineInfo.EngineId)}\",");
         sb.AppendLine($"        EngineVersion = \"{Escape(ReStationEngineInfo.Version)}\",");
         sb.AppendLine($"        CompatibleEngineTrack = \"{Escape(ReStationEngineInfo.CompatibleEngineTrack)}\",");
+        sb.AppendLine($"        SupportedEngineTracks = [{supportedTracksLiteral}],");
         sb.AppendLine($"        ExecutionTierMode = \"{Escape(ReStationExecutionTierModes.Normalize(options.ExecutionTierMode))}\",");
         sb.AppendLine($"        SerialNumber = \"{Escape(options.SerialNumber)}\",");
         sb.AppendLine($"        EntryAssembly = \"{Escape(assemblyName)}.dll\",");
@@ -245,6 +247,8 @@ public static class ModuleManifestEmitter
     <Deterministic>true</Deterministic>
     <AssemblyName>{safeAsm}</AssemblyName>
     <RootNamespace>{safeNs}</RootNamespace>
+    <ReStationLibDir Condition="'$(ReStationLibDir)' == ''">$(RESLATE_LIB_DIR)</ReStationLibDir>
+    <ReStationLibDir Condition="'$(ReStationLibDir)' == ''">$(RESLATE_SHARED_DIR)</ReStationLibDir>
     <ReStationLibDir Condition="'$(ReStationLibDir)' == ''">$(RESTATION_LIB_DIR)</ReStationLibDir>
     <ReStationLibDir Condition="'$(ReStationLibDir)' == ''">$(RESTATION_SHARED_DIR)</ReStationLibDir>
     <ReStationLibDir Condition="'$(ReStationLibDir)' == '' and Exists('$(MSBuildThisFileDirectory)lib\reStation.Contracts.dll')">$(MSBuildThisFileDirectory)lib\</ReStationLibDir>

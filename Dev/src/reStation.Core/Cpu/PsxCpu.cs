@@ -14,6 +14,7 @@ using reStation.Core.DiscIngestion;
 using reStation.Core.Gpu;
 using reStation.Core.Gte;
 using reStation.Core.Hardware;
+using reStation.Core.Jit;
 using reStation.Core.Mdec;
 
 namespace reStation.Core.Cpu;
@@ -29,13 +30,26 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     private readonly ushort[] _padButtons = new ushort[2];
     private readonly byte[] _padAxes = new byte[8];
     private readonly Stack<(bool ShouldUnwind, uint UnwindTarget, bool InSubTickRender, bool InCompiledTrampoline, bool HasPendingTailJump, uint PendingTailJumpPc)> _unwindStack = new();
+    private readonly Func<uint, uint> _readWordDelegate;
     private bool _inCompiledTrampoline;
     private bool _hasPendingTailJump;
     private uint _pendingTailJumpPc;
     private long _lastBringupSpinCycle;
     private readonly Dictionary<(uint Pc, int ExeId), (string Sha, uint Size)> _bringupBlockCache = new();
+    private JitBringupRecorder? _bringupRecorder;
 
-    public JitBringupRecorder? BringupRecorder { get; set; }
+    public JitBringupRecorder? BringupRecorder
+    {
+        get => _bringupRecorder;
+        set
+        {
+            _bringupRecorder = value;
+            Tier3Coordinator.BringupRecorder = value;
+            value?.AttachCoordinator(Tier3Coordinator);
+        }
+    }
+
+    public Tier3ExecutionCoordinator Tier3Coordinator { get; }
 
     public PsxCpu(RecompSettings settings, string dataDirectory, IPsxRenderBackend renderBackend, ReStationLogger? logger = null)
     {
@@ -60,6 +74,13 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         TimersAndDma = new PsxTimersAndDma(this);
         Joypad = new PsxJoypadPort(this);
         Bios = new PsxBiosHle(this, DataDirectory);
+        _readWordDelegate = Read32;
+        Tier3Coordinator = new Tier3ExecutionCoordinator(
+            new RamPageEpochTable(),
+            settings.ExecutionTierMode,
+            settings.ForceZeroRwx);
+        Bus.OnRamWriteRange += OnBusRamWriteRange;
+        _ramWriteHooked = true;
         Array.Fill(_padAxes, (byte)0x80);
     }
 
@@ -104,7 +125,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     public DiscManifest? Disc { get; private set; }
     public IGameFramePatch? FramePatch { get; set; }
     public IRecompWidescreenProvider? WidescreenProvider { get; set; }
-    /// <summary>Invoked on every emulated VBlank edge (host presents/paces/polls input here).</summary>
+    /// <summary>Invoked on every guest VBlank edge (host presents/paces/polls input here).</summary>
     public Action<PsxCpu>? OnVBlankFrame { get; set; }
     /// <summary>Quick-load slot requested by the host (-1 = none); lifted code unwinds when set.</summary>
     public int PendingQuickLoadSlot { get; set; } = -1;
@@ -117,8 +138,8 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
     public void AttachDisc(DiscManifest manifest)
     {
         Disc = manifest ?? throw new ArgumentNullException(nameof(manifest));
-        string cardId = !string.IsNullOrWhiteSpace(manifest.SerialNumber) ? manifest.SerialNumber : manifest.ModuleId;
-        if (!string.IsNullOrWhiteSpace(cardId)) Bios.MemCard.SetCardIdentity(cardId);
+        if (!string.IsNullOrWhiteSpace(manifest.ModuleId) || !string.IsNullOrWhiteSpace(manifest.SerialNumber))
+            Bios.SetCardIdentity(manifest.ModuleId, manifest.SerialNumber);
         CdRom.SetManifest(manifest, GameDataDir);
     }
 
@@ -173,7 +194,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         ShouldUnwind = false;
         Pc = pc;
         if (R[31] != IReStationCpu.ReturnSentinelPc)
-            PsxInterpreter.ResumeFromSnapshot(this);
+            ResumeMidStack(pc);
         else
             Call(pc);
         if (!ExitRequested && PendingQuickLoadSlot < 0) ShouldUnwind = false;
@@ -184,27 +205,38 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         uint entryCanonPc = 0U;
         uint lastBodyCanonPc = 0U;
         bool ranAnyBody = false;
+        uint stopRa = R[31];
+        bool executedTier3Block = false;
         try
         {
             while (true)
             {
                 if (ExitRequested || PendingQuickLoadSlot >= 0) { ShouldUnwind = true; return; }
-                uint masked = targetPc & 0x1FFFFFFFU;
-                if (masked is 0xA0U or 0xB0U or 0xC0U) { Bios.HandleVectorCall(masked); return; }
                 if (targetPc == UnwindTargetPc || targetPc == IReStationCpu.ReturnSentinelPc)
                 {
                     Pc = targetPc;
                     ShouldUnwind = true;
                     return;
                 }
-                uint canonPc = 0x80000000U | masked;
-                if (InSubTickRender)
+                if (executedTier3Block && (targetPc == stopRa || targetPc == 0U))
                 {
-                    if (FramePatch is ISubTickFrameHook subHook && subHook.TryInterceptSubTickCall(this, canonPc)) return;
-                }
-                else if (FramePatch is not null && FramePatch.TryInterceptCall(this, canonPc))
-                {
+                    Pc = targetPc;
                     return;
+                }
+                uint masked = targetPc & 0x1FFFFFFFU;
+                if (masked is 0xA0U or 0xB0U or 0xC0U)
+                {
+                    Bios.HandleVectorCall(masked);
+                    if (!executedTier3Block || ShouldUnwind || ExitRequested || PendingQuickLoadSlot >= 0) return;
+                    targetPc = R[31];
+                    continue;
+                }
+                uint canonPc = 0x80000000U | masked;
+                if (TryInterceptFramePatch(canonPc))
+                {
+                    if (!executedTier3Block || ShouldUnwind || ExitRequested || PendingQuickLoadSlot >= 0) return;
+                    targetPc = R[31];
+                    continue;
                 }
                 if (!ranAnyBody)
                 {
@@ -212,25 +244,24 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
                     ranAnyBody = true;
                 }
                 lastBodyCanonPc = canonPc;
-                RecordBringupCall(canonPc);
                 IRecompModule? module = ResolveModule(canonPc);
                 if (module is not null && TryExecuteCompiledModule(module, canonPc, out bool hasTailJump, out uint tailTargetPc))
                 {
+                    RecordBringupCall(canonPc);
                     if (hasTailJump && !ShouldUnwind && !ExitRequested && PendingQuickLoadSlot < 0)
                     {
                         targetPc = tailTargetPc;
                         continue;
                     }
+                    if (executedTier3Block && !ShouldUnwind && !ExitRequested && PendingQuickLoadSlot < 0)
+                    {
+                        targetPc = R[31];
+                        continue;
+                    }
                     return;
                 }
-                if (InterpreterFallbackCount < 5) Logger?.Warn("CPU", $"Interpreter fallback #{InterpreterFallbackCount + 1} pc=0x{canonPc:X8} exe={ActiveExeId}");
-                InterpreterFallbackCount++;
-                if (PsxInterpreter.ExecuteUntilReturnOrCompiled(this, canonPc, module, out uint interpTailPc))
-                {
-                    targetPc = interpTailPc;
-                    continue;
-                }
-                return;
+                if (!TryRunUnliftedBlock(canonPc, module, ref targetPc, ref executedTier3Block))
+                    return;
             }
         }
         finally
@@ -255,7 +286,11 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         try
         {
             bool executed = module.TryExecuteFunction(this, canonPc);
-            if (executed) CompiledDispatchCount++;
+            if (executed)
+            {
+                CompiledDispatchCount++;
+                Tier3Coordinator.RecordCompiledDispatch();
+            }
             hasTailJump = executed && _hasPendingTailJump;
             tailTargetPc = hasTailJump ? _pendingTailJumpPc : 0U;
             return executed;
@@ -344,5 +379,9 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
         }
     }
 
-    public void Dispose() => CdRom.Dispose();
+    public void Dispose()
+    {
+        Bios.FlushMemCardsIfDirty();
+        CdRom.Dispose();
+    }
 }

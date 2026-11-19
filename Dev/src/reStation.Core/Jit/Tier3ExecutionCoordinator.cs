@@ -37,7 +37,9 @@ public sealed class Tier3ExecutionCoordinator
     private readonly LinkedList<BlockSlot> _lru = new();
     private readonly RyuJitBlockBackend _ryuJit;
     private readonly ThreadedIrBackend _threadedIr;
-    private readonly JitBringupRecorder? _bringupRecorder;
+    private volatile JitBringupRecorder? _bringupRecorder;
+    private string _executionTierMode;
+    private volatile bool _forceZeroRwx;
 
     private long _compiledDispatchCount;
     private long _jitDispatchCount;
@@ -54,16 +56,29 @@ public sealed class Tier3ExecutionCoordinator
         Action<IReStationCpu, IrInsn>? copFallback = null)
     {
         EpochTable = epochTable ?? new RamPageEpochTable();
-        ExecutionTierMode = ReStationExecutionTierModes.Normalize(executionTierMode);
-        ForceZeroRwx = forceZeroRwx;
+        _executionTierMode = ReStationExecutionTierModes.Normalize(executionTierMode);
+        _forceZeroRwx = forceZeroRwx;
         _bringupRecorder = bringupRecorder;
         _ryuJit = new RyuJitBlockBackend();
         _threadedIr = new ThreadedIrBackend(copFallback);
     }
 
     public RamPageEpochTable EpochTable { get; }
-    public string ExecutionTierMode { get; }
-    public bool ForceZeroRwx { get; }
+    public string ExecutionTierMode
+    {
+        get => Volatile.Read(ref _executionTierMode);
+        set => Volatile.Write(ref _executionTierMode, ReStationExecutionTierModes.Normalize(value));
+    }
+    public bool ForceZeroRwx
+    {
+        get => _forceZeroRwx;
+        set => _forceZeroRwx = value;
+    }
+    public JitBringupRecorder? BringupRecorder
+    {
+        get => _bringupRecorder;
+        set => _bringupRecorder = value;
+    }
     public bool IsDynamicCodeSupported => !ForceZeroRwx && _ryuJit.IsDynamicCodeSupported;
 
     public long CompiledDispatchCount => Volatile.Read(ref _compiledDispatchCount);
@@ -104,15 +119,15 @@ public sealed class Tier3ExecutionCoordinator
             Interlocked.Increment(ref _threadedIrDispatchCount);
         }
 
-        if (_bringupRecorder is not null)
+        if (_bringupRecorder is { } recorder)
         {
-            _bringupRecorder.RecordDiscoveredBlock(slot.Block.CodeSha256Hex, slot.Block.EntryPc, slot.Block.GuestByteSize, overlayId);
+            recorder.RecordDiscoveredBlock(slot.Block.CodeSha256Hex, slot.Block.EntryPc, slot.Block.GuestByteSize, overlayId);
             IrInsn[] insns = slot.Block.Instructions;
             for (int i = 0; i < insns.Length; i++)
             {
                 if (insns[i].Op is IrOp.Jr or IrOp.Jalr)
                 {
-                    _bringupRecorder.RecordIndirectJumpTarget(insns[i].Pc, nextPc);
+                    recorder.RecordIndirectJumpTarget(insns[i].Pc, nextPc);
                     break;
                 }
             }

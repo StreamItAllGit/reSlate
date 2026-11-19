@@ -1,8 +1,10 @@
 // @module: reStation.Compiler.Program
-// @purpose: reStation.Compiler CLI entry point (exit 0 success, 1 compile failure, 2 usage error).
-// @depends-on: reStation.Compiler.RecompCompilerPipeline
+// @purpose: reSlate.Compiler CLI entry point (exit 0 success, 1 compile failure, 2 usage error).
+// @depends-on: reStation.Compiler.RecompCompilerPipeline, reStation.Contracts
 // @exports: Program
 // @owner: devv-compiler (T5)
+
+using reStation.Contracts;
 
 namespace reStation.Compiler;
 
@@ -10,9 +12,15 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
+        if (args.Length == 1 && args[0] is "--version" or "-v")
+        {
+            Console.WriteLine($"{ReStationEngineInfo.EngineId}.Compiler v{ReStationEngineInfo.Version}");
+            return 0;
+        }
+
         if (args.Length == 0 || args.Any(a => a is "--help" or "-h" or "/?"))
         {
-            Console.WriteLine(RecompCompilerPipeline.UsageText);
+            Console.WriteLine(FormatUsageText(RecompCompilerPipeline.UsageText));
             return args.Length == 0 ? 2 : 0;
         }
 
@@ -23,7 +31,7 @@ internal static class Program
         }
         catch (ArgumentException ex)
         {
-            Console.Error.WriteLine(ex.Message);
+            Console.Error.WriteLine(FormatUsageText(ex.Message));
             return 2;
         }
 
@@ -39,4 +47,7 @@ internal static class Program
             return 1;
         }
     }
+
+    internal static string FormatUsageText(string raw) =>
+        raw.Replace("reStation.Compiler", $"{ReStationEngineInfo.EngineId}.Compiler", StringComparison.Ordinal);
 }

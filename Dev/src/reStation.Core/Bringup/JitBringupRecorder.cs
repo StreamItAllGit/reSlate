@@ -33,6 +33,9 @@ public sealed record BringupIndirectJumpRecord(
 /// <summary>Serialized <c>bringup.profile.json</c> snapshot aligned with Standard 18 canonical keys.</summary>
 public sealed class BringupProfileDocument
 {
+    private bool _isPureStaticReady;
+    private bool _hasExplicitPureStatic;
+
     public int SchemaVersion { get; init; } = 1;
     public string ModuleId { get; init; } = string.Empty;
     public string EngineId { get; init; } = ReStationEngineInfo.EngineId;
@@ -45,7 +48,30 @@ public sealed class BringupProfileDocument
     public long InterpreterFallbackCount { get; init; }
     public long RamPageInvalidationCount { get; init; }
     public int DiscoveredFunctionCount { get; init; }
-    public bool IsR4PromotionReady { get; init; }
+
+    /// <summary>Canonical Standard 18 R3 Pure Static gate: compiled AOT only with zero JIT/IR/interpreter fallback and no spin trip.</summary>
+    public bool IsPureStaticReady
+    {
+        get => _isPureStaticReady;
+        init
+        {
+            _isPureStaticReady = value;
+            _hasExplicitPureStatic = true;
+        }
+    }
+
+    /// <summary>Deprecated pre-reSlate v0.3.0 transition compatibility alias of <see cref="IsPureStaticReady"/>.</summary>
+    [Obsolete("Use IsPureStaticReady (Standard 18 canonical key 'isPureStaticReady'). Retained for v0.3.x transition compatibility.")]
+    public bool IsR4PromotionReady
+    {
+        get => _isPureStaticReady;
+        init
+        {
+            if (!_hasExplicitPureStatic)
+                _isPureStaticReady = value;
+        }
+    }
+
     public long NonVBlankSpinCycles { get; init; }
     public bool IsSpinWatchdogTripped { get; init; }
     public string UpdatedAtUtc { get; init; } = string.Empty;
@@ -63,12 +89,15 @@ public sealed class JitBringupRecorder
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     private readonly object _sync = new();
     private readonly Dictionary<(string Sha, uint Pc, uint Size, int Overlay), long> _blocks = new();
     private readonly Dictionary<(uint Src, uint Dst), long> _indirectJumps = new();
+    private volatile Tier3ExecutionCoordinator? _attachedCoordinator;
+    private volatile bool _lastSnapshotPureStaticReady;
 
     public JitBringupRecorder(
         string moduleId,
@@ -83,7 +112,7 @@ public sealed class JitBringupRecorder
         IsDynamicCodeSupported = isDynamicCodeSupported ?? RuntimeFeature.IsDynamicCodeSupported;
         SpinWatchdogCycleThreshold = Math.Max(1L, spinWatchdogCycleThreshold);
         BringupProfilePath = string.IsNullOrWhiteSpace(bringupProfilePath)
-            ? Path.Combine(Path.GetTempPath(), "restation-bringup", ModuleId, AotCacheLayoutHelper.BringupProfileFileName)
+            ? Path.Combine(Path.GetTempPath(), "reslate-bringup", ModuleId, AotCacheLayoutHelper.BringupProfileFileName)
             : Path.GetFullPath(bringupProfilePath);
     }
 
@@ -100,7 +129,40 @@ public sealed class JitBringupRecorder
         get { lock (_sync) return _blocks.Count; }
     }
 
-    public bool IsR4PromotionReady => DiscoveredFunctionCount > 0 && !IsSpinWatchdogTripped;
+    /// <summary>In-memory bringup capture completeness signal (never serialized to bringup.profile.json).</summary>
+    [JsonIgnore]
+    public bool IsBringupCaptureClean => DiscoveredFunctionCount > 0 && !IsSpinWatchdogTripped;
+
+    /// <summary>True only when static AOT ran with zero dynamic JIT/IR/interpreter dispatches and no spin trip.</summary>
+    [JsonIgnore]
+    public bool IsPureStaticReady => _attachedCoordinator is { } coord
+        ? ComputeIsPureStaticReady(
+            coord.CompiledDispatchCount,
+            coord.JitDispatchCount,
+            coord.ThreadedIrDispatchCount,
+            coord.InterpreterFallbackCount,
+            IsSpinWatchdogTripped)
+        : _lastSnapshotPureStaticReady && !IsSpinWatchdogTripped;
+
+    /// <summary>Deprecated pre-reSlate v0.3.0 transition compatibility alias of <see cref="IsPureStaticReady"/>.</summary>
+    [Obsolete("Use IsPureStaticReady for R3 Pure Static readiness or IsBringupCaptureClean for bringup capture completeness.")]
+    [JsonIgnore]
+    public bool IsR4PromotionReady => IsPureStaticReady;
+
+    /// <summary>Computes the canonical Standard 18 <c>isPureStaticReady</c> gate from execution counters.</summary>
+    public static bool ComputeIsPureStaticReady(
+        long compiledDispatchCount,
+        long jitDispatchCount,
+        long threadedIrDispatchCount,
+        long interpreterFallbackCount,
+        bool isSpinWatchdogTripped) =>
+        compiledDispatchCount > 0L
+        && jitDispatchCount == 0L
+        && threadedIrDispatchCount == 0L
+        && interpreterFallbackCount == 0L
+        && !isSpinWatchdogTripped;
+
+    internal void AttachCoordinator(Tier3ExecutionCoordinator? coordinator) => _attachedCoordinator = coordinator;
 
     /// <summary>Creates a recorder whose <c>bringup.profile.json</c> path follows <see cref="AotCacheLayoutHelper"/>.</summary>
     public static JitBringupRecorder CreateForModule(
@@ -193,21 +255,29 @@ public sealed class JitBringupRecorder
                 .ToArray();
         }
 
+        Tier3ExecutionCoordinator? effectiveCoord = coordinator ?? _attachedCoordinator;
+        long compiled = Math.Max(compiledDispatchCount, effectiveCoord?.CompiledDispatchCount ?? 0L);
+        long jit = effectiveCoord?.JitDispatchCount ?? 0L;
+        long threadedIr = effectiveCoord?.ThreadedIrDispatchCount ?? 0L;
+        long interp = Math.Max(interpreterFallbackCount, effectiveCoord?.InterpreterFallbackCount ?? 0L);
+        bool pureStaticReady = ComputeIsPureStaticReady(compiled, jit, threadedIr, interp, IsSpinWatchdogTripped);
+        _lastSnapshotPureStaticReady = pureStaticReady;
+
         return new BringupProfileDocument
         {
             SchemaVersion = 1,
             ModuleId = ModuleId,
             EngineId = ReStationEngineInfo.EngineId,
             EngineVersion = ReStationEngineInfo.Version,
-            ExecutionTierMode = coordinator?.ExecutionTierMode ?? ExecutionTierMode,
-            IsDynamicCodeSupported = coordinator?.IsDynamicCodeSupported ?? IsDynamicCodeSupported,
-            CompiledDispatchCount = Math.Max(compiledDispatchCount, coordinator?.CompiledDispatchCount ?? 0L),
-            JitDispatchCount = coordinator?.JitDispatchCount ?? 0L,
-            ThreadedIrDispatchCount = coordinator?.ThreadedIrDispatchCount ?? 0L,
-            InterpreterFallbackCount = Math.Max(interpreterFallbackCount, coordinator?.InterpreterFallbackCount ?? 0L),
-            RamPageInvalidationCount = coordinator?.RamPageInvalidationCount ?? 0L,
+            ExecutionTierMode = effectiveCoord?.ExecutionTierMode ?? ExecutionTierMode,
+            IsDynamicCodeSupported = effectiveCoord?.IsDynamicCodeSupported ?? IsDynamicCodeSupported,
+            CompiledDispatchCount = compiled,
+            JitDispatchCount = jit,
+            ThreadedIrDispatchCount = threadedIr,
+            InterpreterFallbackCount = interp,
+            RamPageInvalidationCount = effectiveCoord?.RamPageInvalidationCount ?? 0L,
             DiscoveredFunctionCount = entries.Length,
-            IsR4PromotionReady = entries.Length > 0 && !IsSpinWatchdogTripped,
+            IsPureStaticReady = pureStaticReady,
             NonVBlankSpinCycles = NonVBlankSpinCycles,
             IsSpinWatchdogTripped = IsSpinWatchdogTripped,
             UpdatedAtUtc = DateTimeOffset.UtcNow.ToString("O"),

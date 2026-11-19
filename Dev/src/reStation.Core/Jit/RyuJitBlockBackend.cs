@@ -53,7 +53,7 @@ public sealed class RyuJitBlockBackend
             return null;
 
         var dm = new DynamicMethod(
-            $"reStation_Ir_{block.EntryPc:X8}",
+            $"reSlate_Ir_{block.EntryPc:X8}",
             typeof(uint),
             [typeof(IReStationCpu)],
             restrictedSkipVisibility: false);
@@ -271,6 +271,7 @@ public sealed class RyuJitBlockBackend
                 il.Emit(OpCodes.Ldarg_0);
                 il.Emit(OpCodes.Ldc_I4, (int)insn.Op);
                 il.Emit(OpCodes.Ldc_I4, (int)insn.Rd);
+                il.Emit(OpCodes.Ldc_I4, (int)insn.Rs);
                 il.Emit(OpCodes.Ldc_I4, (int)insn.Rt);
                 il.Emit(OpCodes.Ldc_I4, unchecked((int)insn.Pc));
                 il.Emit(OpCodes.Ldc_I4, unchecked((int)insn.ImmOrTarget));
@@ -279,15 +280,30 @@ public sealed class RyuJitBlockBackend
         }
     }
 
-    private static void ExecuteSystemOrUnimpl(IReStationCpu cpu, int opCode, int rd, int rt, uint pc, uint immOrTarget)
+    private static void ExecuteSystemOrUnimpl(IReStationCpu cpu, int opCode, int rd, int rs, int rt, uint pc, uint immOrTarget)
     {
         cpu.Pc = pc;
         switch ((IrOp)opCode)
         {
             case IrOp.Syscall: cpu.Syscall((immOrTarget >> 6) & 0xFFFFFu); break;
             case IrOp.Break: cpu.Break((immOrTarget >> 6) & 0xFFFFFu); break;
-            case IrOp.Mfc0: if (rd == 12 && rt != 0) cpu.R[rt] = cpu.Cop0Sr; break;
+            case IrOp.Mfc0:
+                if (rt != 0)
+                {
+                    cpu.R[rt] = rd switch
+                    {
+                        8 => cpu is Cpu.PsxCpu psx8 ? psx8.Cop0BadVAddr : 0u,
+                        12 => cpu.Cop0Sr,
+                        13 => cpu is Cpu.PsxCpu psx13 ? psx13.Cop0Cause : 0u,
+                        14 => cpu is Cpu.PsxCpu psx14 ? psx14.Cop0Epc : 0u,
+                        _ => 0u
+                    };
+                }
+                break;
             case IrOp.Mtc0: if (rd == 12) cpu.Cop0Sr = cpu.R[rt]; break;
+            case IrOp.Rfe: cpu.Cop0Sr = (cpu.Cop0Sr & ~0xFu) | ((cpu.Cop0Sr >> 2) & 0xFu); break;
+            case IrOp.Lwc2: cpu.GteWriteData(rt, cpu.Read32(unchecked(cpu.R[rs] + immOrTarget))); break;
+            case IrOp.Swc2: cpu.Write32(unchecked(cpu.R[rs] + immOrTarget), cpu.GteReadData(rt)); break;
         }
         cpu.R[0] = 0u;
     }

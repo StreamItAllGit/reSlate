@@ -164,7 +164,9 @@ public sealed class Tier3IrAndJitTests : IDisposable
         using JsonDocument doc = JsonDocument.Parse(json);
         Assert.Equal("t3clean", doc.RootElement.GetProperty("moduleId").GetString());
         Assert.True(doc.RootElement.GetProperty("isSpinWatchdogTripped").GetBoolean());
-        Assert.False(doc.RootElement.GetProperty("isR4PromotionReady").GetBoolean());
+        Assert.False(doc.RootElement.GetProperty("isPureStaticReady").GetBoolean());
+        Assert.False(doc.RootElement.TryGetProperty("isBringupCaptureClean", out _));
+        Assert.False(recorder.IsBringupCaptureClean); // Spin watchdog tripped -> false
         Assert.Equal(1, doc.RootElement.GetProperty("discoveredFunctionCount").GetInt32());
     }
 
@@ -174,5 +176,212 @@ public sealed class Tier3IrAndJitTests : IDisposable
         Assert.Equal(JitBringupRecorder.SpinWatchdogExitCode, reStation.Player.Program.ResolveLoopExitCode(preservedExitCode: JitBringupRecorder.SpinWatchdogExitCode));
         Assert.Equal(0, reStation.Player.Program.ResolveLoopExitCode(preservedExitCode: 0));
         Assert.True(reStation.Launcher.LauncherArgsHelper.RequiresSyncWait(["--jit-bringup"]));
+    }
+
+    [Fact]
+    public void MipsIrLowerer_JalrRdZero_PreservesZeroDestinationAcrossBothTier3Backends()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        const uint jalrZeroA0 = (4U << 21) | 0x09U; // jalr $zero, $a0
+        IrInsn lowered = MipsIrLowerer.LowerInstruction(0x80020000U, jalrZeroA0);
+        Assert.Equal(IrOp.Jalr, lowered.Op);
+        Assert.Equal(0, lowered.Rd);
+        Assert.False(lowered.HasFlag(IrInsnFlags.LinksRa));
+
+        foreach (bool forceZeroRwx in new[] { false, true })
+        {
+            var coord = new Tier3ExecutionCoordinator(new RamPageEpochTable(), ReStationExecutionTierModes.JitBringup, forceZeroRwx);
+            using var cpu = new PsxCpu(new RecompSettings(), _tempRoot, new SoftwareCpuRenderBackend());
+            cpu.R[4] = 0x80020200U;
+            cpu.R[31] = 0xCAFEBABEU;
+            cpu.Bus.Write32(0x80020000U, jalrZeroA0);
+            cpu.Bus.Write32(0x80020004U, 0x00000000U); // nop
+
+            uint nextPc = coord.ExecuteBlock(cpu, 0x80020000U, cpu.Read32);
+            Assert.Equal(0x80020200U, nextPc);
+            Assert.Equal(0xCAFEBABEU, cpu.R[31]);
+            Assert.Equal(0U, cpu.R[0]);
+        }
+    }
+
+    [Fact]
+    public void RyuJitAndThreadedIr_ExecuteRfeLwc2Swc2AndMfc0Regs8_13_14_WithParity()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        const uint mfc0BadVAddr = (0x10U << 26) | (8U << 16) | (8U << 11);   // mfc0 $t0, $8
+        const uint mfc0Cause = (0x10U << 26) | (9U << 16) | (13U << 11);     // mfc0 $t1, $13
+        const uint mfc0Epc = (0x10U << 26) | (10U << 16) | (14U << 11);      // mfc0 $t2, $14
+        const uint lwc2Data6 = (0x32U << 26) | (29U << 21) | (6U << 16);     // lwc2 $6 (RGBC, 32-bit), 0($sp)
+        const uint swc2Data6 = (0x3AU << 26) | (29U << 21) | (6U << 16) | 4U;// swc2 $6, 4($sp)
+        const uint rfeInsn = (0x10U << 26) | (0x10U << 21) | 0x10U;          // rfe
+
+        foreach (bool forceZeroRwx in new[] { false, true })
+        {
+            var coord = new Tier3ExecutionCoordinator(new RamPageEpochTable(), ReStationExecutionTierModes.JitBringup, forceZeroRwx);
+            using var cpu = new PsxCpu(new RecompSettings(), _tempRoot, new SoftwareCpuRenderBackend());
+            cpu.Cop0Sr = 0x0000040CU;
+            cpu.Cop0BadVAddr = 0x80041234U;
+            cpu.Cop0Cause = 0x00000024U;
+            cpu.Cop0Epc = 0x80015550U;
+            cpu.R[29] = 0x80050000U;
+            cpu.Bus.Write32(0x80050000U, 0x11223344U);
+
+            cpu.Bus.Write32(0x80021000U, mfc0BadVAddr);
+            cpu.Bus.Write32(0x80021004U, mfc0Cause);
+            cpu.Bus.Write32(0x80021008U, mfc0Epc);
+            cpu.Bus.Write32(0x8002100CU, lwc2Data6);
+            cpu.Bus.Write32(0x80021010U, swc2Data6);
+            cpu.Bus.Write32(0x80021014U, rfeInsn);
+
+            uint nextPc = coord.ExecuteBlock(cpu, 0x80021000U, cpu.Read32);
+            Assert.Equal(0x80021018U, nextPc);
+            Assert.Equal(0x80041234U, cpu.R[8]);
+            Assert.Equal(0x00000024U, cpu.R[9]);
+            Assert.Equal(0x80015550U, cpu.R[10]);
+            Assert.Equal(0x11223344U, cpu.GteReadData(6));
+            Assert.Equal(0x11223344U, cpu.Bus.Read32(0x80050004U));
+            Assert.Equal(0x00000403U, cpu.Cop0Sr);
+        }
+    }
+
+    [Fact]
+    public void PsxCpu_LiveNativeAotAndTier3Coherence_EnforcesStaticFailClosedAndInterpreterQuarantine()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string logDir = Path.Combine(_tempRoot, "logs");
+        using var logger = new ReStationLogger(logDir, enabled: true);
+
+        // Compiled static AOT entry at 0x80010000 (returns 77 in $v0)
+        var compiledMod = new InlineCompiledModule(0x80010000U, 0x80010100U, c => c.R[2] = 77U);
+
+        // 1. Default aotWithJitFallback: compiled first, unlifted calls Tier 3 (NOT interpreter!), Bus write invalidates RAM cache
+        using (var cpu = new PsxCpu(new RecompSettings(), _tempRoot, new SoftwareCpuRenderBackend(), logger))
+        {
+            cpu.RegisterModule(compiledMod);
+            // Unlifted caller at 0x80020000: calls compiled 0x80010000, adds 3, returns to caller $ra
+            cpu.Bus.Write32(0x80020000U, 0x27BDFFF0U); // addiu $sp, $sp, -16
+            cpu.Bus.Write32(0x80020004U, 0xAFBF0000U); // sw $ra, 0($sp)
+            cpu.Bus.Write32(0x80020008U, (3U << 26) | (0x00010000U >> 2)); // jal 0x80010000
+            cpu.Bus.Write32(0x8002000CU, 0x00000000U); // nop
+            cpu.Bus.Write32(0x80020010U, 0x24420003U); // addiu $v0, $v0, 3 (-> 80)
+            cpu.Bus.Write32(0x80020014U, 0x8FBF0000U); // lw $ra, 0($sp)
+            cpu.Bus.Write32(0x80020018U, 0x27BD0010U); // addiu $sp, $sp, 16
+            cpu.Bus.Write32(0x8002001CU, 0x03E00008U); // jr $ra
+            cpu.Bus.Write32(0x80020020U, 0x00000000U); // nop
+
+            cpu.R[29] = 0x80040000U;
+            cpu.R[31] = 0x80010840U; // simulated compiled caller RA
+            cpu.Call(0x80020000U);
+            Assert.Equal(80U, cpu.R[2]);
+            Assert.Equal(1L, cpu.CompiledDispatchCount);
+            Assert.Equal(0L, cpu.InterpreterFallbackCount);
+            Assert.True(cpu.Tier3Coordinator.JitDispatchCount + cpu.Tier3Coordinator.ThreadedIrDispatchCount >= 2);
+            Assert.False(cpu.ShouldUnwind);
+
+            // Patch addiu $v0, $v0, 3 -> addiu $v0, $v0, 23 via Bus RAM write (SMC coherence via OnRamWriteRange)
+            long invBefore = cpu.Tier3Coordinator.RamPageInvalidationCount;
+            cpu.Bus.Write32(0x80020010U, 0x24420017U);
+            Assert.True(cpu.Tier3Coordinator.RamPageInvalidationCount > invBefore);
+            cpu.R[2] = 0U;
+            cpu.R[31] = 0x80010840U;
+            cpu.Call(0x80020000U);
+            Assert.Equal(100U, cpu.R[2]);
+            Assert.Equal(0L, cpu.InterpreterFallbackCount);
+        }
+
+        // 2. staticAotOnly: compiled entry succeeds, unlifted entry throws InvalidOperationException
+        using (var strictCpu = new PsxCpu(new RecompSettings { ExecutionTierMode = ReStationExecutionTierModes.StaticAotOnly }, _tempRoot, new SoftwareCpuRenderBackend(), logger))
+        {
+            strictCpu.RegisterModule(compiledMod);
+            strictCpu.DispatchFunction(0x80010000U);
+            Assert.Equal(77U, strictCpu.R[2]);
+
+            strictCpu.Bus.Write32(0x80030000U, 0x03E00008U);
+            strictCpu.Bus.Write32(0x80030004U, 0x00000000U);
+            Assert.Throws<InvalidOperationException>(() => strictCpu.Call(0x80030000U));
+            strictCpu.R[31] = 0x80030020U;
+            Assert.Throws<InvalidOperationException>(() => strictCpu.DispatchFunction(0x80030000U));
+        }
+
+        // 3. interpreterOracle: quarantined strictly to interpreterOracle with [WARN]
+        using (var oracleCpu = new PsxCpu(new RecompSettings { ExecutionTierMode = ReStationExecutionTierModes.InterpreterOracle }, _tempRoot, new SoftwareCpuRenderBackend(), logger))
+        {
+            oracleCpu.Bus.Write32(0x80030000U, 0x03E00008U);
+            oracleCpu.Bus.Write32(0x80030004U, 0x2402002AU); // addiu $v0, $zero, 42
+            oracleCpu.DispatchFunction(0x80030000U);
+            Assert.Equal(42U, oracleCpu.R[2]);
+            Assert.True(oracleCpu.InterpreterFallbackCount > 0L);
+            Assert.Contains(logger.GetRecentLines(), l => l.Contains("[WARN]", StringComparison.Ordinal) && l.Contains("interpreterOracle", StringComparison.Ordinal));
+        }
+    }
+
+    [Fact]
+    public void JitBringupRecorder_IsPureStaticReady_RejectsActiveJitBringupAndAcceptsZeroFallbackStaticRun()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string profilePath = Path.Combine(_tempRoot, "bringup", "bringup.profile.json");
+        using var cpu = new PsxCpu(new RecompSettings { ExecutionTierMode = ReStationExecutionTierModes.JitBringup }, _tempRoot, new SoftwareCpuRenderBackend());
+        var recorder = new JitBringupRecorder("pure-check", ReStationExecutionTierModes.JitBringup, bringupProfilePath: profilePath);
+        cpu.BringupRecorder = recorder;
+
+        cpu.Bus.Write32(0x80025000U, 0x03E00008U);
+        cpu.Bus.Write32(0x80025004U, 0x24020007U);
+        cpu.DispatchFunction(0x80025000U);
+
+        // Even when WriteProfileAtomic is called without explicit coordinator arg (FrameLoop pattern), attached Tier3 counts are included.
+        string activeJsonPath = recorder.WriteProfileAtomic(compiledDispatchCount: cpu.CompiledDispatchCount, interpreterFallbackCount: cpu.InterpreterFallbackCount);
+        string activeJson = File.ReadAllText(activeJsonPath);
+        using (JsonDocument doc = JsonDocument.Parse(activeJson))
+        {
+            Assert.False(doc.RootElement.GetProperty("isPureStaticReady").GetBoolean());
+            Assert.True(doc.RootElement.GetProperty("jitDispatchCount").GetInt64() + doc.RootElement.GetProperty("threadedIrDispatchCount").GetInt64() > 0L);
+            Assert.False(doc.RootElement.TryGetProperty("isBringupCaptureClean", out _));
+        }
+        Assert.False(recorder.IsPureStaticReady);
+        Assert.True(recorder.IsBringupCaptureClean);
+
+        // Pure static run: CompiledDispatchCount > 0 && zero JIT/IR/interpreter && !spinTripped
+        var pureCoord = new Tier3ExecutionCoordinator(new RamPageEpochTable(), ReStationExecutionTierModes.StaticAotOnly);
+        pureCoord.RecordCompiledDispatch(5L);
+        var pureRec = new JitBringupRecorder("pure-pass", ReStationExecutionTierModes.StaticAotOnly, bringupProfilePath: Path.Combine(_tempRoot, "pure", "bringup.profile.json"));
+        BringupProfileDocument pureDoc = pureRec.BuildSnapshot(pureCoord);
+        Assert.True(pureDoc.IsPureStaticReady);
+        Assert.True(pureRec.IsPureStaticReady);
+    }
+
+    [Fact]
+    public void JitBringupRecorder_LegacyIsR4PromotionReady_BackwardCompatAndDeserializeFallback()
+    {
+#pragma warning disable CS0618
+        var legacyDoc = JsonSerializer.Deserialize<BringupProfileDocument>(
+            """{"moduleId":"legacy","discoveredFunctionCount":2,"isR4PromotionReady":true}""",
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        Assert.True(legacyDoc.IsPureStaticReady);
+        Assert.True(legacyDoc.IsR4PromotionReady);
+
+        var canonicalWins = JsonSerializer.Deserialize<BringupProfileDocument>(
+            """{"moduleId":"new","isPureStaticReady":false,"isR4PromotionReady":true}""",
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+        Assert.False(canonicalWins.IsPureStaticReady);
+        Assert.False(canonicalWins.IsR4PromotionReady);
+
+        var recorder = new JitBringupRecorder("compat");
+        Assert.Equal(recorder.IsPureStaticReady, recorder.IsR4PromotionReady);
+#pragma warning restore CS0618
+    }
+
+    private sealed class InlineCompiledModule(uint textStart, uint textEnd, Action<IReStationCpu> body) : IRecompModule, reStation.Core.Aot.IRecompCompiledEntryLookup
+    {
+        public int ExeId => 0;
+        public string ExeName => "INLINE.EXE";
+        public uint TextStart => textStart;
+        public uint TextEnd => textEnd;
+        public bool ContainsCompiledEntry(uint pc) => pc == textStart;
+        public bool TryExecuteFunction(IReStationCpu cpu, uint pc)
+        {
+            if (pc != textStart) return false;
+            body(cpu);
+            return true;
+        }
     }
 }

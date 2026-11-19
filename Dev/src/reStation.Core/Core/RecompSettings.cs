@@ -18,7 +18,7 @@ public enum ControlMode { ModernWasdMouse, ClassicTank }
 /// <summary>Presentation cadence (<c>frameRateMode</c>: original | enhanced).</summary>
 public enum FrameRateMode { Original, Enhanced }
 
-/// <summary>Persisted reStation runtime settings (settings.json, schemaVersion 1).</summary>
+/// <summary>Persisted reSlate runtime settings (config/settings.json, schemaVersion 1).</summary>
 public sealed class RecompSettings
 {
     public const int CurrentSchemaVersion = 1;
@@ -65,6 +65,8 @@ public sealed class RecompSettings
     [JsonPropertyName("modernControllerBindings"), JsonConverter(typeof(ModernBindingsJsonConverter))] public Dictionary<string, int[]>? ModernControllerBindings { get; set; }
     /// <summary>Per-game control options stored under Standard 18 "metadataJson".</summary>
     [JsonPropertyName("metadataJson"), JsonConverter(typeof(MetadataJsonConverter))] public Dictionary<string, string>? MetadataJson { get; set; }
+    /// <summary>Runtime-only --force-zero-rwx override (never serialized to settings.json).</summary>
+    [JsonIgnore] public bool ForceZeroRwx { get; set; }
     /// <summary>Preserves forward/unknown settings keys across load-save cycles (Standard 19 §2.3).</summary>
     [JsonExtensionData] public IDictionary<string, JsonElement>? ExtensionData { get; set; }
 
@@ -72,9 +74,11 @@ public sealed class RecompSettings
     public void Clamp()
     {
         SchemaVersion = SchemaVersion >= CurrentSchemaVersion ? SchemaVersion : CurrentSchemaVersion;
-        AppId = string.IsNullOrWhiteSpace(AppId) ? ReStationEngineInfo.AppId : AppId.Trim();
+        AppId = string.IsNullOrWhiteSpace(AppId) || string.Equals(AppId.Trim(), "restation", StringComparison.OrdinalIgnoreCase)
+            ? ReStationEngineInfo.AppId
+            : AppId.Trim();
         ResolutionScale = ResolutionScale <= 1 ? 1 : ResolutionScale <= 2 ? 2 : ResolutionScale <= 4 ? 4 : 8;
-        BackendId = string.Equals(BackendId, PsxRenderBackendIds.Software, StringComparison.OrdinalIgnoreCase)
+        BackendId = string.Equals(BackendId?.Trim(), PsxRenderBackendIds.Software, StringComparison.OrdinalIgnoreCase)
             ? PsxRenderBackendIds.Software
             : PsxRenderBackendIds.OpenGl;
         ControllerDpadMode = NativeInputModeIds.NormalizeControllerDpadMode(ControllerDpadMode);
@@ -245,6 +249,7 @@ public sealed class RecompSettings
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(configFilePath);
         string full = Path.GetFullPath(configFilePath);
+        _ = SettingsMigrationHelper.MigrateForConfigPathIfNeeded(full);
         var manager = new GranularSettingsManager(Path.GetDirectoryName(full)!);
         SettingsLoadOutcome<RecompSettings> outcome = manager.LoadOrSelfHeal(full, static () => new RecompSettings(), JsonOptions);
         outcome.Value.Clamp();
