@@ -83,12 +83,24 @@ function Invoke-LoopbackJson([int]$Port, [string]$Token, [string]$Method, [strin
     return Invoke-RestMethod -Uri $uri -Method $Method -Headers $headers -ContentType "application/json" -Body ($Body | ConvertTo-Json -Compress) -TimeoutSec 10
 }
 
+function Read-SharedLogText([string]$Path) {
+    try {
+        $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+        try {
+            $sr = [System.IO.StreamReader]::new($fs, [System.Text.Encoding]::UTF8, $true)
+            try { return $sr.ReadToEnd() } finally { $sr.Dispose() }
+        } finally { $fs.Dispose() }
+    } catch [System.IO.IOException] {
+        return ""
+    }
+}
+
 function Wait-AutomationBoundPort([System.Diagnostics.Process]$Proc, [string[]]$CandidateLogs, [int]$WaitSeconds = 20) {
     $deadline = (Get-Date).AddSeconds($WaitSeconds)
     while ((Get-Date) -lt $deadline) {
         foreach ($logPath in $CandidateLogs) {
             if (Test-Path -LiteralPath $logPath) {
-                $txt = [System.IO.File]::ReadAllText($logPath)
+                $txt = Read-SharedLogText $logPath
                 $m = [regex]::Match($txt, '(?:127\.0\.0\.1:|automation[_-]?port[=:\s]+)(\d{2,5})', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
                 if ($m.Success) {
                     $p = [int]$m.Groups[1].Value
