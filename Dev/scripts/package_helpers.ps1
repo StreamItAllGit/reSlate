@@ -19,9 +19,13 @@ function Resolve-CodeSigningCertificate {
         return $found
     }
     $auto = Get-ChildItem $stores -ErrorAction SilentlyContinue |
-        Where-Object { $_.HasPrivateKey -and ($_.EnhancedKeyUsageList | Where-Object { $_.ObjectId -eq "1.3.6.1.5.5.7.3.3" }) -and $_.NotAfter -gt (Get-Date) } |
+        Where-Object {
+            if (-not ($_.HasPrivateKey -and ($_.EnhancedKeyUsageList | Where-Object { $_.ObjectId -eq "1.3.6.1.5.5.7.3.3" }) -and $_.NotAfter -gt (Get-Date))) { return $false }
+            $chain = New-Object System.Security.Cryptography.X509Certificates.X509Chain
+            $chain.Build($_)
+        } |
         Sort-Object NotAfter -Descending | Select-Object -First 1
-    if (-not $auto) { throw "No valid Code Signing (EKU 1.3.6.1.5.5.7.3.3) certificate found. Pass -CertThumbprint or set CODESIGN_CERT_THUMBPRINT / RESLATE_SIGN_THUMBPRINT." }
+    if (-not $auto) { throw "No trusted Code Signing (EKU 1.3.6.1.5.5.7.3.3) certificate found. Pass -CertThumbprint or set CODESIGN_CERT_THUMBPRINT / RESLATE_SIGN_THUMBPRINT." }
     return $auto
 }
 
@@ -103,8 +107,8 @@ function Assert-BinaryPurity([string]$AppDir, [string]$LauncherExe) {
     try {
         New-Item -ItemType Directory -Force (Join-Path $probeRoot "data"), (Join-Path $probeRoot "logs") | Out-Null
         $playerExe = Join-Path $AppDir "reSlate.Player.exe"
-        & $playerExe --automation-port 5199 --data-dir (Join-Path $probeRoot "data") --log-dir (Join-Path $probeRoot "logs") *> $null
-        if ($LASTEXITCODE -ne 2) { throw "Release purity gate failed: expected ExitCode=2 for --automation-port, got $LASTEXITCODE." }
+        $probeProc = Start-Process -FilePath $playerExe -WindowStyle Hidden -Wait -PassThru -ArgumentList @("--automation-port", "5199", "--data-dir", (Join-Path $probeRoot "data"), "--log-dir", (Join-Path $probeRoot "logs"))
+        if ($probeProc.ExitCode -ne 2) { throw "Release purity gate failed: expected ExitCode=2 for --automation-port, got $($probeProc.ExitCode)." }
     } finally {
         if ($null -eq $prevIso) { Remove-Item Env:APP_ISOLATED_TEST -ErrorAction SilentlyContinue } else { $env:APP_ISOLATED_TEST = $prevIso }
         Remove-Item -LiteralPath $probeRoot -Recurse -Force -ErrorAction SilentlyContinue
