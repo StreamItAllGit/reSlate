@@ -172,6 +172,7 @@ $docMap = Build-EndUserDocMap -RootDir $root -DevDir $devDir -Version $Version
 $relBundle = Publish-ReleaseBundle -RootDir $root -ReleasesDir $releasesDir -Version $Version `
     -BuiltInstallerPath $builtInstaller.FullName -StageDir $stageDir -WorkTemp $workTemp `
     -DocMap $docMap -SevenZipExe $sevenZip -Cert $cert
+Assert-InstallerPurity -InstallerExe $relBundle.InstallerPath
 
 $resolvedAuditScript = if (-not [string]::IsNullOrWhiteSpace($AuditScriptPath)) { $AuditScriptPath } else { Join-Path $env:USERPROFILE ".gemini\config\skills\dev\scripts\audit_installer.ps1" }
 if (-not [string]::IsNullOrWhiteSpace($AuditScriptPath) -and (-not (Test-Path -LiteralPath $resolvedAuditScript))) {

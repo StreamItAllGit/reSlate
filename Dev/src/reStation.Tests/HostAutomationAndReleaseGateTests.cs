@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using Foundation.Core;
+using Foundation.Installer;
 using reEngine.Host.Contracts;
 using reEngine.Host.Input;
 using reStation.Contracts;
@@ -187,6 +188,49 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
             Assert.Equal(2, proc.ExitCode);
         }
     }
+
+    [Fact]
+    public void ReleaseInstaller_HasZeroAutomationReferences_AndFailsClosedOnAutomationPort()
+    {
+        Assembly installerAsm = typeof(reStation.Installer.Program).Assembly;
+        string[] runtimeRefs = installerAsm.GetReferencedAssemblies().Select(a => a.Name ?? string.Empty).ToArray();
+        Assert.DoesNotContain(runtimeRefs, r => r.Equals("Foundation.Automation", StringComparison.OrdinalIgnoreCase));
+        string[] resources = installerAsm.GetManifestResourceNames();
+        Assert.DoesNotContain(resources, r => r.Contains("Foundation.Automation", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(resources, r => r.Contains("Foundation.UI", StringComparison.OrdinalIgnoreCase));
+
+        string installerPePath = installerAsm.Location;
+        Assert.True(File.Exists(installerPePath), $"Expected Release installer PE at '{installerPePath}'.");
+        using (var fs = File.OpenRead(installerPePath))
+        using (var pe = new PEReader(fs))
+        {
+            MetadataReader md = pe.GetMetadataReader();
+            List<string> peRefs = [];
+            foreach (AssemblyReferenceHandle handle in md.AssemblyReferences)
+                peRefs.Add(md.GetString(md.GetAssemblyReference(handle).Name));
+            Assert.DoesNotContain(peRefs, r => r.Equals("Foundation.Automation", StringComparison.OrdinalIgnoreCase));
+        }
+
+        int inProcCode = reStation.Installer.Program.RunInstallerCore(["--automation-port", "5199"]);
+        Assert.Equal(2, inProcCode);
+
+        string exePath = Path.Combine(Path.GetDirectoryName(installerPePath)!, "reSlate-Setup-v0.3.0-win-x64.exe");
+        if (File.Exists(exePath))
+        {
+            using var proc = Process.Start(new ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = "--automation-port 5199",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                Environment = { ["APP_ISOLATED_TEST"] = "1" }
+            })!;
+            Assert.True(proc.WaitForExit(15_000));
+            Assert.Equal(2, proc.ExitCode);
+        }
+    }
 #endif
 
 #if DEBUG || RESTATION_TEST_AUTOMATION
@@ -302,6 +346,47 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
             "--log-dir", Path.Combine(_tempRoot, "cli-auto-logs")
         ]);
         Assert.Equal(0, cliSmoke);
+    }
+
+    [Fact]
+    public void DebugInstallerHook_AssignsDeterministicWizardControlNames_AndExtractsAutomationArgs()
+    {
+        string[] stripped = reStation.Installer.Program.ExtractAutomationArgs(
+            ["--automation-port", "0", "--automation-token=wiz-tok", "--install-dir", _tempRoot],
+            out int? port, out string? token);
+        Assert.Equal(0, port);
+        Assert.Equal("wiz-tok", token);
+        Assert.Equal(["--install-dir", _tempRoot], stripped);
+
+        Assert.Throws<ArgumentException>(() =>
+            reStation.Installer.Program.ExtractAutomationArgs(["--automation-port", "70000"], out _, out _));
+
+        Directory.CreateDirectory(_tempRoot);
+        string dataDir = Path.Combine(_tempRoot, "wiz-data");
+        string cfgPath = Path.Combine(dataDir, "settings.json");
+        string logDir = Path.Combine(_tempRoot, "wiz-logs");
+        InstallerThemeOptions theme = reStation.Installer.ReStationInstallerTheme.CreateThemeOptions();
+        InstallerAppDescriptor descriptor = reStation.Installer.ReStationInstallerTheme.CreateDescriptor(theme);
+        var ctx = new InstallerRuntimeContext(
+            cliDataDir: dataDir, cliConfigPath: cfgPath, cliLogDir: logDir,
+            dryRun: true, envPrefix: descriptor.EnvPrefix, sandboxOverride: SandboxResolution.Inactive);
+        var engine = new InstallerEngine(descriptor, ctx, typeof(reStation.Installer.Program).Assembly);
+
+        using var wizard = new InstallerWizardForm(
+            engine: engine, ctx: ctx, initialInstallDir: Path.Combine(_tempRoot, "install"),
+            initialSecondaryDir: Path.Combine(_tempRoot, "reEngine"), secondaryFlagName: "--reengine-dir");
+        using var hook = reStation.Installer.InstallerAutomationHook.Attach(wizard, 0, "wiz-loop-tok", ctx);
+
+        Assert.Equal("InstallerWizardRoot", wizard.Name);
+        Assert.Equal("Wizard_PrimaryButton", wizard.PrimaryButton.Name);
+        Assert.Equal("Wizard_DetailsToggle", wizard.DetailsToggleButton.Name);
+        Assert.Equal("Wizard_ProfileLightweight", wizard.LightweightProfileRadioButton.Name);
+        Assert.Equal("Wizard_ProfileFull", wizard.FullProfileRadioButton.Name);
+        Assert.Equal("Wizard_InstallDir", wizard.InstallDirTextBox.Name);
+        Assert.Equal("Wizard_SecondaryDir", wizard.SecondaryDirTextBox.Name);
+        Assert.Equal("Wizard_StatusLabel", wizard.StatusLabel.Name);
+        Assert.Equal("Wizard_LogTextBox", wizard.LogTextBox.Name);
+        Assert.Equal("wiz-loop-tok", hook.BearerToken);
     }
 
     private static Task<HttpResponseMessage> PostJsonWithContentLengthAsync<T>(HttpClient http, string path, T payload)

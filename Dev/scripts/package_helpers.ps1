@@ -2,7 +2,7 @@
 # @module: Dev/scripts/package_helpers.ps1
 # @purpose: Shared packaging helpers for build_release.ps1 (cert lookup, code-only SLOC gate, binary purity, .ready/manifests, NTFS hardlinks, Portable.zip, SharedLibs, junctions).
 # @depends-on: Dev/scripts/sanitize_release_docs.ps1
-# @exports: Resolve-CodeSigningCertificate, Invoke-AuthenticodeSign, Invoke-SevenZip, Assert-CodeOnlySlocGate, Assert-BinaryPurity, Write-EngineStageMetadata, Build-EndUserDocMap, Publish-ReleaseBundle, Publish-SharedLibsSdk
+# @exports: Resolve-CodeSigningCertificate, Invoke-AuthenticodeSign, Invoke-SevenZip, Assert-CodeOnlySlocGate, Assert-BinaryPurity, Assert-InstallerPurity, Write-EngineStageMetadata, Build-EndUserDocMap, Publish-ReleaseBundle, Publish-SharedLibsSdk
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -112,6 +112,27 @@ function Assert-BinaryPurity([string]$AppDir, [string]$LauncherExe) {
     } finally {
         if ($null -eq $prevIso) { Remove-Item Env:APP_ISOLATED_TEST -ErrorAction SilentlyContinue } else { $env:APP_ISOLATED_TEST = $prevIso }
         Remove-Item -LiteralPath $probeRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Assert-InstallerPurity([string]$InstallerExe) {
+    if (-not (Test-Path -LiteralPath $InstallerExe)) { throw "Installer missing for purity check: $InstallerExe" }
+    $raw = [System.IO.File]::ReadAllBytes($InstallerExe)
+    $ascii = [System.Text.Encoding]::ASCII.GetString($raw)
+    $utf16 = [System.Text.Encoding]::Unicode.GetString($raw, 0, $raw.Length - ($raw.Length % 2))
+    foreach ($tok in @("Foundation.Automation", "InstallerAutomationHook")) {
+        if ($ascii.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+            $utf16.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "Release installer purity violation in '$InstallerExe': found '$tok'."
+        }
+    }
+    $prevIso = $env:APP_ISOLATED_TEST
+    $env:APP_ISOLATED_TEST = "1"
+    try {
+        $probeProc = Start-Process -FilePath $InstallerExe -WindowStyle Hidden -Wait -PassThru -ArgumentList @("--automation-port", "5199")
+        if ($probeProc.ExitCode -ne 2) { throw "Release installer purity gate failed: expected ExitCode=2 for --automation-port, got $($probeProc.ExitCode)." }
+    } finally {
+        if ($null -eq $prevIso) { Remove-Item Env:APP_ISOLATED_TEST -ErrorAction SilentlyContinue } else { $env:APP_ISOLATED_TEST = $prevIso }
     }
 }
 

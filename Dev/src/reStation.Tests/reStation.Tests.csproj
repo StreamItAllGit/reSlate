@@ -46,6 +46,9 @@
     <Reference Include="Foundation.Automation">
       <HintPath>$(ReStationLibDir)Foundation.Automation.dll</HintPath>
     </Reference>
+    <Reference Include="Foundation.UI">
+      <HintPath>$(ReStationLibDir)Foundation.UI.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

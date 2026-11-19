@@ -26,7 +26,11 @@ internal static class Program
     public const bool AllowAutoStart = ReStationInstallerTheme.AllowAutoStart;
 
     private static readonly string[] EmbeddedAssemblies =
+#if DEBUG || RESTATION_TEST_AUTOMATION
+        { "Foundation.Core", "Foundation.Installer", "Foundation.Retro", "reEngine.Core", "Foundation.Automation", "Foundation.UI" };
+#else
         { "Foundation.Core", "Foundation.Installer", "Foundation.Retro", "reEngine.Core" };
+#endif
     private static readonly ConcurrentDictionary<string, Assembly> ResolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
 
     static Program()
@@ -57,7 +61,7 @@ internal static class Program
     private static int Main(string[] args) => RunInstallerCore(args ?? Array.Empty<string>());
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static int RunInstallerCore(string[] args)
+    internal static int RunInstallerCore(string[] args)
     {
         InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
         InstallerAppDescriptor descriptor = ReStationInstallerTheme.CreateDescriptor(theme);
@@ -65,12 +69,14 @@ internal static class Program
 
         string profileId;
         string[] hostArgs;
-        string? suiteDir, reEngineDir, dataDir;
+        string? suiteDir, reEngineDir, dataDir, automationToken;
         bool migrateLegacy, confirmLegacyCleanup, silent, dryRun, verifyOnly, uninstall;
         string? installDir;
+        int? automationPort;
         try
         {
-            hostArgs = ExtractHostArgs(cleanArgs, out profileId, out suiteDir, out reEngineDir,
+            string[] withoutAutomation = ExtractAutomationArgs(cleanArgs, out automationPort, out automationToken);
+            hostArgs = ExtractHostArgs(withoutAutomation, out profileId, out suiteDir, out reEngineDir,
                 out migrateLegacy, out confirmLegacyCleanup, out silent,
                 out dryRun, out verifyOnly, out uninstall, out installDir, out dataDir);
         }
@@ -79,6 +85,14 @@ internal static class Program
             Console.Error.WriteLine($"Setup argument error: {ex.Message}");
             return 2;
         }
+
+#if !DEBUG && !RESTATION_TEST_AUTOMATION
+        if (automationPort.HasValue)
+        {
+            Console.Error.WriteLine("Automation loopback (--automation-port) is disabled in Release installer builds (ExitCode=2).");
+            return 2;
+        }
+#endif
 
         InstallerCliOptions cli;
         try
@@ -104,14 +118,21 @@ internal static class Program
             return SandboxEnvironmentSeam.ContainmentExitCode;
         }
 
+        bool forceAutomatedWizard =
+#if DEBUG || RESTATION_TEST_AUTOMATION
+            automationPort.HasValue;
+#else
+            false;
+#endif
         bool isInteractiveGui = !cli.ShowVersion && !cli.ShowHelp && !cli.Silent &&
                                 !isolatedTest && !cli.DryRun && !cli.VerifyOnly &&
-                                string.IsNullOrWhiteSpace(cli.InstallDir) && OperatingSystem.IsWindows();
+                                (string.IsNullOrWhiteSpace(cli.InstallDir) || forceAutomatedWizard) &&
+                                OperatingSystem.IsWindows();
 
         if (isInteractiveGui)
         {
             return RunInteractiveWizard(descriptor, theme, cli, suiteDir, reEngineDir,
-                migrateLegacy, confirmLegacyCleanup);
+                migrateLegacy, confirmLegacyCleanup, automationPort, automationToken);
         }
 
         int prepared = ReStationInstallerBootstrap.Prepare(hostArgs, typeof(Program).Assembly, descriptor.UninstallerExeName, out string[] effectiveArgs);
@@ -147,7 +168,9 @@ internal static class Program
         string? suiteDir,
         string? reEngineDir,
         bool migrateLegacy,
-        bool confirmLegacyCleanup)
+        bool confirmLegacyCleanup,
+        int? automationPort,
+        string? automationToken)
     {
         var ctx = new InstallerRuntimeContext(
             cliDataDir: cli.DataDir, cliConfigPath: cli.ConfigPath, cliLogDir: cli.LogDir,
@@ -188,6 +211,15 @@ internal static class Program
         {
             wizard.MigrateLegacyCheckBox.Checked = migrateLegacy || (ctx.ConfigOverride?.MigrateLegacy ?? false);
         }
+
+#if DEBUG || RESTATION_TEST_AUTOMATION
+        using InstallerAutomationHook? automationHook = automationPort is { } autoPort
+            ? InstallerAutomationHook.Attach(wizard, autoPort, automationToken, ctx)
+            : null;
+#else
+        _ = automationPort;
+        _ = automationToken;
+#endif
 
         Application.Run(wizard);
         if (wizard.ExitCode == 0 && !cli.Uninstall)
@@ -267,6 +299,41 @@ internal static class Program
                               !a.Trim().StartsWith("--autostart", StringComparison.OrdinalIgnoreCase) &&
                               !a.Trim().StartsWith("--auto-start", StringComparison.OrdinalIgnoreCase))
                   .ToArray();
+
+    internal static string[] ExtractAutomationArgs(string[] clean, out int? automationPort, out string? automationToken)
+    {
+        automationPort = null;
+        automationToken = null;
+        var forwarded = new List<string>(clean.Length);
+        for (int i = 0; i < clean.Length; i++)
+        {
+            string trimmed = clean[i].Trim();
+            if (trimmed.Equals("--automation-port", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("--automation-port=", StringComparison.OrdinalIgnoreCase))
+            {
+                string raw = trimmed.Contains('=')
+                    ? trimmed[("--automation-port=".Length)..]
+                    : (i + 1 < clean.Length ? clean[++i] : throw new ArgumentException("--automation-port requires a port value."));
+                if (!int.TryParse(raw.Trim(), out int parsedPort) || parsedPort is < 0 or > 65535)
+                    throw new ArgumentException($"--automation-port expects an integer in 0..65535, got '{raw}'.");
+                automationPort = parsedPort;
+                continue;
+            }
+            if (trimmed.Equals("--automation-token", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("--automation-token=", StringComparison.OrdinalIgnoreCase))
+            {
+                string rawTok = trimmed.Contains('=')
+                    ? trimmed[("--automation-token=".Length)..]
+                    : (i + 1 < clean.Length ? clean[++i] : throw new ArgumentException("--automation-token requires a non-empty value."));
+                if (string.IsNullOrWhiteSpace(rawTok))
+                    throw new ArgumentException("--automation-token requires a non-empty value.");
+                automationToken = rawTok.Trim();
+                continue;
+            }
+            forwarded.Add(clean[i]);
+        }
+        return forwarded.ToArray();
+    }
 
     internal static string[] ExtractHostArgs(
         string[] clean, out string profileId, out string? suiteDir, out string? reEngineDir,
