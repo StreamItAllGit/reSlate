@@ -1,12 +1,13 @@
 // @module: reStation.Decomp.PsxDecompPlatformProvider
-// @purpose: Clean-room MPL-2.0 PS1 IDecompPlatformProvider / IReStationDecompProvider orchestrating D0-D5 decompilation and AOT recipe synthesis.
-// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Text, System.Text.Json, Foundation.Core, Foundation.Retro, reEngine.Core.Decomp, reEngine.Core.Manifests, reStation.Contracts
+// @purpose: Clean-room MPL-2.0 PS1 IDecompPlatformProvider / IReStationDecompProvider orchestrating D0-D5 decompilation, D4_CleanSource gate, and AOT recipe synthesis.
+// @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, System.Text, System.Text.Json, System.Text.Json.Serialization, Foundation.Core, Foundation.Retro, reEngine.Core.Decomp, reEngine.Core.Manifests, reStation.Contracts
 // @exports: PsxDecompPlatformProvider
 // SPDX-License-Identifier: MPL-2.0
 
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Foundation.Core;
 using Foundation.Retro;
 using reEngine.Core.Decomp;
@@ -17,11 +18,15 @@ namespace reStation.Decomp;
 
 /// <summary>
 /// Clean-room <c>MPL-2.0</c> PlayStation 1 (<c>ps1</c>) implementation of <see cref="IReStationDecompProvider"/>
-/// executing <c>D0</c>–<c>D5</c> intake, offline Ghidra SLEIGH scripting, C/asset normalization, LP32 parity, and MIPS byte-match checks.
+/// executing <c>D0</c>–<c>D5</c> intake, offline Ghidra SLEIGH scripting, C/asset normalization, LP32 parity, D4 craftsmanship gate, and MIPS byte-match checks.
 /// </summary>
 public sealed class PsxDecompPlatformProvider : IReStationDecompProvider
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true,
+        WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+    };
 
     /// <summary>Initializes a new instance of <see cref="PsxDecompPlatformProvider"/>.</summary>
     public PsxDecompPlatformProvider() { }
@@ -30,7 +35,7 @@ public sealed class PsxDecompPlatformProvider : IReStationDecompProvider
     public string PlatformId => ReStationEngineInfo.PlatformId;
 
     /// <inheritdoc/>
-    public string DisplayName => "reStation PS1 Clean-Room Decomp Provider";
+    public string DisplayName => "reSlate PS1 Clean-Room Decomp Provider";
 
     /// <inheritdoc/>
     public string EngineId => ReStationEngineInfo.EngineId;
@@ -65,17 +70,16 @@ public sealed class PsxDecompPlatformProvider : IReStationDecompProvider
 
         OfflineToolchainStatus toolchain = ResolveToolchain(options, manifest);
         if (options.DryRun)
-        {
-            return new DecompStageResult(
-                options.TargetStage, true,
+            return new DecompStageResult(options.TargetStage, true,
                 $"[DRY-RUN] PS1 clean-room pipeline ready ({SleighLanguageId}, offlineToolchain={toolchain.IsAvailable}).",
                 options.OutputDirectory, Array.Empty<string>(), sw.Elapsed);
-        }
 
         string outDir = Path.GetFullPath(options.OutputDirectory);
         Directory.CreateDirectory(outDir);
         string? mediaSource = ResolveMediaSource(options);
         string? exportsArg = GetArg(options, "exportsDir");
+        bool hadPreExistingCSources = Directory.EnumerateFiles(outDir, "*.c", SearchOption.AllDirectories)
+            .Any(p => !Path.GetFileName(p).Equals("normalized-export.c", StringComparison.OrdinalIgnoreCase) || new FileInfo(p).Length > 128);
 
         PsxLoadedProgramLayout? layout = null;
         if (mediaSource is not null)
@@ -107,6 +111,11 @@ public sealed class PsxDecompPlatformProvider : IReStationDecompProvider
             PsxLp32ParityReport d4 = PsxParityAndByteMatchVerifier.VerifyLp32Parity(outputDir: outDir);
             if (!d4.Passed)
                 return Fail(options.TargetStage, outDir, sw, d4.Summary, "PSX_D4_PARITY_FAILED");
+
+            PsxD4CraftsmanshipValidationResult? craft = PsxD4CraftsmanshipValidator.EvaluateStageD4GateIfApplicable(
+                options, manifest, outDir, exportsArg, hadPreExistingCSources);
+            if (craft is not null && !craft.IsValid)
+                return Fail(options.TargetStage, outDir, sw, craft.Summary, "PSX_D4_CRAFTSMANSHIP_FAILED");
         }
 
         if (options.TargetStage >= DecompStage.D5)

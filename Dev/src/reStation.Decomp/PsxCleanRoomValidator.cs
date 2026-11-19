@@ -1,12 +1,13 @@
 // @module: reStation.Decomp.PsxCleanRoomValidator
-// @purpose: Enforces zero retail media, save states, GPLv3 ghidra_psx_ldr, Sony SDK headers, or *.g.cs/*.Generated.dll leakage.
-// @depends-on: System, System.Collections.Generic, System.IO, System.IO.Compression, System.Text, Foundation.Core, reEngine.Core.Manifests
+// @purpose: Enforces zero retail media, save states, GPLv3 ghidra_psx_ldr, Sony SDK headers, *.g.cs/*.Generated.dll leakage, and DecompD4StrictnessValidator rules.
+// @depends-on: System, System.Collections.Generic, System.IO, System.IO.Compression, System.Text, Foundation.Core, reEngine.Core.Decomp, reEngine.Core.Manifests
 // @exports: PsxCleanRoomValidator
 // SPDX-License-Identifier: MPL-2.0
 
 using System.IO.Compression;
 using System.Text;
 using Foundation.Core;
+using reEngine.Core.Decomp;
 using reEngine.Core.Manifests;
 
 namespace reStation.Decomp;
@@ -49,6 +50,11 @@ internal static class PsxCleanRoomValidator
             if (HasForbiddenPathOrExtension(rel) || HasForbiddenFileMagic(file) || HasForbiddenTextLeak(file))
                 violations.Add(rel);
         }
+
+        D4StrictnessValidationResult d4Strict = DecompD4StrictnessValidator.ValidateWorkspace(fullOut);
+        if (!d4Strict.IsValid)
+            violations.AddRange(d4Strict.Violations);
+
         return FormatResult(violations, fullOut);
     }
 
@@ -71,18 +77,25 @@ internal static class PsxCleanRoomValidator
         }
 
         var violations = new List<string>();
-        string virtualRoot = Path.Combine(Path.GetTempPath(), "restation_cleanroom_zip");
-        using ZipArchive zip = ZipFile.OpenRead(full);
-        foreach (ZipArchiveEntry entry in zip.Entries)
+        string virtualRoot = Path.Combine(Path.GetTempPath(), "reslate_cleanroom_zip");
+        using (ZipArchive zip = ZipFile.OpenRead(full))
         {
-            string rel = entry.FullName.Replace('\\', '/');
-            _ = AppEnvironment.AssertPathContained(Path.GetFullPath(Path.Combine(virtualRoot, rel.Replace('/', Path.DirectorySeparatorChar))), virtualRoot);
-            if (string.IsNullOrEmpty(entry.Name))
-                continue;
+            foreach (ZipArchiveEntry entry in zip.Entries)
+            {
+                string rel = entry.FullName.Replace('\\', '/');
+                _ = AppEnvironment.AssertPathContained(Path.GetFullPath(Path.Combine(virtualRoot, rel.Replace('/', Path.DirectorySeparatorChar))), virtualRoot);
+                if (string.IsNullOrEmpty(entry.Name))
+                    continue;
 
-            if (HasForbiddenPathOrExtension(rel) || HasForbiddenZipEntryContent(entry))
-                violations.Add(rel);
+                if (HasForbiddenPathOrExtension(rel) || HasForbiddenZipEntryContent(entry))
+                    violations.Add(rel);
+            }
         }
+
+        D4StrictnessValidationResult archiveCheck = DecompD4StrictnessValidator.ValidateDecompArchiveCleanRoom(full);
+        if (!archiveCheck.IsValid)
+            violations.AddRange(archiveCheck.Violations);
+
         return FormatResult(violations, full);
     }
 
@@ -145,6 +158,61 @@ internal static class PsxCleanRoomValidator
         Span<byte> h = stackalloc byte[2];
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         return fs.Read(h) == 2 && h[0] == 'P' && h[1] == 'K';
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex BareWarnRegex =
+        new(@"(?:^|[\s""',=\[])-w(?=$|[\s""',\];])", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    internal static IReadOnlyList<PsxD4TellViolation> ScanBuildConfigFlags(string configText, string fileLabel, bool requireStrictWarningFlags = false)
+    {
+        ArgumentNullException.ThrowIfNull(configText);
+        var list = new List<PsxD4TellViolation>();
+        if (configText.Contains("-Wno-everything", StringComparison.OrdinalIgnoreCase))
+            list.Add(new PsxD4TellViolation(PsxD4TellFamilies.BannedCompilerFlag, "D4-FLAG-01", fileLabel, 1, "-Wno-everything", "Banned -Wno-everything warning suppression detected."));
+        if (configText.Contains("-Wno-all", StringComparison.OrdinalIgnoreCase))
+            list.Add(new PsxD4TellViolation(PsxD4TellFamilies.BannedCompilerFlag, "D4-FLAG-02", fileLabel, 1, "-Wno-all", "Banned -Wno-all warning suppression detected."));
+        if (BareWarnRegex.IsMatch(configText))
+            list.Add(new PsxD4TellViolation(PsxD4TellFamilies.BannedCompilerFlag, "D4-FLAG-03", fileLabel, 1, "-w", "Banned bare -w warning suppression flag detected."));
+        if (requireStrictWarningFlags && (!configText.Contains("-Wall", StringComparison.Ordinal) || !configText.Contains("-Wextra", StringComparison.Ordinal)))
+            list.Add(new PsxD4TellViolation(PsxD4TellFamilies.BannedCompilerFlag, "D4-FLAG-04", fileLabel, 1, "-Wall -Wextra", "Build flags must enable -Wall -Wextra -Wno-unused-parameter."));
+        return list;
+    }
+
+    internal static List<string> CollectBuildConfigFiles(string root) =>
+        Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Where(p =>
+        {
+            string name = Path.GetFileName(p);
+            return name.Equals(".clangd", StringComparison.OrdinalIgnoreCase) || name.Equals("compile_commands.json", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("CMakeLists.txt", StringComparison.OrdinalIgnoreCase) || name.Equals("Makefile", StringComparison.OrdinalIgnoreCase) ||
+                   name.Equals("GNUmakefile", StringComparison.OrdinalIgnoreCase) || name.Equals("meson.build", StringComparison.OrdinalIgnoreCase) ||
+                   name.EndsWith(".cmake", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".mk", StringComparison.OrdinalIgnoreCase);
+        }).OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToList();
+
+    internal static string? FindCompilerExecutable(string? explicitPath)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath) && File.Exists(explicitPath)) return Path.GetFullPath(explicitPath);
+        string? zigEnv = Environment.GetEnvironmentVariable("ZIG_EXE");
+        if (!string.IsNullOrWhiteSpace(zigEnv) && File.Exists(zigEnv)) return Path.GetFullPath(zigEnv);
+        string? pathDirs = Environment.GetEnvironmentVariable("PATH");
+        foreach (string exe in new[] { "zig.exe", "clang.exe", "zig", "clang" })
+            if (pathDirs is not null)
+                foreach (string dir in pathDirs.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+                    if (File.Exists(Path.Combine(dir.Trim(), exe))) return Path.Combine(dir.Trim(), exe);
+        string winGetZig = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Links", "zig.exe");
+        return File.Exists(winGetZig) ? winGetZig : null;
+    }
+
+    internal static async Task<(int ExitCode, string StdErr)> RunCompilerProcessAsync(string exe, string[] args, string workDir, CancellationToken ct)
+    {
+        string zigCache = Path.Combine(Path.GetTempPath(), "reslate-zig-cache");
+        Directory.CreateDirectory(zigCache);
+        var psi = new System.Diagnostics.ProcessStartInfo(exe) { WorkingDirectory = workDir, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+        psi.Environment["ZIG_LOCAL_CACHE_DIR"] = zigCache; psi.Environment["ZIG_GLOBAL_CACHE_DIR"] = zigCache;
+        foreach (string a in args) psi.ArgumentList.Add(a);
+        using System.Diagnostics.Process proc = System.Diagnostics.Process.Start(psi) ?? throw new InvalidOperationException($"Failed to launch '{exe}'.");
+        Task<string> errTask = proc.StandardError.ReadToEndAsync(ct);
+        await proc.WaitForExitAsync(ct).ConfigureAwait(false);
+        return (proc.ExitCode, await errTask.ConfigureAwait(false));
     }
 
     private static DecompCleanRoomValidationResult FormatResult(List<string> violations, string target) =>
