@@ -80,7 +80,7 @@ public static class GamepadBindingCode
     /// <summary>Rear paddle 1 (Right Paddle 1).</summary>
     public const int Paddle1 = 2019;
 
-    /// <summary>DualShock / DualSense center touchpad click.</summary>
+    /// <summary>Standard gamepad center touchpad click.</summary>
     public const int Touchpad = 2020;
 
     /// <summary>Rear paddle 2 (Left Paddle 1).</summary>

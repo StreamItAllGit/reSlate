@@ -1,7 +1,7 @@
 # reSlate — Operations & Verification Runbook
 
-- **Version:** `v0.3.0` *(`reSlate` Public-Ready Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`)* | **Next Target:** `v0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu` & Enhancement SDK)*
-- **Maintained By:** `@tessa` (Clarity & Ops) & `@devv` (Packaging & CLI)
+- **Synced Version:** `0.3.0` (`2026-11-18` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu` & Enhancement SDK)*
+- **Scope:** Install Topology, CLI Flags, Settings, Log Audit & Release Verification
 - **Canonical Production Boundary:** Zero automated edits or unconfirmed writes to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\` or any live installation during tests, builds, or audits.
 
 ---
@@ -58,7 +58,7 @@ Starting in **`v0.3.0`**, `reSlate` installs per-user under `engines\reSlate\v0.
 ## 3. Config & Settings File Reference
 
 Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.3.0` template (`appId: "reslate"`, `umbrellaSubpath: "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0"`) persisted to `<dataDir>\config\settings.json` (`SettingsMigrationHelper.MigrateForConfigPathIfNeeded` automatically migrates legacy `<dataDir>\settings.json` non-destructively while keeping `.bak`):
-- **Suite & Decomp Metadata (`Standard 18`):** `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`.
+- **Suite & Decomp Metadata:** `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`.
 - **Audio/Video & Framing:** `backendId` (`"opengl"` / `"software"`), `resolutionScale`, `isWidescreen16By9` (`false` default for `4:3` framing; unstretched Hor+ `16:9` when enabled), `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `shouldFastLoadData`, `masterVolume`, `useGlobalFormatRules`.
 - **Input (`Schema A` & Per-Game Options):** `inputProfileMode`, `controlMode`, `modernActionBindings` (`Dictionary<string, int[<=3]>` via `ModernBindingsJsonConverter` with legacy scalar read support), `modernControllerBindings` (`int[<=3]` codes `2001..2032`), `metadataJson` (`Dictionary<string, string>` per-game `ControlOptions`), legacy `controllerDpadMode`/`isometricMoveMode` compatibility fields, and `jsonExtensionData` passthrough.
 
@@ -74,20 +74,20 @@ Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provid
 ## 5. Logs & Crash Bundles (Two-Tier Sweep)
 
 1. **Production (`Read-Only` during Audits):** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0\logs\` (`runtime.log`, `crashes\`; `v0.2.8` and earlier wrote under `engines\reStation\v<Ver>\logs\`).
-2. **Development (`RS-06`):** `Dev\logs\` (resolved automatically via [`ReStationLogger.TryResolveDevLogsDirectory`](../src/reStation.Core/Core/ReStationLogger.cs#L117-L134) inside source checkouts; excluded by root `.gitignore`).
+2. **Development Logs:** `Dev\logs\` (resolved automatically via [`ReStationLogger.TryResolveDevLogsDirectory`](../src/reStation.Core/Core/ReStationLogger.cs#L117-L134) inside source checkouts; excluded by root `.gitignore`).
 
 Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`, `fps`, `backend`, `subTicks`, `vramOps`, `spuVoices`, `status`). Crash bundles write `crashes\crash_*.json` plus preceding log tail context.
 
 ---
 
-## 6. Backup, Restore & Legacy Migration (`RS-05`)
+## 6. Backup, Restore & Legacy Migration
 
 - **Source Archive (`Archive\`):** Before history rewrites or release tagging, create a compressed backup via `7z.exe a -mx=9 Archive\pre-scrub-v0.3.0.7z ...` (excluding gitignored caches/logs/`bin`/`obj`).
 - **Opt-In Legacy Migration:** [`ReStationLegacyMigrationHelper`](../src/reStation.Installer/ReStationLegacyMigrationHelper.cs) detects stranded `v0.1.x` / `v0.2.x` installs (`app\data\` + `logs\crashes\crash_*.json`), copies `settings.json` to `data\config\settings.json` and preserves `data\rom\` into the `v0.3.0` `data\` directory **only** when `--migrate-legacy` is passed, and deletes non-ROM stranded artifacts **only** after explicit interactive confirmation or `--confirm-legacy-cleanup`. At runtime, [`MemCardMcrStore`](../src/reStation.Core/Bios/MemCardMcrStore.cs) non-destructively copies legacy `<dataDir>\saves\memcard_*.mcr` files to `<dataDir>\memcards\`.
 
 ---
 
-## 7. Build, Sanitization & 4-Channel Beta Release Procedure (`Standard 02 §4`, `11`, `28`, `32`, `36`)
+## 7. Build, Sanitization & 4-Channel Beta Release Procedure
 
 1. **Dual-Config Zero-Warning Compile & Test Suite (`250 / 400 / 600` Code-Only SLOC Gate):**
    ```powershell
@@ -95,8 +95,8 @@ Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`,
    dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore
    dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true --no-restore
    ```
-   Verify all non-exempt production files follow `Standard 32` (`<= 250` code-only SLOC preferred, `400` soft review, `600` hard cap excluding comments/whitespace; tests exempt; `@loc-allow` justified) and **`266/266` passing (`0` warnings, `0` failures, `0` skipped)** in both configurations.
-2. **Visible Interactive 4-Step Debug/Test `Foundation.Automation` 4-Drive Sandbox E2E (`Standard 02 §4` — Required Before `v0.3.0` Launch):**
+   Verify all non-exempt production files follow the code-only SLOC ceiling (`<= 250` preferred, `400` soft cap, `600` hard cap excluding comments/whitespace; tests exempt) and **`266/266` passing (`0` warnings, `0` failures, `0` skipped)** in both configurations.
+2. **Visible Interactive 4-Step Debug/Test `Foundation.Automation` 4-Drive Sandbox E2E:**
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.0 -EvidenceDir <temp_dir>
    ```
@@ -106,13 +106,13 @@ Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`,
    powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.3.0
    ```
    Emits `Builds\v0.3.0\` (`.ready` marker, `app\LICENSE`, `engine.manifest.json`, `reEngine.Host.dll`, zero `data\rom\`, **zero `AGENTS.md`** inside `Builds\`/`app\`/`payload.zip`, **zero forbidden `Installers\` root folder**), compiles `Releases\v0.3.0\README.md` from `USER_GUIDE.md` (+ any `USER_GUIDE.*.md`) via [`sanitize_release_docs.ps1`](../scripts/sanitize_release_docs.ps1) (rewriting repo-relative `[label](Dev/...)` before leak filtering + verifying zero unexempt trademarks), packages **`reSlate-v0.3.0-win-x64-Portable.zip`** alongside signed **`reSlate-Setup-v0.3.0-win-x64.exe`** into NTFS-hardlinked **7-file `Releases\v0.3.0\` + `Latest\`** mirrored at `<ProjectsRoot>\Releases\Personal\reStation\` (+ sibling `<ProjectsRoot>\Releases\Personal\reSlate\` junction), runs `audit_installer.ps1 -InstallerPath Releases\v0.3.0` (`0` findings) + `Assert-BinaryPurity` (`0` `Foundation.Automation` / `System.Windows.Forms` references in Release Player) + `Assert-InstallerPurity` (`0` `Foundation.Automation` bytes + `ExitCode = 2` on Release Setup), publishes immutable `<ProjectsRoot>\SharedLibs\reSlate\v0.3.0\` (keeping `SharedLibs\reStation\v0.1.0..v0.2.8` intact), and snapshots `Archive\reSlate-v0.3.0-src.7z`.
-4. **Public History Hygiene & 4-Channel Beta Distribution (`isPublicRepo: false`, `requireHumanReviewBeforePush: true`):**
-   - Before flipping `isPublicRepo` from `false` to `true` at Phase 5, archive `Archive\pre-scrub-v0.3.0.7z`, scrub `git log --all` + `%an <%ae>` + `git grep` via `git-filter-repo` (verifying `0` `ghidra_psx_ldr`, vendor SDK headers, `*.Generated.dll`, retail ROMs, workstation paths, unexempt trademarks, usernames, or live Notion UUIDs), and obtain explicit human confirmation (`ask_question`) BEFORE renaming `StreamItAllGit/reStation` -> `StreamItAllGit/reSlate`, `git push`, or `gh release create`.
-   - Ship across **4 Release Channels**: (1) **GitHub Releases** (`gh release create --prerelease` attaching `Setup.exe`, `-Portable.zip`, `Latest.7z`, `SHA256SUMS.txt` until `v1.0.0` Gold), (2) **Google Drive Release Mirror** (7-file `Releases\v0.3.0\` + `v0.3.0.7z` via `gdrive` CLI), (3) **Discord `/post` Devlog** (`active.state -> discordPost` webhook routing), and (4) **Notion Public Web Page Check** (verify if `reSlate` Notion page is published to `*.notion.site`; publish + link it in `README.md`, `USER_GUIDE.md`/`Releases\README.md`, and `RELEASE_NOTES.md` once `isPublicRepo: true`).
+4. **Public History Hygiene & 4-Channel Beta Distribution (`StreamItAllGit/reSlate`):**
+   - Keep `.gitignore` strict on `Archive/`, `Builds/`, `Releases/`, `Dev/docs/*/`, `Dev/data/`, `Dev/logs/`, and runtime databases, keep `git log --all` + `%an <%ae>` free of secrets, workstation paths, and unexempt trademarks (`git-filter-repo` pre-public scrub), and sanitize release docs before pushing or publishing.
+   - Ship across **4 Release Channels**: (1) **GitHub Releases** (`gh release create --prerelease` attaching `Setup.exe`, `-Portable.zip`, `.7z`, `SHA256SUMS.txt` on [StreamItAllGit/reSlate](https://github.com/StreamItAllGit/reSlate/releases)), (2) **Google Drive Release Mirror** (`https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG`, uploading the 7-file `Latest\` bundle + `.7z` archives via `gdrive`), (3) **Discord Dev Updates** (`active.state -> discordPost` webhook delivery), and (4) **Notion Public Hub** (`*.notion.site` public project page check once connected).
 
 ---
 
-## 8. Isolated Verification & Log Audit Recipe (`@inspecter`)
+## 8. Isolated Verification & Log Audit Recipe
 
 1. Run isolated xUnit + installer CLI tests under `APP_ISOLATED_TEST=1` in both `-c Release` and `-c Debug` (verifying `--dry-run`, `--tray-only`, `--verify`, `--doctor`, `--require-backend`, and `--uninstall` containment via `InstallerRuntimeContext` and `AppEnvironment.AssertPathContained` without touching `%LOCALAPPDATA%` or canonical host program paths).
 2. Verify offline AOT cold-to-warm cache generation in isolated temp dirs (including recipe-ordered `<container>#<slice>` overlays and `generatedCacheAssemblyName` PE assembly verification) and clean-room `.decomp` provider `D4_CleanSource` checks (`PsxD4CraftsmanshipValidator`: 6 decompiler-tell families, `_01.._NN.c` rejection, `-Wno-everything` ban, real `-Wall -Wextra -Wno-unused-parameter` `0`-warning compile checks, `camelCase` `d4b_lockstep_report.json`).

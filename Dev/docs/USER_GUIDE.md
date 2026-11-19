@@ -1,6 +1,6 @@
 # reSlate — User Guide
 
-> **Release Status:** **Beta (Pre-1.0 — `v0.3.0` `reSlate` Public-Ready Beta)**. All `0.x` releases are Beta pre-releases (`--prerelease`) until `v1.0.0` Desktop General Availability.
+> **Release Status:** **Beta (Pre-1.0 — `v0.3.0` `reSlate` Public Beta)**. All `0.x` releases are Beta pre-releases (`--prerelease`) until `v1.0.0` Desktop General Availability.
 
 > **Note:** Clean-room SlateOne (`MIPS32 R3000A`) runtime, local Ahead-of-Time (AOT) compiler, and static recompilation engine. Users provide their own legally owned disc media or executables. Zero copyrighted vendor BIOS files, retail ROMs, disc images, save states, or pre-generated game binaries are bundled or distributed.
 
@@ -27,14 +27,14 @@
 - **Full (Developers & `.decomp` Creators):** Includes `Lightweight` capabilities plus integration for an offline Ghidra + OpenJDK toolchain placed alongside `reEngine` (`toolchain\`).
 
 ### Installer & Portable Options
-- **Signed Setup EXE (`reSlate-Setup-v0.3.0-win-x64.exe`):** Interactive wizard or silent CLI installer (`--install-dir <path>`, `--reengine-dir <path>`, `--profile Lightweight|Full`, `--migrate-legacy`, `--confirm-legacy-cleanup`, `--uninstall`); picking a generic parent folder in Setup Wizard auto-sorts into `<parent>\reEngine\engines\reSlate\v0.3.0\`.
+- **Signed Setup EXE (`reSlate-Setup-v0.3.0-win-x64.exe`):** Interactive wizard or silent CLI installer (`--install-dir <path>`, `--reengine-dir <path>`, `--profile Lightweight|Full`, `--migrate-legacy`, `--confirm-legacy-cleanup`, `--uninstall`). Automatically detects existing `reSlate`/`reEngine`/`reStation` install folders, shared `LastInstallBaseDir`, and saved `installProfile` preferences on upgrade without double-nesting `\StreamItAll\`; picking a generic parent folder in Setup Wizard also auto-sorts cleanly into `<parent>\reEngine\engines\reSlate\v0.3.0\`.
 - **Portable Bundle (`reSlate-v0.3.0-win-x64-Portable.zip`):** Self-contained portable archive (staged binaries, `.ready`, licenses, and sanitized documentation — zero setup EXE inside) for side-by-side manual extraction.
 
 ---
 
 ## 3. First-Run Wizard & Local AOT Compilation
 
-1. **Choose `reEngine` Location & Profile:** Pick `Lightweight` or `Full` and confirm your target folder in the setup wizard.
+1. **Choose `reEngine` Location & Profile:** Confirm your prefilled existing `reEngine` / `reSlate` install folders and saved profile (or pick `Lightweight` / `Full` and a custom target folder) in the setup wizard.
 2. **Legacy Upgrade & Data Migration Safety:** Existing `0.1.x` / `0.2.x` modules (`reStation`) remain compatible via bidirectional `reSlate` / `reStation` alias resolution and preserved `reStation.{Contracts,Core}` ABI. When upgrading data folders, `<dataDir>\settings.json` migrates non-destructively to `<dataDir>\config\settings.json` (retaining `.bak`), legacy `<dataDir>\saves\memcard_*.mcr` files copy non-destructively into `<dataDir>\memcards\`, and `--migrate-legacy` upgrades always preserve `data\rom\` while prompting before removing old runtime files.
 3. **First Game Launch (`data\cache\`):** Place your verified `SlateOne` disc image (`.bin`/`.cue`/`.chd`/`.iso`) or executable inside `<InstallDir>\data\rom\` (or select it in the first-run media picker). On cold launch of a clean-room `.recomp` package, `reSlate.Compiler.exe` compiles `<Game>.Generated.dll` locally on your PC into `<InstallDir>\data\cache\` and loads it straight from cache on every subsequent launch.
 
@@ -105,10 +105,10 @@ Press **`F1`** (or pass `--open-settings` / click **Settings (F1)** in the top-r
 ## 7. Releases, Community Channels & Glossary
 
 - **4-Channel Release Distribution (`v0.3.0+` Public Beta Pipeline):**
-  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.0-win-x64.exe`, standalone `reSlate-v0.3.0-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs (`https://github.com/StreamItAllGit/reSlate/releases` upon completion of pre-public review).
-  - **Google Drive Release Mirror:** Mirrored 7-file release bundle and archive for direct download.
-  - **Discord Dev Updates:** Automated release announcements and community build summaries.
-  - **Notion Project Hub:** Public project dossier and roadmap page linked after the repository publishes.
+  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.0-win-x64.exe`, standalone `reSlate-v0.3.0-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs ([GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases)).
+  - **Google Drive Release Mirror:** Mirrored 7-file release bundle and `.7z` archives for direct download ([Google Drive Mirror](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG)).
+  - **Discord Dev Updates:** Automated release announcements and community build notes.
+  - **Notion Project Hub:** Public project dossier and roadmap page *(linked once Notion public web publish is enabled)*.
 - **Clean-Room `.decomp` Package:** Shareable clean-room decompilation metadata, offline Ghidra recipe scripts, and C/asset normalization descriptors containing zero copyrighted retail game media.
 - **Local AOT Cache (`data\cache\`):** Player-PC generated native assembly synthesized strictly locally from your own verified `data\rom\` media and clean-room recipe.
 

@@ -4,7 +4,7 @@
 
 | Version | Supported | Security Boundary Notes |
 | :--- | :--- | :--- |
-| `0.3.x` | Yes (upcoming public beta) | Target mainline (`reSlate` binaries, `reEngine.Host.Contracts`, `Release` automation strip) |
+| `0.3.x` | Yes (active public beta) | Target mainline (`reSlate` binaries, `reEngine.Host.Contracts`, `Release` automation strip) |
 | `0.2.x` | Security fixes only | Prior `reStation` beta track (`v0.2.8` active baseline) |
 | `< 0.2.0` | No | Upgrade to `v0.2.8+` or `v0.3.0+` |
 

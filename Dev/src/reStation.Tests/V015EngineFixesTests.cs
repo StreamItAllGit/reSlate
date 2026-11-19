@@ -52,7 +52,7 @@ public sealed class V015EngineFixesTests : IDisposable
         Assert.NotEqual(0U, cpu.TimersAndDma.InterruptStatus & (1U << PsxIrq.Controller));
         cpu.TimersAndDma.InterruptStatus = 0;
 
-        // DualShock config command 0x43 on a digital controller must NACK with 0xFF and no pending IRQ7 timer.
+        // Analog gamepad config command 0x43 on a digital controller must NACK with 0xFF and no pending IRQ7 timer.
         cpu.Joypad.Write16(0x1F801040U, 0x0043);
         Assert.Equal((ushort)0xFF, cpu.Joypad.Read16(0x1F801040U));
         Assert.Equal(long.MaxValue, cpu.Joypad.NextWakeCycle);

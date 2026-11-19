@@ -1,5 +1,5 @@
 // @module: reStation.Core.Hardware.PsxJoypadPort
-// @purpose: SIO0 joypad/memory-card serial port (0x1F801040-0x1F80104F) speaking digital/DualShock pad and 0x81 Memory Card protocols.
+// @purpose: SIO0 joypad/memory-card serial port (0x1F801040-0x1F80104F) speaking digital/analog gamepad and 0x81 Memory Card protocols.
 // @depends-on: reStation.Core.Cpu.PsxCpu, reStation.Core.Hardware.PsxTimersAndDma, reStation.Core.Hardware.SioMemCardProtocol
 // @exports: PsxJoypadPort
 // @owner: devv-cpu-cd (T2)
@@ -40,7 +40,7 @@ public sealed class PsxJoypadPort
 
     internal SioMemCardProtocol MemCardProtocol => _memCard;
 
-    /// <summary>When true, port 1 answers as a DualShock in analog mode (ID 0x73) instead of a digital pad (0x41).</summary>
+    /// <summary>When true, port 1 answers as an analog gamepad (ID 0x73) instead of a digital pad (0x41).</summary>
     public bool AnalogMode { get; set; }
     public long BytesTransferred { get; private set; }
 

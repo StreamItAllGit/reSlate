@@ -166,10 +166,15 @@ function Build-EndUserDocMap([string]$RootDir, [string]$DevDir, [string]$Version
 Clean-room MPL-2.0 SlateOne static recompilation engine (`reSlate.Decomp` + local AOT cache), MIPS32 R3000A + GTE lifter, OpenGL 3.3 / Software render backends, and modular BYO-media runtime (`AllowAutoStart = false`).
 
 ## Highlights
-- Installs per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v__VER__\` with `.ready` discovery marker, `reSlate.exe`, `--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`.
+- Installs per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v__VER__\` (auto-detecting existing `reSlate`/`reEngine`/`reStation` paths and saved install profiles on upgrade) with `.ready` discovery marker, `reSlate.exe`, `--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`.
 - Clean-room SlateOne `.decomp` provider (`reSlate.Decomp.dll`) with `D4_CleanSource` 6-tell / `-Wall -Wextra -Wno-unused-parameter` validation and player-PC `<dataDir>\cache\` AOT compiler + live Tier 3 JIT/IR.
 - Unified `SIO0 0x81` + BIOS `B0:0x4E/0x4F/0x50` `_new_card` Slot 1+2 `.mcr` persistence, `60 Hz` SPU lock (`44.1 kHz`) with `VSync(n)`/`TargetFps` cadence, and single-edge menu input.
 - `reEngine.Host.Contracts` alignment (`reEngine.Host.dll`), canonical `data\config\settings.json`, 7-file `Portable.zip` release bundle, and zero-automation `Release` binaries (`ExitCode = 2`).
+
+## Download Mirrors & Formats
+- **Setup Installer:** `reSlate-Setup-v__VER__-win-x64.exe` *(Signed Setup Wizard & silent CLI installer)*
+- **Portable Bundle:** `reSlate-v__VER__-win-x64-Portable.zip` *(Standalone no-installer release)*
+- **Google Drive Releases Mirror:** <https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG>
 '@).Replace('__VER__', $Version)
     return [ordered]@{
         "README.md"        = Sanitize-MarkdownForEndUser ($guideSections -join "`r`n`r`n")

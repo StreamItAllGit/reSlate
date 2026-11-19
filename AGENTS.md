@@ -12,5 +12,5 @@
 
 ## 3. Governance & Notion
 - **Notion (`🛠️ Projects`):** `<NOTION_PAGE_ID>` (local UUIDs in gitignored `Dev\data\notion_hub.local.json`; `Project = "reSlate"` in `<NOTION_TASK_LIST_COLLECTION>`)
-- **Public Gate:** Beta (`--prerelease`); `requireHumanReviewBeforePush: true` (pre-public `git-filter-repo` + `ask_question` review before `v0.3.0` public flip).
-- **4-Channel Release:** GitHub `--prerelease` (7-file w/ `Portable.zip`), Google Drive mirror, Discord `/post` (`active.state`), Notion public site (`*.notion.site` once public).
+- **Public Gate:** Public Beta (`--prerelease`); `isPublicRepo: true`, `requireHumanReviewBeforePush: false` (`StreamItAllGit/reSlate`).
+- **4-Channel Release:** GitHub `--prerelease` (7-file w/ `Portable.zip`), Google Drive mirror (`13tsUPvPsycAB1HFL_eUukCBATe3vEWhG`), Discord `/post` (`active.state`), Notion public site (`*.notion.site` pending OAuth reconnect).

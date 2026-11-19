@@ -57,7 +57,7 @@
 
 ### 2.2 `reSlate.Decomp` (`MPL-2.0` Clean-Room Provider)
 - `PsxDecompPlatformProvider : IReStationDecompProvider`: `RunDecompAsync(DecompRunOptions, CancellationToken)` (`D0`–`D5`), `BuildAotRecipeAsync(DecompRunOptions, CancellationToken)`, `ValidateCleanRoomOutput(string)`, `ValidateCleanRoomPackage(string)`.
-- `PsxD4CraftsmanshipValidator`: Validates `D4_CleanSource` (with transition read-alias `D4_FunctionalRewrite`) via `reEngine.Core.Decomp.DecompD4StrictnessValidator`, scans all 6 decompiler-tell families, rejects `_01.._NN.c` fragments and `-Wno-everything`/`-Wno-all`/`-w` compiler suppressions, verifies `-Wall -Wextra -Wno-unused-parameter` (`0` warnings), and validates Standard 18 `camelCase` `d4b_lockstep_report.json`.
+- `PsxD4CraftsmanshipValidator`: Validates `D4_CleanSource` (with transition read-alias `D4_FunctionalRewrite`) via `reEngine.Core.Decomp.DecompD4StrictnessValidator`, scans all 6 decompiler-tell families, rejects `_01.._NN.c` fragments and `-Wno-everything`/`-Wno-all`/`-w` compiler suppressions, verifies `-Wall -Wextra -Wno-unused-parameter` (`0` warnings), and validates `camelCase` `d4b_lockstep_report.json`.
 - `PsxCleanExeAndOverlayLoader`, `PsxGteSlaExtension`, `PsxParityAndByteMatchVerifier`, `PsxAssetExtractors`, `PsxExportAndAssetPipeline`: Clean-room PS-X EXE discovery, SLEIGH `R3000A_GTE` provisioning, LP32/byte-match checks, TIM/VAB/SEQ extraction, and cohesive subsystem export hints.
 
 ---

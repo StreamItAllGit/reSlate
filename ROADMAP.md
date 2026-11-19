@@ -1,6 +1,6 @@
 # reSlate — Roadmap & Milestones
 
-**Current Active Version:** `0.3.0` *(Public-Ready Pre-1.0 Beta — Code, Dual `258/258` Tests & Gate Verification Complete; Packaging & Human-Gated Launch Pending)*  
+**Current Active Version:** `0.3.0` *(Public Pre-1.0 Beta — `266/266` Dual Release & Debug Tests Passing, Stage 2 Sandbox Verified & Live on [GitHub](https://github.com/StreamItAllGit/reSlate) / [Google Drive](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG))*  
 **Next Target Milestone:** `0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu` & Enhancement SDK)*  
 **Lifecycle State:** [`active.state`](active.state)  
 **Last Updated:** `2026-11-18`
@@ -17,13 +17,9 @@ Deliver the canonical, clean-room **SlateOne (`MIPS32 R3000A + GTE`) Static Reco
 
 ---
 
-## 2. Active Milestone (`0.3.0` — `reSlate` Public-Ready Beta Finish Line)
-- [x] **Identity Cutover & `reEngine.Host` Contracts:** Switched binary outputs (`reSlate.exe`, `reSlate.Player.exe`, `reSlate.Compiler.exe`, `reSlate.Decomp.dll`), `appId: "reslate"`, `engineId: "reSlate"`, `.ready` markers, and `data\config\settings.json` auto-migration while preserving `reStation.{Contracts,Core}` ABI and `reSlate` <-> `reStation` alias resolution; integrated `Foundation v0.5.0` and `reEngine v0.3.0` (`reEngine.Host.Contracts` + `HostInputMapper`).
-- [x] **Live Tier 3 Native RyuJIT/IR & `isPureStaticReady`:** Wired `Tier3ExecutionCoordinator` directly into `PsxCpu` + `PsxMemoryBus` coherence (`Rfe`/`Lwc2`/`Swc2`/`Mfc0` and `jalr rd==0` fixed), failed closed on `staticAotOnly`, quarantined `PsxInterpreter` to `--execution-tier interpreterOracle`, and added canonical `isPureStaticReady` (`false` during active `--jit-bringup`).
-- [x] **Unified Memory Cards, `60 Hz` SPU Lock & Single-Edge Menu Input:** Implemented `SIO0 0x81` (`0x52`/`0x57`/`0x53`, handheld dock `0x58..0x5F` NACK) + BIOS `B0:0x4E/0x4F/0x50` `_new_card` over Slot 1+2 `<dataDir>\memcards\` and `"MCD2"` `"RSTX"` quick-saves; locked `60 Hz` VBlank + `44.1 kHz` SPU with real `VSync(n)` delta counting and swap-only `TargetFps=30`; filtered keyboard auto-repeat and isolated sub-tick mouse look.
-- [x] **Clean-Source Decomp Gate, Debug/Test Automation Isolation & `258/258` Tests:** Implemented the 6-tell/`-Wall -Wextra -Wno-unused-parameter` clean-source verifier and coalesced lifter exports; gated `Foundation.Automation` (`DebugAutomationHook`) strictly away from `Release` (`0` PE refs, `ExitCode = 2`); implemented `Portable.zip` 7-file packaging and Stage 2 Sandbox E2E tooling; verified `258/258` passing tests (`0` warnings) in both `Release` and `Debug`.
-- [ ] **Phase 4 Packaging, Stage 2 Sandbox E2E & Pre-Public History Scrub:** Execute single-pass `build_release.ps1 -Version 0.3.0` (`7-file` NTFS-hardlinked `Releases\v0.3.0\`), run `run_stage2_sandbox_e2e.ps1` across all 4 sandbox drives, snapshot `Archive\pre-scrub-v0.3.0.7z`, and scrub repository history and trademarks via `git-filter-repo`.
-- [ ] **Phase 5 Human Review Gate & 4-Channel Beta Launch:** Present scrubbed history for explicit human approval (`requireHumanReviewBeforePush: true`) before renaming `StreamItAllGit/reStation` -> `StreamItAllGit/reSlate`, flipping `isPublicRepo: true`, pushing `main` + `v0.3.0`, and publishing across GitHub (`--prerelease`), Google Drive, Discord, and Notion.
+## 2. Active Milestone (`0.3.1` — Shared `reEngine.Host` GPU (`Vulkan`), `ParallelCpu` & Enhancement SDK)
+- [ ] **Hardware `Vulkan` (`ExitCode = 6`) & Deterministic `ParallelCpu` Render Backends over `reEngine.Host`:** `VulkanBindings.cs`, `VulkanDeviceContext.cs`, `VulkanRenderBackend.cs`, `VulkanRenderBackend.Pipelines.cs` (`R16UI` VRAM, Hor+ `16:9` wings, PGXP, `GP0(E6h)`/`GP0(C0h)`, `--require-backend` `ExitCode = 6`) and `ParallelCpuRenderBackend.cs` + `ParallelBandRasterizer.cs` (`16px` bands `100%` SHA-256 bit-exact to `"software"` @ `1x`).
+- [ ] **Enhancement SDK (`ISubTickFrameHook` + `<dataDir>\hdpacks\`):** `SubTickInterpolationSdk.cs` (`> 60 Hz` / `Max` enhancement interpolation with hardware VBlank + SPU locked at `60 Hz`), registered configuration keys (`isHdTexturePackEnabled`, `clutSha256Hex`, `rectSha256Hex`), `HdTexturePackStore.cs`, and declarative `Video` drawer options.
 
 ---
 
@@ -31,8 +27,8 @@ Deliver the canonical, clean-room **SlateOne (`MIPS32 R3000A + GTE`) Static Reco
 
 ```mermaid
 flowchart LR
-    V02["v0.1.0–v0.2.8 (Baseline)\n.decomp + Local AOT + Hor+ 16:9 + Keybinds"] --> V03["v0.3.0 (reSlate Public Beta)\nreEngine.Host + Live Tier 3 JIT/IR + Cards/Cadence + Clean-Source Gate"]
-    V03 --> V031["v0.3.1 (Shared Host Render & SDK)\nreEngine.Host Vulkan + ParallelCpu + Enhancement SDK"]
+    V02["v0.1.0–v0.2.8 (Shipped)\n.decomp + Local AOT + Hor+ 16:9 + Keybinds"] --> V03["v0.3.0 (Public Beta)\nreSlate + reEngine.Host + Live Tier 3 JIT/IR + Cards/Cadence"]
+    V03 --> V031["v0.3.1 (Next — Shared Host Render & SDK)\nreEngine.Host Vulkan + ParallelCpu + Enhancement SDK"]
     V031 --> V04["v0.4.0\nPure-Static Overlay Promoter + Analog Rumble/CD-DA/.m3u"]
     V04 --> V10["v1.0.0 (GOLD win-x64)\nTri-Backend + 2-Title Certified Gold"]
     V10 --> V11["v1.1.0\nLinux / macOS MoltenVK / SteamOS"]
@@ -41,12 +37,6 @@ flowchart LR
     V13 --> V14["v1.4.0\nConsole Static Registries"]
     V14 --> V20["v2.0.0 (NORTH STAR)\n10-Platform Parity + Achievements"]
 ```
-
-### `v0.3.1` — Shared `reEngine.Host` GPU (`Vulkan`), `ParallelCpu` & Enhancement SDK
-- **Cornerstone Goal:** Consolidate console-agnostic GPU backends (`Vulkan`, `ParallelCpu`), controller/audio abstraction, and the `hdpacks\` + `ISubTickFrameHook` enhancement SDK inside shared `reEngine.Host`, then light them up in `reSlate`.
-- **Planned Deliverables:**
-  - [ ] **Hardware `Vulkan` (`ExitCode = 6`) & Deterministic `ParallelCpu` Render Backends over `reEngine.Host`:** `VulkanBindings.cs`, `VulkanDeviceContext.cs`, `VulkanRenderBackend.cs`, `VulkanRenderBackend.Pipelines.cs` (`R16UI` VRAM, Hor+ `16:9` wings, PGXP, `GP0(E6h)`/`GP0(C0h)`, `--require-backend` `ExitCode = 6`) and `ParallelCpuRenderBackend.cs` + `ParallelBandRasterizer.cs` (`16px` bands `100%` SHA-256 bit-exact to `"software"` @ `1x`).
-  - [ ] **Enhancement SDK (`ISubTickFrameHook` + `<dataDir>\hdpacks\`):** `SubTickInterpolationSdk.cs` (`> 60 Hz` / `Max` enhancement interpolation with hardware VBlank + SPU locked at `60 Hz`), registered configuration keys (`isHdTexturePackEnabled`, `clutSha256Hex`, `rectSha256Hex`), `HdTexturePackStore.cs`, and declarative `Video` drawer options.
 
 ### `v0.4.0` — Pure-Static Overlay Promoter, Analog Rumble, CD-DA, `.m3u` Lid-Swap & `--save-dir`
 - **Cornerstone Goal:** Graduate `--jit-bringup` traces into `100%` static AOT overlays (`jitDispatchCount == 0 && threadedIrDispatchCount == 0 && interpreterFallbackCount == 0`, `isPureStaticReady == true`), deliver Port 1+2 analog gamepad (`0x42–0x4D`) + SDL3 rumble, multi-track `.cue`/`.chd` Redbook CD-DA, fail-closed `.m3u` `ShellOpen` disc swap pinned to Disc-1 `ModuleId`, `"RSTX"` trailer extensions, and `--save-dir` router delegation across `CrownDepths ForsakenIsle (SlateOne) 02` (`SLUS-00158`) and `MeadowValley BackToEarth (SlateOne) 04` (`SLUS-01115`).
@@ -63,12 +53,13 @@ flowchart LR
 ---
 
 ## 4. Completed Milestones
-- `0.2.8` (`2026-11-16`) — Module-declared `ControlOptions` (`metadataJson`), unstretched Hor+ `16:9` side wings (`4:3` MDEC FMVs), decoupled `60 Hz` VBlank loop, BIOS `CloseEvent` reuse, `ExecOverlay` isolation, bounded SPU audio drain, and `184/184` passing tests. *(Shipped as `reStation`.)*
-- `0.2.7` (`2026-11-15`) — Kernel `IntRP` priority chains, `GetC0Table`, SIO0 IRQ7 poll tick, `IRecompQuickSaveProvider`, `--jit-bringup` `ExitCode = 5` watchdog, and `LockedCap -> Original` timing default (`180/180` tests).
-- `0.2.6-hf.1` & `0.2.6` (`2026-11-15`) — Isolated test runtime cleanup (`APP_ISOLATED_TEST=1`), `data\gamedata` media fallback, intermediate 2x CD-ROM VBlank wakeups, pipe-isolated cold AOT compile with responsive SDL splash pump, and `aotWithJitFallback` rescue (`175/175` & `176/176` tests).
-- `0.2.1`–`0.2.5` (`2026-11-15`) — Iterative `O(1)` tail-jump trampoline, HUD width clamp, Setup Wizard auto-sorting, `--jit-bringup` exit-code preservation, thin-shell `<container>#<slice>` overlay lifting, collectible companion ALC cleanup, and `MipsLifter` `.rodata` tail tolerance.
-- `0.2.0` (`2026-11-15`) — Clean-room `MPL-2.0` `.decomp` provider (`r3000a_gte.slaspec`), player-PC `<dataDir>\cache\` AOT, opt-in Tier 3 Shared-IR/RyuJIT/`ThreadedIrBackend` (`4 KB`/`64B` epochs), user-scope suite installer (`AllowAutoStart = false`), 5-column `Keybinds` drawer, and `161/161` baseline tests.
-- `0.1.0`–`0.1.5` (`2026-11-13`–`2026-11-14`) — Modular `R3000A` engine, `OpenGL 3.3` + `Software`, 2x CD-ROM, SPU unity/ADSR/XA mixer, ZIP `.recomp` cartridges, and 3-tier rebindable input. *(See [CHANGELOG.md](CHANGELOG.md) for detailed entries.)*
+- [x] **`0.3.0` (`2026-11-18`):** Launched `reSlate v0.3.0` Public Beta (`StreamItAllGit/reSlate`) with `reSlate` binary/path cutover preserving `reStation.{Contracts,Core}` ABI, `reEngine.Host.Contracts` alignment, live Tier 3 RyuJIT & Zero-RWX IR (`interpreterOracle` quarantine + `isPureStaticReady`), unified `SIO0 0x81` / BIOS `_new_card` Slot 1+2 `.mcr` persistence, `60 Hz` SPU lock with swap-only `TargetFps=30` and single-edge menu input, `D4_CleanSource` 6-tell/`-Wall` craftsmanship gate, `ReStationInstallPathResolver` existing-install & saved-profile auto-detection on Setup, Debug/Test-only loopback UI automation (`ExitCode = 2` in `Release`), `266/266` passing Release & Debug tests (`0` warnings), 4-drive Stage 2 sandbox E2E, scrubbed public Git history, and 7-file `Portable.zip` + signed installer distribution. ([Notes](CHANGELOG.md#030---2026-11-18))
+- [x] **`0.2.8` (`2026-11-16`):** Module-declared `ControlOptions` (`metadataJson`), unstretched Hor+ `16:9` side wings (`4:3` MDEC FMVs), decoupled `60 Hz` VBlank loop, BIOS `CloseEvent` reuse, `ExecOverlay` isolation, bounded SPU audio drain, and `184/184` passing tests. *(Shipped as `reStation`.)*
+- [x] **`0.2.7` (`2026-11-15`):** Kernel `IntRP` priority chains, `GetC0Table`, SIO0 IRQ7 poll tick, `IRecompQuickSaveProvider`, `--jit-bringup` `ExitCode = 5` watchdog, and `LockedCap -> Original` timing default (`180/180` tests).
+- [x] **`0.2.6-hf.1` & `0.2.6` (`2026-11-15`):** Isolated test runtime cleanup (`APP_ISOLATED_TEST=1`), `data\gamedata` media fallback, intermediate 2x CD-ROM VBlank wakeups, pipe-isolated cold AOT compile with responsive SDL splash pump, and `aotWithJitFallback` rescue (`175/175` & `176/176` tests).
+- [x] **`0.2.1`–`0.2.5` (`2026-11-15`):** Iterative `O(1)` tail-jump trampoline, HUD width clamp, Setup Wizard auto-sorting, `--jit-bringup` exit-code preservation, thin-shell `<container>#<slice>` overlay lifting, collectible companion ALC cleanup, and `MipsLifter` `.rodata` tail tolerance.
+- [x] **`0.2.0` (`2026-11-15`):** Clean-room `MPL-2.0` `.decomp` provider (`r3000a_gte.slaspec`), player-PC `<dataDir>\cache\` AOT, opt-in Tier 3 Shared-IR/RyuJIT/`ThreadedIrBackend` (`4 KB`/`64B` epochs), user-scope suite installer (`AllowAutoStart = false`), 5-column `Keybinds` drawer, and `161/161` baseline tests.
+- [x] **`0.1.0`–`0.1.5` (`2026-11-13`–`2026-11-14`):** Modular `R3000A` engine, `OpenGL 3.3` + `Software`, 2x CD-ROM, SPU unity/ADSR/XA mixer, ZIP `.recomp` cartridges, and 3-tier rebindable input. *(See [CHANGELOG.md](CHANGELOG.md) for detailed entries.)*
 
 ---
 

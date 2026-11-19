@@ -1,5 +1,5 @@
 // @module: reStation.Tests.Wave3RuntimeFixesTests
-// @purpose: Validates T7 runtime fixes RS-07..RS-09, RS-12..RS-15 (mid-stack resume, HasCompiledEntry, GL hot-swap/aspect, compact HUD, joypad /ACK & DualShock 0x73, polled timers).
+// @purpose: Validates T7 runtime fixes RS-07..RS-09, RS-12..RS-15 (mid-stack resume, HasCompiledEntry, GL hot-swap/aspect, compact HUD, joypad /ACK & Analog 0x73, polled timers).
 
 using Foundation.Core;
 using Foundation.Retro;
@@ -129,7 +129,7 @@ public sealed class Wave3RuntimeFixesTests : IDisposable
     }
 
     [Fact]
-    public void Rs12AndRs13_JoypadAckPulseDualShock0x73_AndSyncedTimersAdvanceOnPolledReads()
+    public void Rs12AndRs13_JoypadAckPulseAnalog0x73_AndSyncedTimersAdvanceOnPolledReads()
     {
         Directory.CreateDirectory(_tempRoot);
         using var cpu = new PsxCpu(new RecompSettings(), _tempRoot, new SoftwareCpuRenderBackend(), new ReStationLogger(_tempRoot, false));
@@ -140,7 +140,7 @@ public sealed class Wave3RuntimeFixesTests : IDisposable
         uint rc2 = cpu.TimersAndDma.ReadTimerReg(0x1F801120U);
         Assert.Equal(1200U, rc2);
 
-        // RS-12: Finite 96-cycle /ACK pulse + separate JOY_STAT bit 9 IRQ latch + DualShock 0x73 packet.
+        // RS-12: Finite 96-cycle /ACK pulse + separate JOY_STAT bit 9 IRQ latch + Analog 0x73 packet.
         Assert.Equal(96L, PsxJoypadPort.AckPulseCycles);
         cpu.Joypad.AnalogMode = true;
         cpu.SetControllerState(0, 0x0008, 0x11, 0x22, 0x33, 0x44);
@@ -161,7 +161,7 @@ public sealed class Wave3RuntimeFixesTests : IDisposable
         Assert.Equal(0, cpu.Joypad.Read16(0x1F801044U) & 0x0200);
         _ = cpu.Joypad.Read16(0x1F801040U);
 
-        // Byte 1: command 0x42 -> 0x73 DualShock ID
+        // Byte 1: command 0x42 -> 0x73 Analog ID
         cpu.Joypad.Write16(0x1F801040U, 0x42);
         cpu.TotalCycles += PsxJoypadPort.AckDelayCycles + PsxJoypadPort.AckPulseCycles;
         Assert.Equal(0x73, cpu.Joypad.Read16(0x1F801040U));
