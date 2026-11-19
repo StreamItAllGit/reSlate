@@ -272,7 +272,12 @@ internal static class ReStationInstallerBootstrap
             if (isolatedTest && isolatedRoot is not null && !string.IsNullOrWhiteSpace(explicitReEngineDir))
                 explicitReEngineDir = AppEnvironment.AssertPathContained(explicitReEngineDir, isolatedRoot);
 
-            string targetReEngineDir = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitReEngineDir, isolatedRoot, isolatedTest);
+            string targetReEngineDir = !isolatedTest && string.IsNullOrWhiteSpace(explicitReEngineDir)
+                ? ReStationInstallPathResolver.ResolveSilentReEngineDir(
+                    PlatformRegistryFactory.CreateDefault(sandbox, false),
+                    sandbox,
+                    explicitReEngineDir)
+                : ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitReEngineDir, isolatedRoot, isolatedTest);
             string? siblingInstaller = FindSiblingExternalReEngineInstaller(isolatedTest, isolatedRoot, sandbox);
             if (!string.IsNullOrWhiteSpace(siblingInstaller))
             {
@@ -283,7 +288,9 @@ internal static class ReStationInstallerBootstrap
                 targetReEngineDir = res.ReEngineInstallDir;
             }
 
-            string sideBySide = ComputeSideBySideDir(targetReEngineDir);
+            string sideBySide = !isolatedTest
+                ? ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(targetReEngineDir)
+                : ComputeSideBySideDir(targetReEngineDir);
             effectiveArgs = RewriteContainedArgs(args, isolatedTest, isolatedRoot, sideBySide, explicitInstall);
             return 0;
         }

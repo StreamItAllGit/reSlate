@@ -105,7 +105,7 @@ flowchart LR
 
 ---
 
-## 4. File & Symbol Lookup Registry (`179` Tracked `Dev\src` + `Dev\scripts` Files · `137` Non-Test `.cs`/`.ps1` — Max `353` Code SLOC)
+## 4. File & Symbol Lookup Registry (`180` Tracked `Dev\src` + `Dev\scripts` Files · `138` Non-Test `.cs`/`.ps1` — Max `355` Code SLOC)
 
 All non-test C# and PowerShell source files comply strictly with Standard 32's `400` code-only SLOC limit (`0` files over `400`). Key `v0.3.0` additions/splits and modified anchors include:
 
@@ -127,9 +127,11 @@ All non-test C# and PowerShell source files comply strictly with Standard 32's `
 | `Dev/src/reStation.Core/Hardware/SioMemCardProtocol.cs` | 199 | 178 | Hardware `SIO0 0x81` protocol (`0x52`/`0x57`/`0x53`, `FLAG 0x08`, `0x58..0x5F` dock NACK) wired into `PsxJoypadPort` |
 | `Dev/src/reStation.Decomp/PsxD4CraftsmanshipValidator.cs` | 423 | 348 | `D4_CleanSource` 6-tell regex gate, `_01.._NN.c` fragment rejection, `-Wall -Wextra -Wno-unused-parameter` verifier |
 | `Dev/src/reStation.Installer/InstallerAutomationHook.cs` | 89 | 70 | `#if DEBUG \|\| RESTATION_TEST_AUTOMATION` WinForms `Wizard_*` IDs + `AutomationLoopbackServer` (Release fails closed `ExitCode=2`) |
+| `Dev/src/reStation.Installer/Program.cs` | 400 | 355 | Installer CLI dispatch, interactive WinForms wizard launcher, `ResolveInitialPaths` wiring & post-install actions |
+| `Dev/src/reStation.Installer/ReStationInstallPathResolver.cs` | 337 | 278 | HKCU existing `reSlate`/`reEngine`/`reStation` + `LastInstallBaseDir` path & saved profile discovery (`ShouldSuppressHostMutations`-gated) |
 | `Dev/src/reStation.Player/Program.cs` / `.EventPump.cs` / `.FrameLoop.cs` / `.MediaGate.cs` | 373 / 243 / 385 / 229 | 330 / 228 / 348 / 209 | Direct `CliOptions` entrypoint, `SettingsMigrationHelper` wiring, `60 Hz` SPU lock, repeat filtering, `--doctor` |
 | `Dev/src/reStation.Player/HostContractBridge.cs` / `DebugAutomationHook.cs` | 263 / 232 | 233 / 203 | `reEngine.Host.Contracts.IHostAutomationTarget` bridge & `#if DEBUG || RESTATION_TEST_AUTOMATION` STA loopback |
-| `Dev/src/reStation.Tests/*.cs` (`30` suites) | 120..451 | 101..385 | `259/259` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
+| `Dev/src/reStation.Tests/*.cs` (`30` suites) | 120..462 | 101..394 | `265/265` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
 
 ---
 
@@ -166,7 +168,7 @@ All non-test C# and PowerShell source files comply strictly with Standard 32's `
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`259/259` passing in both configurations across `30` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`265/265` passing in both configurations across `30` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
 - **Debug/Test-Only `Foundation.Automation` Stage 2 Sandbox E2E (`Standard 02 §4`, `v0.3.0`):** `Dev\scripts\run_stage2_sandbox_e2e.ps1` runs `Foundation\Dev\tools\run_sandbox_e2e.py` against the 4-drive Sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE`, asserting `hostDiffCount == 0`), drives a visible `-p:ReStationTestAutomation=true` Setup Wizard (`InstallerAutomationHook` inside `O:\` sandbox), drives visible SDL3 MediaGate & live `RunHostLoop` F1 Drawer / F3 HUD button interactions + `settings.json` persistence (`DebugAutomationHook` + `SDL3.dll`), and verifies pure `Release` rejects `--automation-port` with `ExitCode = 2` on both `reSlate.Player.exe` (`Assert-BinaryPurity`) and `reSlate-Setup` (`Assert-InstallerPurity`).
 
 ---

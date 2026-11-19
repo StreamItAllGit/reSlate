@@ -170,4 +170,261 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
             Environment.SetEnvironmentVariable("RESTATION_INSTALL_DIR", prevRestation);
         }
     }
+
+    [Fact]
+    public void ResolveInitialPaths_UsesExistingReEngineAndReStationSettingsProfile()
+    {
+        string baseDir = Path.Combine(_tempRoot, "stream-games", "StreamItAll");
+        string reEngineDir = Path.Combine(baseDir, "reEngine");
+        string oldStationDir = Path.Combine(reEngineDir, "engines", "reStation", "v0.2.8");
+        Directory.CreateDirectory(Path.Combine(oldStationDir, "data", "config"));
+        File.WriteAllText(
+            Path.Combine(oldStationDir, "data", "config", "settings.json"),
+            """{"installProfile":"full"}""");
+
+        var registry = new FakePlatformRegistry();
+        registry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reEngine", "InstallLocation", reEngineDir);
+        registry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reStation", "InstallLocation", oldStationDir);
+        registry.SetString(@"Software\StreamItAll", "LastInstallBaseDir", baseDir);
+
+        ResolvedWizardInstallPaths resolved = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: null,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.Equal(Path.GetFullPath(reEngineDir), resolved.ReEngineInstallDir);
+        Assert.Equal(
+            Path.Combine(Path.GetFullPath(reEngineDir), "engines", "reSlate", $"v{ReStationInstallerTheme.Version}"),
+            resolved.InstallDir);
+        Assert.Equal("full", resolved.ProfileId);
+        Assert.Equal(
+            Path.GetFullPath(reEngineDir),
+            ReStationInstallPathResolver.ResolveSilentReEngineDir(registry, activeSandbox: null));
+    }
+
+    [Fact]
+    public void ResolveInitialPaths_UsesExistingReSlateUninstallLocation()
+    {
+        string reEngineDir = Path.Combine(_tempRoot, "custom-slate", "StreamItAll", "reEngine");
+        string existingSlateDir = Path.Combine(reEngineDir, "engines", "reSlate", $"v{ReStationInstallerTheme.Version}");
+        Directory.CreateDirectory(Path.Combine(existingSlateDir, "data"));
+        File.WriteAllText(Path.Combine(existingSlateDir, "data", "settings.json"), """{"installProfile":"full"}""");
+
+        var registry = new FakePlatformRegistry();
+        registry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reSlate", "InstallLocation", existingSlateDir);
+
+        ResolvedWizardInstallPaths resolved = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: null,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.Equal(Path.GetFullPath(reEngineDir), resolved.ReEngineInstallDir);
+        Assert.Equal(Path.GetFullPath(existingSlateDir), resolved.InstallDir);
+        Assert.Equal("full", resolved.ProfileId);
+    }
+
+    [Fact]
+    public void ResolveInitialPaths_ExtractsReEngineRootFromReStationAlone()
+    {
+        string reEngineDir = Path.Combine(_tempRoot, "legacy-station-only", "StreamItAll", "reEngine");
+        string oldStationDir = Path.Combine(reEngineDir, "engines", "reStation", "v0.2.8");
+
+        var registry = new FakePlatformRegistry();
+        registry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reStation", "InstallLocation", oldStationDir);
+
+        ResolvedWizardInstallPaths resolved = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: null,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.Equal(Path.GetFullPath(reEngineDir), resolved.ReEngineInstallDir);
+        Assert.Equal(
+            Path.Combine(Path.GetFullPath(reEngineDir), "engines", "reSlate", $"v{ReStationInstallerTheme.Version}"),
+            resolved.InstallDir);
+        Assert.Equal(ReStationInstallerTheme.DefaultInstallProfile, resolved.ProfileId);
+    }
+
+    [Fact]
+    public void ResolveInitialPaths_UsesLastInstallBaseDirEndingInStreamItAll_WithoutDoubleNesting()
+    {
+        string baseDir = Path.Combine(_tempRoot, "Games", "Misc", "StreamItAll");
+        var registry = new FakePlatformRegistry();
+        registry.SetString(@"Software\StreamItAll", "LastInstallBaseDir", baseDir);
+
+        ResolvedWizardInstallPaths resolved = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: null,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        string expectedEngine = Path.Combine(Path.GetFullPath(baseDir), "reEngine");
+        Assert.Equal(expectedEngine, resolved.ReEngineInstallDir);
+        Assert.Equal(
+            Path.Combine(expectedEngine, "engines", "reSlate", $"v{ReStationInstallerTheme.Version}"),
+            resolved.InstallDir);
+        Assert.DoesNotContain($"StreamItAll{Path.DirectorySeparatorChar}StreamItAll", resolved.InstallDir, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveInitialPaths_AppendsStreamItAllToLastInstallBaseDir_WhenLeafDiffers()
+    {
+        string baseDir = Path.Combine(_tempRoot, "Apps");
+        var registry = new FakePlatformRegistry();
+        registry.SetString(@"Software\StreamItAll", "LastInstallBaseDir", baseDir);
+
+        ResolvedWizardInstallPaths resolved = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: null,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        string expectedEngine = Path.Combine(Path.GetFullPath(baseDir), "StreamItAll", "reEngine");
+        Assert.Equal(expectedEngine, resolved.ReEngineInstallDir);
+        Assert.Equal(
+            Path.Combine(expectedEngine, "engines", "reSlate", $"v{ReStationInstallerTheme.Version}"),
+            resolved.InstallDir);
+    }
+
+    [Fact]
+    public void ResolveInitialPaths_IgnoresRegistry_WhenHostMutationsSuppressed()
+    {
+        string hostBase = Path.Combine(_tempRoot, "LiveHost", "StreamItAll");
+        string isolatedRoot = Path.Combine(_tempRoot, "stage1-isolated");
+
+        var registry = new FakePlatformRegistry();
+        registry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reEngine", "InstallLocation", Path.Combine(hostBase, "reEngine"));
+        registry.SetString(@"Software\StreamItAll", "LastInstallBaseDir", hostBase);
+
+        ResolvedWizardInstallPaths stage1Suppressed = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: null,
+            suppressHostMutations: true,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.DoesNotContain("LiveHost", stage1Suppressed.ReEngineInstallDir, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(
+            Path.GetFullPath(ReStationInstallerTheme.ResolveDefaultVersionInstallDir()),
+            stage1Suppressed.InstallDir);
+
+        ResolvedWizardInstallPaths isolatedTest = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: null,
+            suppressHostMutations: true,
+            isIsolatedTestProcess: true,
+            isolatedDataDir: isolatedRoot,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.StartsWith(Path.GetFullPath(isolatedRoot), isolatedTest.ReEngineInstallDir, StringComparison.OrdinalIgnoreCase);
+        Assert.StartsWith(Path.GetFullPath(isolatedRoot), isolatedTest.InstallDir, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("LiveHost", isolatedTest.InstallDir, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class FakePlatformRegistry : Foundation.Core.IPlatformRegistry
+    {
+        private readonly Dictionary<string, Foundation.Core.PlatformRegistryValue> _values =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public void SetString(string subKeyPath, string valueName, string value)
+        {
+            SetValue(
+                Foundation.Core.PlatformRegistryHive.CurrentUser,
+                subKeyPath,
+                valueName,
+                value,
+                Foundation.Core.PlatformRegistryValueKind.String);
+        }
+
+        public bool SubKeyExists(Foundation.Core.PlatformRegistryHive hive, string subKeyPath)
+        {
+            string prefix = $"{hive}|{subKeyPath}|";
+            return _values.Keys.Any(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public void CreateSubKey(Foundation.Core.PlatformRegistryHive hive, string subKeyPath) { }
+
+        public bool DeleteSubKeyTree(
+            Foundation.Core.PlatformRegistryHive hive,
+            string subKeyPath,
+            bool throwOnMissingSubKey = false)
+        {
+            string prefix = $"{hive}|{subKeyPath}|";
+            List<string> toRemove = _values.Keys.Where(k => k.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (string key in toRemove)
+                _values.Remove(key);
+            return toRemove.Count > 0;
+        }
+
+        public Foundation.Core.PlatformRegistryValue? GetValue(
+            Foundation.Core.PlatformRegistryHive hive,
+            string subKeyPath,
+            string valueName)
+        {
+            return _values.TryGetValue(MakeKey(hive, subKeyPath, valueName), out var val) ? val : null;
+        }
+
+        public void SetValue(
+            Foundation.Core.PlatformRegistryHive hive,
+            string subKeyPath,
+            string valueName,
+            object? value,
+            Foundation.Core.PlatformRegistryValueKind valueKind)
+        {
+            _values[MakeKey(hive, subKeyPath, valueName)] =
+                new Foundation.Core.PlatformRegistryValue(valueKind, value);
+        }
+
+        public void SetValues(
+            Foundation.Core.PlatformRegistryHive hive,
+            string subKeyPath,
+            IReadOnlyDictionary<string, Foundation.Core.PlatformRegistryValue> values)
+        {
+            foreach (var kv in values)
+                _values[MakeKey(hive, subKeyPath, kv.Key)] = kv.Value;
+        }
+
+        public bool DeleteValue(
+            Foundation.Core.PlatformRegistryHive hive,
+            string subKeyPath,
+            string valueName,
+            bool throwOnMissingValue = false)
+        {
+            return _values.Remove(MakeKey(hive, subKeyPath, valueName));
+        }
+
+        public IReadOnlyList<string> GetSubKeyNames(Foundation.Core.PlatformRegistryHive hive, string subKeyPath)
+            => Array.Empty<string>();
+
+        public IReadOnlyList<string> GetValueNames(Foundation.Core.PlatformRegistryHive hive, string subKeyPath)
+            => Array.Empty<string>();
+
+        public IReadOnlyDictionary<string, Foundation.Core.PlatformRegistryValue> GetValues(
+            Foundation.Core.PlatformRegistryHive hive,
+            string subKeyPath)
+            => new Dictionary<string, Foundation.Core.PlatformRegistryValue>(StringComparer.OrdinalIgnoreCase);
+
+        private static string MakeKey(Foundation.Core.PlatformRegistryHive hive, string subKeyPath, string valueName)
+            => $"{hive}|{subKeyPath}|{valueName}";
+    }
 }
