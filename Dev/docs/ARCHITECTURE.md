@@ -105,29 +105,31 @@ flowchart LR
 
 ---
 
-## 4. File & Symbol Lookup Registry (`177` Tracked `Dev\src` + `Dev\scripts` Files · `135` Non-Test `.cs`/`.ps1` — Max `353` Code SLOC)
+## 4. File & Symbol Lookup Registry (`179` Tracked `Dev\src` + `Dev\scripts` Files · `137` Non-Test `.cs`/`.ps1` — Max `353` Code SLOC)
 
 All non-test C# and PowerShell source files comply strictly with Standard 32's `400` code-only SLOC limit (`0` files over `400`). Key `v0.3.0` additions/splits and modified anchors include:
 
 | File | Lines | CodeSLOC | Primary Exports & Responsibility |
 | :--- | ---: | ---: | :--- |
-| `Dev/scripts/build_release.ps1` | 209 | 174 | Single-pass `<=400` SLOC gate, `Release` build+test, Authenticode sign, installer, `Releases\`, `SharedLibs\reSlate\`, `Archive\` |
-| `Dev/scripts/package_helpers.ps1` | 258 | 236 | `Assert-CodeOnlySlocGate`, `Assert-BinaryPurity`, `.ready`/manifest staging, 7-file hardlinked `Releases\`, `Portable.zip`, `SharedLibs\reSlate` |
-| `Dev/scripts/run_stage2_sandbox_e2e.ps1` | 223 | 203 | Two-Build 4-drive Sandbox E2E (`Foundation/Dev/tools/run_sandbox_e2e.py` + `RESTATION_TEST_AUTOMATION` loopback UI PNG + Release `ExitCode=2`) |
+| `Dev/scripts/build_release.ps1` | 210 | 175 | Single-pass `<=400` SLOC gate, `Release` build+test, Authenticode sign, installer, `Releases\`, `SharedLibs\reSlate\`, `Archive\` |
+| `Dev/scripts/package_helpers.ps1` | 283 | 260 | `Assert-CodeOnlySlocGate`, `Assert-BinaryPurity`, `Assert-InstallerPurity`, `.ready`/manifest staging, 7-file hardlinked `Releases\`, `Portable.zip`, `SharedLibs\reSlate` |
+| `Dev/scripts/run_stage2_sandbox_e2e.ps1` | 238 | 218 | 4-step visible Stage 2 Sandbox E2E (`run_sandbox_e2e.py`, visible `Setup Wizard`, visible SDL3 MediaGate & F1/F3 Player, Release `ExitCode=2`) |
+| `Dev/scripts/stage2_e2e_helpers.ps1` | 283 | 255 | `Win32VisibleWindow`, `Show-VisibleWindowOnTop`, `Send-WindowClose`, loopback tree/PNG assertions & 4-drive child env |
 | `Dev/scripts/sanitize_release_docs.ps1` | 191 | 171 | Relative link rewriter, Standard 22 §4 trademark scrub outside legal footer, end-user doc sanitization |
 | `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 206 | 138 | `ReStationEngineInfo` (`AppId="reslate"`, `EngineId="reSlate"`, `0.3.0`, `0.3.x`), `EngineAliasCatalog.AreEquivalent` manifest check |
 | `Dev/src/reStation.Contracts/IPsxRenderBackend.cs` | 56 | 21 | `PsxRenderBackendIds` (`opengl`, `software`, `v0.3.1`-deferred `vulkan`/`parallelCpu`) |
 | `Dev/src/reStation.Core/Bios/MemCardMcrStore.cs` | 375 | 342 | Slot 1+2 128 KB `.mcr` store under `<dataDir>\memcards\`, `<dataDir>\saves\` auto-migration, dirty VBlank debounce, raw bytes |
 | `Dev/src/reStation.Core/Bios/PsxBiosHle.MemCard.cs` | 148 | 125 | BIOS `B0:0x4E/0x4F` 128B transfers (`NotifyRamWriteRange`), `A0:0xAB/0xAC`, `B0:0x50` `_new_card` |
-| `Dev/src/reStation.Core/Bringup/JitBringupRecorder.cs` | 318 | 265 | `BringupProfileDocument.IsPureStaticReady` + `[Obsolete]` `IsR4PromotionReady`, `[JsonIgnore]` `IsBringupCaptureClean` |
+| `Dev/src/reStation.Core/Bringup/JitBringupRecorder.cs` | 340 | 285 | `BringupProfileDocument.IsPureStaticReady` + write-never legacy `isR4PromotionReady` read compat, `[JsonIgnore]` `IsBringupCaptureClean` |
 | `Dev/src/reStation.Core/Core/CliOptions.cs` | 284 | 258 | Unified CLI (`--require-backend`, `--save-dir`, `--fixture`, `--dump-audio`, `--automation-port/token`, `--doctor`, `--execution-tier`) |
 | `Dev/src/reStation.Core/Core/SettingsMigrationHelper.cs` | 104 | 76 | Atomic non-destructive `<dataDir>\settings.json` -> `<dataDir>\config\settings.json` migrator |
 | `Dev/src/reStation.Core/Cpu/PsxCpu.cs` / `.Scheduling.cs` / `.Snapshot.cs` | 387 / 349 / 47 | 353 / 314 / 39 | Live `Tier3ExecutionCoordinator` dispatch, `VBlankSequence`, quarantined `interpreterOracle`, static/snapshot split |
 | `Dev/src/reStation.Core/Hardware/SioMemCardProtocol.cs` | 199 | 178 | Hardware `SIO0 0x81` protocol (`0x52`/`0x57`/`0x53`, `FLAG 0x08`, `0x58..0x5F` dock NACK) wired into `PsxJoypadPort` |
 | `Dev/src/reStation.Decomp/PsxD4CraftsmanshipValidator.cs` | 423 | 348 | `D4_CleanSource` 6-tell regex gate, `_01.._NN.c` fragment rejection, `-Wall -Wextra -Wno-unused-parameter` verifier |
+| `Dev/src/reStation.Installer/InstallerAutomationHook.cs` | 89 | 70 | `#if DEBUG \|\| RESTATION_TEST_AUTOMATION` WinForms `Wizard_*` IDs + `AutomationLoopbackServer` (Release fails closed `ExitCode=2`) |
 | `Dev/src/reStation.Player/Program.cs` / `.EventPump.cs` / `.FrameLoop.cs` / `.MediaGate.cs` | 373 / 243 / 385 / 229 | 330 / 228 / 348 / 209 | Direct `CliOptions` entrypoint, `SettingsMigrationHelper` wiring, `60 Hz` SPU lock, repeat filtering, `--doctor` |
 | `Dev/src/reStation.Player/HostContractBridge.cs` / `DebugAutomationHook.cs` | 263 / 232 | 233 / 203 | `reEngine.Host.Contracts.IHostAutomationTarget` bridge & `#if DEBUG || RESTATION_TEST_AUTOMATION` STA loopback |
-| `Dev/src/reStation.Tests/*.cs` (`30` suites) | 120..451 | 101..385 | `258/258` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
+| `Dev/src/reStation.Tests/*.cs` (`30` suites) | 120..451 | 101..385 | `259/259` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
 
 ---
 
@@ -164,8 +166,8 @@ All non-test C# and PowerShell source files comply strictly with Standard 32's `
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`258/258` passing in both configurations across `30` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
-- **Debug/Test-Only `Foundation.Automation` Stage 2 Sandbox E2E (`Standard 02 §4`, `v0.3.0`):** `Dev\scripts\run_stage2_sandbox_e2e.ps1` runs `Foundation\Dev\tools\run_sandbox_e2e.py` across the 4-drive Sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE`, asserting `hostDiffCount == 0`), launches a `-p:ReStationTestAutomation=true` Player build against `--automation-port 0` (`DebugAutomationHook` loopback PNG snapshot without focus stealing), and verifies pure `Release` rejects `--automation-port` with `ExitCode = 2`.
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`259/259` passing in both configurations across `30` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
+- **Debug/Test-Only `Foundation.Automation` Stage 2 Sandbox E2E (`Standard 02 §4`, `v0.3.0`):** `Dev\scripts\run_stage2_sandbox_e2e.ps1` runs `Foundation\Dev\tools\run_sandbox_e2e.py` against the 4-drive Sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE`, asserting `hostDiffCount == 0`), drives a visible `-p:ReStationTestAutomation=true` Setup Wizard (`InstallerAutomationHook` inside `O:\` sandbox), drives visible SDL3 MediaGate & live `RunHostLoop` F1 Drawer / F3 HUD button interactions + `settings.json` persistence (`DebugAutomationHook` + `SDL3.dll`), and verifies pure `Release` rejects `--automation-port` with `ExitCode = 2` on both `reSlate.Player.exe` (`Assert-BinaryPurity`) and `reSlate-Setup` (`Assert-InstallerPurity`).
 
 ---
 

@@ -2,7 +2,7 @@
 # @module: Dev/scripts/stage2_e2e_helpers.ps1
 # @purpose: Shared Win32 visible-window, loopback automation, PNG verification, and 4-drive sandbox helpers for run_stage2_sandbox_e2e.ps1.
 # @depends-on: System.Drawing, System.Net.Sockets, Foundation/Dev/tools/sandbox_ctl.py
-# @exports: Win32VisibleWindow, Show-VisibleWindowOnTop, Send-WindowClose, Get-FreeLoopbackPort, Invoke-LoopbackJson, Wait-AutomationHealth, Wait-TreeControl, Wait-TreeControlAbsent, Find-TreeNodeRecursive, Read-EnvKeyMap, Resolve-FourDriveSandboxConfig, Resolve-FoundationSandboxRunner, Get-SandboxChildEnv, Start-ProcessWithEnv, Assert-ValidPng
+# @exports: Win32VisibleWindow, Show-VisibleWindowOnTop, Send-WindowClose, Get-FreeLoopbackPort, Invoke-LoopbackJson, Wait-AutomationHealth, Wait-TreeControl, Wait-TreeControlAbsent, Find-TreeNodeRecursive, Quote-WindowsArg, Start-ProcessWithEnv, Read-EnvKeyMap, Resolve-FourDriveSandboxConfig, Resolve-FoundationSandboxRunner, Get-SandboxChildEnv, Test-SandboxHostClean, Assert-ValidPng
 
 Set-StrictMode -Version Latest
 
