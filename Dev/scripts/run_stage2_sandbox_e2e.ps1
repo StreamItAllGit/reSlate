@@ -106,7 +106,7 @@ function Invoke-WizardGuiSandboxStep([string]$ToolsDir, [string]$BuildsDir, [str
         $wizSnapCopy = Join-Path $OutLogs "stage2_wizard_live.png"
         Copy-Item -LiteralPath $wizSnapInSandbox -Destination $wizSnapCopy -Force
         $evidencePngs.Add($wizSnapCopy)
-        $null = Invoke-LoopbackJson -Port $wizPort -Token $wizTok -Method "POST" -Route "/v1/pointer" -Body @{ action = "click"; targetId = "Wizard_PrimaryButton" }
+        try { $null = Invoke-LoopbackJson -Port $wizPort -Token $wizTok -Method "POST" -Route "/v1/pointer" -Body @{ action = "click"; targetId = "Wizard_PrimaryButton" } } catch [System.Net.WebException] { $null = $_ }
         if (-not $wizProc.WaitForExit(15000) -or $wizProc.ExitCode -ne 0) { throw "Setup Wizard exit failed ($($wizProc.ExitCode))" }
     } finally { if ($wizProc -and (-not $wizProc.HasExited)) { $wizProc.Kill() } }
 
@@ -161,7 +161,7 @@ function Invoke-PlayerVisibleGuiSteps([string]$OutLogs) {
     $liveData = Join-Path $sandboxWork "live_data"; $liveCfg = Join-Path $liveData "config\settings.json"; $liveLogs = Join-Path $OutLogs "live"; $gameDataDir = Join-Path $liveData "gamedata"
     $smokeMod = Join-Path $sandboxWork "smoke_module\module.recomp.json"
     New-Item -ItemType Directory -Force (Split-Path -Parent $liveCfg), $liveLogs, $gameDataDir, (Split-Path -Parent $smokeMod) | Out-Null
-    [System.IO.File]::WriteAllText($smokeMod, ([ordered]@{ schemaVersion = 1; moduleId = "reslate-stage2-smoke"; title = "reSlate Stage 2 Smoke"; displayName = "reSlate Stage 2 Smoke"; platformId = "ps1"; version = "0.3.0"; engineId = "reSlate"; engineVersion = $Version; compatibleEngineTrack = "0.3.x"; serialNumber = "SLUS-00000"; entryAssembly = ""; defaultFramerateMode = "enhanced" } | ConvertTo-Json -Depth 3), [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($smokeMod, ([ordered]@{ schemaVersion = 1; moduleId = "reslate-stage2-smoke"; title = "reSlate Stage 2 Smoke"; displayName = "reSlate Stage 2 Smoke"; platformId = "ps1"; version = "0.3.0"; engineId = "reSlate"; engineVersion = $Version; compatibleEngineTrack = "0.3.x"; serialNumber = "SLUS-00000"; entryAssembly = ""; defaultFramerateMode = "unlocked" } | ConvertTo-Json -Depth 3), [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText((Join-Path $gameDataDir "disc_manifest.json"), ([ordered]@{ schemaVersion = 1; moduleId = "reslate-stage2-smoke"; serialNumber = "SLUS-00000"; volumeId = "STAGE2_SMOKE"; primaryImagePath = ""; files = @() } | ConvertTo-Json -Depth 3), [System.Text.UTF8Encoding]::new($false))
 
     $pLive = Get-FreeLoopbackPort; $tLive = [Guid]::NewGuid().ToString("N")

@@ -238,7 +238,7 @@ cfg = resolve_sandbox_config(argparse.Namespace())
 init_sandbox(cfg, skip_subst=False)
 print(json.dumps({"dDrive": cfg["drives"]["SANDBOX_D_DRIVE"], "env": build_sandbox_child_env(cfg)}))
 '@
-    $raw = (& python -c $pyCode $ToolsDir)
+    $raw = ($pyCode | & python - $ToolsDir)
     if ($LASTEXITCODE -ne 0) { throw "Failed initializing 4-drive sandbox env via sandbox_ctl.py ($LASTEXITCODE)" }
     return ($raw | ConvertFrom-Json)
 }
