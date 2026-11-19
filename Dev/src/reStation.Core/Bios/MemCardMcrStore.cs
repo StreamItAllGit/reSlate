@@ -311,7 +311,7 @@ public sealed class MemCardMcrStore
                 fs.ReadExactly(dst, 0, CardSize);
                 return true;
             }
-            catch (IOException) when (attempt < 5) { Thread.Sleep(15); }
+            catch (Exception ex) when (attempt < 5 && ex is IOException or UnauthorizedAccessException) { Thread.Sleep(15); }
         }
         return false;
     }
@@ -328,7 +328,7 @@ public sealed class MemCardMcrStore
             for (int attempt = 0; attempt < 6; attempt++)
             {
                 try { File.Move(tmp, path, overwrite: true); break; }
-                catch (IOException) when (attempt < 5) { Thread.Sleep(15); }
+                catch (Exception ex) when (attempt < 5 && ex is IOException or UnauthorizedAccessException) { Thread.Sleep(15); }
             }
             _dirty[slot] = false;
             DiskFlushCount++;
