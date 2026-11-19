@@ -1,5 +1,5 @@
 // @module: reStation.Player.ReStationHost.QuickSave
-// @purpose: VBlank-edge quick-save/quick-load slot queuing, emulation resume loop, and live presentation TargetFps setter.
+// @purpose: VBlank-edge quick-save/quick-load slot queuing, core execution resume loop, and live presentation TargetFps setter.
 // @depends-on: Foundation.Core, reStation.Contracts, reStation.Core.Cpu, reStation.Core.Saves
 // @exports: ReStationHost (partial)
 
@@ -18,7 +18,7 @@ internal sealed partial class ReStationHost
     /// <summary>Optional module provider consulted when saving/loading quick-save RSTX chunks.</summary>
     public IRecompQuickSaveProvider? QuickSaveProvider { get; set; }
 
-    /// <summary>Queued quick-save slot executed on the emulation thread at the next VBlank edge (-1 = none).</summary>
+    /// <summary>Queued quick-save slot executed on the core execution thread at the next VBlank edge (-1 = none).</summary>
     public int PendingQuickSaveSlot
     {
         get => _pendingQuickSaveSlot;
@@ -52,7 +52,7 @@ internal sealed partial class ReStationHost
         _logger.Info("HOST", $"Module requested presentation targetFps={fps:F0} unlock={unlock}.");
     }
 
-    /// <summary>Queues a quick-save for the next VBlank edge (or saves immediately if emulation is not running).</summary>
+    /// <summary>Queues a quick-save for the next VBlank edge (or saves immediately if core execution is not running).</summary>
     public bool RequestQuickSave(int slot)
     {
         if (_emuThread is not null && !_emuFinished && !ReferenceEquals(Thread.CurrentThread, _emuThread))
@@ -112,7 +112,7 @@ internal sealed partial class ReStationHost
         if (cpu.PendingQuickLoadSlot >= 0) cpu.ShouldUnwind = true;
     }
 
-    private void EmulationThreadMain()
+    private void CoreExecutionThreadMain()
     {
         try
         {
@@ -132,7 +132,7 @@ internal sealed partial class ReStationHost
                 _logger.Info("SAVE", $"Quick-loaded slot {slot}; resuming at pc=0x{_cpu.Pc:X8}.");
                 _cpu.DispatchFunction(_cpu.Pc);
             }
-            _logger.Info("EMU", $"Emulation thread finished frames={_cpu.FrameCount} exitRequested={_cpu.ExitRequested}.");
+            _logger.Info("CORE", $"Core execution thread finished frames={_cpu.FrameCount} exitRequested={_cpu.ExitRequested}.");
         }
         catch (Exception ex) { _emuFault = ex; }
         finally { _emuFinished = true; _hostActionDone.Set(); _frameReached.Set(); }

@@ -1,5 +1,5 @@
 // @module: reStation.Player.HostInputMapper
-// @purpose: Aggregates SDL3 keyboard, mouse delta/buttons, and gamepad axes/buttons into reStation HostInputState.
+// @purpose: Aggregates SDL3 keyboard, mouse delta/buttons, and gamepad axes/buttons into reSlate HostInputState.
 // @depends-on: reStation.Contracts, reStation.Core, reStation.Core.Cpu, reStation.Core.Input
 // @exports: HostInputMapper
 // @owner: devv-player-ui (T6)

@@ -42,6 +42,7 @@ internal sealed class UiOverlayPresenter
 
     public bool IsCompactHudStripActive { get; private set; }
     internal int LastHudBoxRightEdge { get; private set; }
+    internal UiRect CurrentHudRect { get; private set; }
     public ReadOnlySpan<byte> UiPixels => _uiCanvas.Buffer;
     public ReadOnlySpan<byte> ActiveOverlayPixels => IsCompactHudStripActive ? _hudStripCanvas.Buffer : _uiCanvas.Buffer;
     public int ActiveOverlayWidth => IsCompactHudStripActive ? HudStripWidth : OverlayWidth;
@@ -108,6 +109,7 @@ internal sealed class UiOverlayPresenter
         {
             _hudStripCanvas.Clear(UiPaint.Transparent);
             DrawHudBox(_hudStripCanvas, 0, 0, HudStripWidth, hudText);
+            CurrentHudRect = new UiRect(HudStripDstX, HudStripDstY, ComputeHudBoxWidth(HudStripWidth, hudText), HudStripHeight);
             if (structuralChanged)
             {
                 _drawerCacheCanvas.Clear(UiPaint.Transparent);
@@ -128,7 +130,13 @@ internal sealed class UiOverlayPresenter
             {
                 int maxW = drawer.IsOpen ? (drawer.ActiveTab == 2 ? 452 : 652) : HudStripWidth;
                 DrawHudBox(_uiCanvas, HudStripDstX, HudStripDstY, maxW, hudText);
-                LastHudBoxRightEdge = HudStripDstX + ComputeHudBoxWidth(maxW, hudText);
+                int boxW = ComputeHudBoxWidth(maxW, hudText);
+                LastHudBoxRightEdge = HudStripDstX + boxW;
+                CurrentHudRect = new UiRect(HudStripDstX, HudStripDstY, boxW, HudStripHeight);
+            }
+            else
+            {
+                CurrentHudRect = default;
             }
         }
 

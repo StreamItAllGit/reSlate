@@ -4,6 +4,8 @@
 // @exports: Program (MediaGate partial)
 // @owner: devv-player-ui (T6)
 
+using System.Globalization;
+using System.Runtime.CompilerServices;
 using Foundation.Core;
 using Foundation.Retro;
 using reEngine.Core.Manifests;
@@ -30,7 +32,12 @@ internal static unsafe partial class Program
     }
     private static bool RunFirstRunMediaGate(
         HostVideoSurface video, AppEnvironment env, RecompSettings settings, ReStationLogger logger,
-        ref ReStationModuleManifest? manifest, ref string? moduleDir, ref DiscManifest? discManifest, CliOptions options)
+        ref ReStationModuleManifest? manifest, ref string? moduleDir, ref DiscManifest? discManifest, CliOptions options,
+        HostContractBridge? bridge = null
+#if DEBUG || RESTATION_TEST_AUTOMATION
+        , DebugAutomationHook? automation = null
+#endif
+        )
     {
         var view = new FirstRunMediaGateView();
         byte* ev = stackalloc byte[128];
@@ -39,6 +46,7 @@ internal static unsafe partial class Program
         string? gateShot = !string.IsNullOrWhiteSpace(options.DumpScreenshotPath)
             ? Path.GetFullPath(options.DumpScreenshotPath)
             : null;
+        bool exitRequested = false;
 
         while (true)
         {
@@ -46,7 +54,7 @@ internal static unsafe partial class Program
             {
                 uint type = Sdl3Native.EventType(ev);
                 if (type == Sdl3Native.EventQuit) return false;
-                if (type == Sdl3Native.EventKeyDown && Sdl3Native.EventScancode(ev) == Sdl3Native.ScEsc) return false;
+                if (type == Sdl3Native.EventKeyDown && Sdl3Native.EventKeyRepeat(ev) == 0 && Sdl3Native.EventScancode(ev) == Sdl3Native.ScEsc) return false;
 
                 if (type is Sdl3Native.EventMouseMotion or Sdl3Native.EventMouseButtonDown)
                 {
@@ -60,7 +68,7 @@ internal static unsafe partial class Program
                     {
                         TryLoadGateModule(mp, ref manifest, ref moduleDir, view, settings, env.ConfigFilePath, logger);
                     }
-                    else if (hitDisc && Sdl3Native.ShowOpenFileDialog("Select PS1 Disc Image", Sdl3Native.DiscImageFilter) is { } dp)
+                    else if (hitDisc && Sdl3Native.ShowOpenFileDialog("Select SlateOne Disc Image", Sdl3Native.DiscImageFilter) is { } dp)
                     {
                         if (TryIngestGateDisc(dp, manifest, env, settings, view, logger, out discManifest)) return true;
                     }
@@ -78,6 +86,14 @@ internal static unsafe partial class Program
                 }
             }
 
+            if (bridge is not null)
+            {
+                bridge.DrainCommands(
+                    onPointerClick: (_, _) => { },
+                    onSyntheticScancode: sc => { if (sc == Sdl3Native.ScEsc) exitRequested = true; });
+                if (exitRequested) return false;
+            }
+
             if (manifest is not null && discManifest is null && moduleDir is not null &&
                 PreloadRomDetector.Detect(moduleDir, manifest).PrimaryMediaPath is { } preload &&
                 TryIngestGateDisc(preload, manifest, env, settings, view, logger, out discManifest))
@@ -87,6 +103,14 @@ internal static unsafe partial class Program
 
             view.Render(manifest);
             video.PresentRgba(FirstRunMediaGateView.CanvasWidth, FirstRunMediaGateView.CanvasHeight, view.Pixels);
+            if (bridge is not null)
+            {
+                bridge.PublishFramebufferRgba(FirstRunMediaGateView.CanvasWidth, FirstRunMediaGateView.CanvasHeight, view.Pixels);
+                bridge.SyncMediaGateWidgets(view, manifest is not null, settings.BackendId, settings.ExecutionTierMode);
+#if DEBUG || RESTATION_TEST_AUTOMATION
+                automation?.SyncWidgets(bridge.GetOverlayWidgets());
+#endif
+            }
             frames++;
             if (gateMaxFrames is > 0 && frames >= gateMaxFrames.Value)
             {
@@ -168,5 +192,105 @@ internal static unsafe partial class Program
         IRecompGameModule result = loadTask.GetAwaiter().GetResult();
         moduleAlc = loadedAlc;
         return result;
+    }
+
+    internal sealed record HostCliOverrides(
+        string? RequireBackendId,
+        int? AutomationPort,
+        string? AutomationToken,
+        bool RunDoctor);
+
+    private static int RunDoctor(HostCliOverrides hostCli, AppEnvironment env, RecompSettings settings, ReStationLogger logger)
+    {
+        SandboxResolution sandbox = env.Sandbox;
+        bool isolatedTest = string.Equals(Environment.GetEnvironmentVariable(SandboxEnvironmentSeam.EnvIsolatedTest), "1", StringComparison.Ordinal);
+        string baseDir = AppContext.BaseDirectory;
+        bool hasSdl = File.Exists(Path.Combine(baseDir, "SDL3.dll")) || File.Exists(Path.Combine(baseDir, "runtimes", "win-x64", "native", "SDL3.dll"));
+        bool has7z = File.Exists(Path.Combine(baseDir, "7z.exe"));
+        bool hasCompiler = File.Exists(Path.Combine(baseDir, "reSlate.Compiler.exe")) || File.Exists(Path.Combine(baseDir, "reStation.Compiler.exe"));
+        bool automationCompiled =
+#if DEBUG || RESTATION_TEST_AUTOMATION
+            true;
+#else
+            false;
+#endif
+        string[] lines =
+        [
+            $"reSlate Doctor v{ReStationEngineInfo.Version} (appId={ReStationEngineInfo.AppId}, track={ReStationEngineInfo.CompatibleEngineTrack})",
+            $"Containment: isolatedTest={isolatedTest} sandboxActive={sandbox.IsSandboxActive} mode={env.PresentationMode}",
+            $"Paths: dataDir={env.DataDirectory} config={env.ConfigFilePath} logDir={env.LogDirectory}",
+            $"Execution: dynamicCode={RuntimeFeature.IsDynamicCodeSupported} tier={settings.ExecutionTierMode} compilerPresent={hasCompiler}",
+            $"Host: backend={settings.BackendId} required={hostCli.RequireBackendId ?? "none"} sdl3={hasSdl} sevenZip={has7z} automationCompiled={automationCompiled}",
+            $"DeferredBackends (v0.3.1): {PsxRenderBackendIds.Vulkan}, {PsxRenderBackendIds.ParallelCpu}"
+        ];
+        foreach (string line in lines)
+        {
+            Console.WriteLine(line);
+            logger.Info("DOCTOR", line);
+        }
+        PsxTelemetrySnapshot docSnap = PsxTelemetrySnapshot.Empty with { FrameNumber = 1, ResolutionScale = settings.ResolutionScale, BackendId = settings.BackendId };
+        _ = logger.TryHeartbeat(1, 1, docSnap.ToHeartbeatMetrics(), force: true);
+        return 0;
+    }
+
+    internal static string[] ExtractHostCliOverrides(string[] args, out HostCliOverrides overrides)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        string? reqBackend = null, autoToken = null;
+        int? autoPort = null;
+        bool runDoctor = false;
+        var forwarded = new List<string>(args.Length);
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            string raw = args[i] ?? string.Empty;
+            string trimmed = raw.Trim();
+            string key = trimmed;
+            string? inlineVal = null;
+            int eq = trimmed.StartsWith("--", StringComparison.Ordinal) ? trimmed.IndexOf('=') : -1;
+            if (eq > 2) { key = trimmed[..eq]; inlineVal = trimmed[(eq + 1)..].Trim().Trim('"'); }
+
+            switch (key.ToLowerInvariant())
+            {
+                case "--require-backend":
+                    string rawBackend = (inlineVal ?? ConsumeNextValue(args, ref i, key)).ToLowerInvariant();
+                    if (rawBackend == "gl") rawBackend = PsxRenderBackendIds.OpenGl;
+                    if (rawBackend == "parallelcpu") rawBackend = PsxRenderBackendIds.ParallelCpu;
+                    if (rawBackend is not (PsxRenderBackendIds.OpenGl or PsxRenderBackendIds.Software or PsxRenderBackendIds.Vulkan or PsxRenderBackendIds.ParallelCpu))
+                        throw new ArgumentException($"--require-backend must be '{PsxRenderBackendIds.OpenGl}', '{PsxRenderBackendIds.Software}', '{PsxRenderBackendIds.Vulkan}', or '{PsxRenderBackendIds.ParallelCpu}'.");
+                    reqBackend = rawBackend;
+                    break;
+                case "--automation-port":
+                    string portText = inlineVal ?? ConsumeNextValue(args, ref i, key);
+                    if (!int.TryParse(portText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsedPort) || parsedPort is < 0 or > 65535)
+                        throw new ArgumentException("--automation-port must be 0..65535.");
+                    autoPort = parsedPort;
+                    break;
+                case "--automation-token":
+                    autoToken = inlineVal ?? ConsumeNextValue(args, ref i, key);
+                    if (string.IsNullOrWhiteSpace(autoToken))
+                        throw new ArgumentException("Option '--automation-token' requires a non-empty value.");
+                    break;
+                case "--doctor":
+                    runDoctor = true;
+                    break;
+                default:
+                    forwarded.Add(raw);
+                    break;
+            }
+        }
+
+        overrides = new HostCliOverrides(reqBackend, autoPort, autoToken, runDoctor);
+        return forwarded.ToArray();
+    }
+
+    private static string ConsumeNextValue(string[] args, ref int i, string flag)
+    {
+        if (i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]))
+            throw new ArgumentException($"Option '{flag}' requires a value.");
+        string val = args[++i].Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(val))
+            throw new ArgumentException($"Option '{flag}' requires a non-empty value.");
+        return val;
     }
 }

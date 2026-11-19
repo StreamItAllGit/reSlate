@@ -43,7 +43,7 @@ public sealed partial class ModuleAssemblyLoader
             canLoadNonGeneratedEntry &&
             !string.Equals(resolvedTier, ReStationExecutionTierModes.StaticAotOnly, StringComparison.OrdinalIgnoreCase))
         {
-            fallbackWarning = $"Local AOT compiler unavailable ({ex.Message}); running '{manifestForAot.EntryAssembly}' in runtime fallback mode.";
+            fallbackWarning = $"Local AOT compiler unavailable ({ex.Message}); running '{manifestForAot.EntryAssembly}' in execution fallback tier.";
             return null;
         }
     }

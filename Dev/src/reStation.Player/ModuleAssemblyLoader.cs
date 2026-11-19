@@ -20,7 +20,7 @@ public sealed partial class ModuleAssemblyLoader : AssemblyLoadContext
     /// <summary>Assemblies always resolved from the engine (default) context so interfaces stay identical across the boundary.</summary>
     public static readonly IReadOnlySet<string> SharedAssemblyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        "reStation.Contracts", "reStation.Core", "Foundation.Core", "Foundation.Retro", "reEngine.Core"
+        "reStation.Contracts", "reStation.Core", "Foundation.Core", "Foundation.Retro", "reEngine.Core", "reEngine.Host"
     };
 
     private readonly AssemblyDependencyResolver? _resolver;
@@ -41,7 +41,7 @@ public sealed partial class ModuleAssemblyLoader : AssemblyLoadContext
     }
 
     private ModuleAssemblyLoader(string entryAssemblyPath, string? companionCachedAssemblyPath, IReadOnlySet<string>? companionAliases, bool isDiskEntry)
-        : base($"reStation.Module:{Path.GetFileNameWithoutExtension(entryAssemblyPath)}", isCollectible: true)
+        : base($"reSlate.Module:{Path.GetFileNameWithoutExtension(entryAssemblyPath)}", isCollectible: true)
     {
         _ = isDiskEntry;
         ArgumentException.ThrowIfNullOrWhiteSpace(entryAssemblyPath);
@@ -54,7 +54,7 @@ public sealed partial class ModuleAssemblyLoader : AssemblyLoadContext
     }
 
     private ModuleAssemblyLoader(string packageArchivePath, string entryAssemblyName, string? companionCachedAssemblyPath, IReadOnlySet<string>? companionAliases)
-        : base($"reStation.Module:{Path.GetFileNameWithoutExtension(packageArchivePath)}", isCollectible: true)
+        : base($"reSlate.Module:{Path.GetFileNameWithoutExtension(packageArchivePath)}", isCollectible: true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageArchivePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(entryAssemblyName);
@@ -277,7 +277,7 @@ public sealed partial class ModuleAssemblyLoader : AssemblyLoadContext
     private static void ValidateEntryAssemblyPathSafety(string entryAssembly)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(entryAssembly);
-        string dummyRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "restation-path-check"));
+        string dummyRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "reslate-path-check"));
         AppEnvironment.AssertPathContained(Path.Combine(dummyRoot, entryAssembly), dummyRoot);
     }
 

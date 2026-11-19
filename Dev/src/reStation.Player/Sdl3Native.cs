@@ -47,7 +47,8 @@ internal static unsafe partial class Sdl3Native
     public const int ScaleModeNearest = 0, ScaleModeLinear = 1;
     public const uint BlendModeNone = 0U, BlendModeBlend = 1U;
 
-    public const uint EventQuit = 0x100U, EventKeyDown = 0x300U, EventMouseMotion = 0x400U;
+    public const uint EventQuit = 0x100U, EventKeyDown = 0x300U, EventKeyUp = 0x301U, EventMouseMotion = 0x400U;
+    public const int EventActionGetEvent = 2;
     public const uint EventMouseButtonDown = 0x401U, EventMouseButtonUp = 0x402U, EventMouseWheel = 0x403U;
     public const uint EventGamepadButtonDown = 0x651U, EventGamepadAdded = 0x653U, EventGamepadRemoved = 0x654U, EventDropFile = 0x1000U;
 
@@ -91,6 +92,8 @@ internal static unsafe partial class Sdl3Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_RenderPresent(IntPtr renderer);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetRenderVSync(IntPtr renderer, int vsync);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_PollEvent(byte* ev);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern void SDL_PumpEvents();
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern int SDL_PeepEvents(byte* events, int numevents, int action, uint minType, uint maxType);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte* SDL_GetKeyboardState(out int numkeys);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern uint SDL_GetMouseState(float* x, float* y);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_OpenAudioDeviceStream(uint devid, SdlAudioSpec* spec, IntPtr callback, IntPtr userdata);
@@ -198,6 +201,12 @@ internal static unsafe partial class Sdl3Native
     /// <summary>SDL_KeyboardEvent.scancode (offset 24).</summary>
     public static int EventScancode(byte* ev) => *(int*)(ev + 24);
 
+    /// <summary>SDL_KeyboardEvent.repeat (offset 37; non-zero on OS key-repeat events).</summary>
+    public static byte EventKeyRepeat(byte* ev) => *(ev + 37);
+
+    /// <summary>Safe span overload reading <c>SDL_KeyboardEvent.repeat</c> (offset 37).</summary>
+    public static byte EventKeyRepeat(ReadOnlySpan<byte> ev) => ev.Length > 37 ? ev[37] : (byte)0;
+
     /// <summary>SDL_MouseButtonEvent.button (offset 24).</summary>
     public static byte EventMouseButton(byte* ev) => *(ev + 24);
 
@@ -240,8 +249,8 @@ internal static unsafe partial class Sdl3Native
     [DllImport("comdlg32.dll", ExactSpelling = true)]
     private static extern int GetOpenFileNameW(OpenFileNameW* ofn);
 
-    public const string DiscImageFilter = "PlayStation Disc Images (*.cue;*.bin;*.iso;*.chd;*.7z;*.zip)\0*.cue;*.bin;*.iso;*.chd;*.7z;*.zip\0All Files (*.*)\0*.*\0\0";
-    public const string ModuleFilter = "reStation Modules (*.recomp;*.recomp.json)\0*.recomp;*.recomp.json\0All Files (*.*)\0*.*\0\0";
+    public const string DiscImageFilter = "SlateOne Disc Images (*.cue;*.bin;*.iso;*.chd;*.7z;*.zip)\0*.cue;*.bin;*.iso;*.chd;*.7z;*.zip\0All Files (*.*)\0*.*\0\0";
+    public const string ModuleFilter = "reSlate Modules (*.recomp;*.recomp.json)\0*.recomp;*.recomp.json\0All Files (*.*)\0*.*\0\0";
 
     /// <summary>Native Win32 open-file picker (no WinForms); returns null when cancelled.</summary>
     public static string? ShowOpenFileDialog(string title, string filter)

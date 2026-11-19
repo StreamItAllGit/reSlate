@@ -23,12 +23,17 @@ internal sealed class FirstRunMediaGateView
 
     private readonly PixelOverlayCanvas _canvas = new(CanvasWidth, CanvasHeight);
 
-    public string StatusMessage { get; set; } = "Provide a PS1 disc image (.cue / .bin / .iso / .chd / .7z / .zip) or place it in data\\rom\\.";
+    public string StatusMessage { get; set; } = "Provide a SlateOne disc image (.cue / .bin / .iso / .chd / .7z / .zip) or place it in data\\rom\\.";
     public bool StatusIsError { get; set; }
     public bool HoverDisc { get; set; }
     public bool HoverModule { get; set; }
 
     public byte[] Pixels => _canvas.Buffer;
+
+    public IReadOnlyList<(string ControlId, string ControlType, string Label, UiRect Rect)> GetInteractiveBounds(bool hasModule) =>
+        hasModule
+            ? [("Gate_DropZone", "Panel", "Drop Zone", DropZone), ("Gate_BrowseDisc", "Button", "Select Disc Image", CenteredBrowseDiscBtn)]
+            : [("Gate_DropZone", "Panel", "Drop Zone", DropZone), ("Gate_BrowseDisc", "Button", "Select Disc Image", BrowseDiscBtn), ("Gate_BrowseModule", "Button", "Select .recomp Module", BrowseModuleBtn)];
 
     public bool HitTestBrowseDisc(int x, int y, bool hasModule) =>
         hasModule ? CenteredBrowseDiscBtn.Contains(x, y) : BrowseDiscBtn.Contains(x, y);
@@ -42,15 +47,15 @@ internal sealed class FirstRunMediaGateView
         _canvas.FillRect(0, 0, CanvasWidth, 68, UiPaint.Panel);
         _canvas.FillRect(0, 66, CanvasWidth, 2, UiPaint.Accent);
 
-        UiPaint.Text(_canvas, 36, 20, $"reStation v{ReStationEngineInfo.Version}", UiPaint.AccentText, 3);
-        string sub = manifest is null ? "PS1 Static Recompilation Engine" : $"{manifest.DisplayName} ({manifest.SerialNumber})";
+        UiPaint.Text(_canvas, 36, 20, $"reSlate v{ReStationEngineInfo.Version}", UiPaint.AccentText, 3);
+        string sub = manifest is null ? "SlateOne Static Recompilation Engine" : $"{manifest.DisplayName} ({manifest.SerialNumber})";
         UiPaint.Text(_canvas, CanvasWidth - UiPaint.TextWidth(sub) - 36, 26, sub, UiPaint.Muted);
 
         UiPaint.BorderRect(_canvas, new UiRect(160, 110, 960, 520), new RgbaColor(0x13, 0x16, 0x1E), UiPaint.Border);
         UiPaint.Text(_canvas, 210, 144, "First-Run Media Verification", UiPaint.TextPrimary, 3);
-        UiPaint.Text(_canvas, 210, 188, "Zero copyrighted game assets are bundled with reStation.", UiPaint.Muted);
+        UiPaint.Text(_canvas, 210, 188, "Zero copyrighted game assets are bundled with reSlate.", UiPaint.Muted);
         UiPaint.Text(_canvas, 210, 214, manifest is null
-            ? "Select a .recomp game module and your verified PS1 disc image to continue."
+            ? "Select a .recomp game module and your verified SlateOne disc image to continue."
             : $"Provide your verified disc image for {manifest.DisplayName} (or preload in {manifest.PreloadRomDir}).", UiPaint.Muted);
 
         UiPaint.BorderRect(_canvas, DropZone, new RgbaColor(0x10, 0x12, 0x18), UiPaint.Border);
@@ -93,8 +98,8 @@ internal sealed class FirstRunMediaGateView
         _canvas.FillRect(0, 0, CanvasWidth, 68, UiPaint.Panel);
         _canvas.FillRect(0, 66, CanvasWidth, 2, UiPaint.Accent);
 
-        UiPaint.Text(_canvas, 36, 20, $"reStation v{ReStationEngineInfo.Version}", UiPaint.AccentText, 3);
-        string sub = manifest is null ? "PS1 Static Recompilation Engine" : $"{manifest.DisplayName} ({manifest.SerialNumber})";
+        UiPaint.Text(_canvas, 36, 20, $"reSlate v{ReStationEngineInfo.Version}", UiPaint.AccentText, 3);
+        string sub = manifest is null ? "SlateOne Static Recompilation Engine" : $"{manifest.DisplayName} ({manifest.SerialNumber})";
         UiPaint.Text(_canvas, CanvasWidth - UiPaint.TextWidth(sub) - 36, 26, sub, UiPaint.Muted);
 
         UiPaint.BorderRect(_canvas, new UiRect(180, 220, 920, 260), new RgbaColor(0x13, 0x16, 0x1E), UiPaint.Border);
