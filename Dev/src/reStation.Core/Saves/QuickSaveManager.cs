@@ -32,6 +32,7 @@ public static class QuickSaveManager
         if (slot is < 0 or >= MaxSlots) throw new ArgumentOutOfRangeException(nameof(slot));
 
         string savesDir = Path.Combine(Path.GetFullPath(dataDir), "saves");
+        Directory.CreateDirectory(savesDir);
         string safeId = string.Concat(moduleId.Select(c => Path.GetInvalidFileNameChars().Contains(c) || c == '.' ? '_' : c));
         if (string.IsNullOrWhiteSpace(safeId)) safeId = "module";
         return AppEnvironment.AssertPathContained(Path.Combine(savesDir, $"{safeId}_slot{slot}.rst"), savesDir);
@@ -124,6 +125,11 @@ public static class QuickSaveManager
             biosPayload.Length >= 6 && BinaryPrimitives.ReadUInt32LittleEndian(biosPayload) == 0x534F4942U)
         {
             cpu.Bios.RestoreSnapshot(biosPayload);
+        }
+
+        if (chunks.TryGetValue(QuickSaveTrailer.ChunkMemCard, out byte[]? mcdPayload))
+        {
+            QuickSaveTrailer.RestoreMemCardChunk(cpu, mcdPayload);
         }
 
         cpu.Bus.NotifyRamWriteRange(0, PsxMemoryBus.RamSize);

@@ -18,6 +18,8 @@ public sealed partial class PsxBiosHle
 
     private uint _lastFailedEventHandle;
     private int _failedEventPolls;
+    private long _lastVBlankEventSequence = -1;
+    private long _lastVBlankIntRpSequence = -1;
 
     private void EnsureKernelTables()
     {
@@ -156,6 +158,10 @@ public sealed partial class PsxBiosHle
     {
         _failedEventPolls = 0;
         WritePadState();
+        long seq = _cpu.VBlankSequence;
+        if (_lastVBlankEventSequence == seq) return;
+        _lastVBlankEventSequence = seq;
+        MemCard.FlushIfDirty(seq);
         foreach (KernelEvent ev in _events)
             if (!ev.Closed && ev.Enabled && (ev.ClassId is 0xF0000001U or 0xF2000003U) && ev.Spec == 0x0002U)
                 TriggerEvent(ev);
@@ -169,11 +175,16 @@ public sealed partial class PsxBiosHle
                 TriggerEvent(ev);
     }
 
-    private void DeliverCardIoEnd()
+    private void DeliverCardIoEnd() => DeliverCardEvent(0x0004U);
+
+    private void DeliverCardEvent(uint spec)
     {
-        DeliverClassEvent(0xF0000011U, 0x0004U);
-        DeliverClassEvent(0xF4000001U, 0x0004U);
+        DeliverClassEvent(0xF0000011U, spec);
+        DeliverClassEvent(0xF4000001U, spec);
     }
+
+    private bool HasEnabledEvent(uint classId, uint spec) =>
+        _events.Any(ev => !ev.Closed && ev.Enabled && ev.ClassId == classId && (ev.Spec == spec || ev.Spec == 0xFFFFU));
 
     private void TriggerEvent(KernelEvent ev)
     {
@@ -208,6 +219,22 @@ public sealed partial class PsxBiosHle
                 if (_cpu.Bus.Read32(tableAddr + p * 8U) != 0U) { hasIntRp = true; break; }
             }
         }
+        uint beforeStat = _cpu.TimersAndDma.InterruptStatus;
+        const uint vblankBit = 1U << 0;
+        if ((beforeStat & vblankBit) != 0U)
+        {
+            long seq = _cpu.VBlankSequence;
+            if (_lastVBlankIntRpSequence == seq)
+            {
+                _cpu.TimersAndDma.InterruptStatus &= ~vblankBit;
+                beforeStat &= ~vblankBit;
+                if (beforeStat == 0U) return;
+            }
+            else
+            {
+                _lastVBlankIntRpSequence = seq;
+            }
+        }
         if (!hasIntRp && _hookEntryIntBufAddr == 0)
         {
             _cpu.TimersAndDma.InterruptStatus = 0;
@@ -215,7 +242,6 @@ public sealed partial class PsxBiosHle
         }
         _cpu.InInterrupt = true;
         _cpu.TimersAndDma.AckedIrqBits = 0;
-        uint beforeStat = _cpu.TimersAndDma.InterruptStatus;
         Span<uint> savedR = stackalloc uint[32];
         _cpu.R.AsSpan().CopyTo(savedR);
         uint savedHi = _cpu.Hi, savedLo = _cpu.Lo, savedPc = _cpu.Pc;
@@ -340,5 +366,7 @@ public sealed partial class PsxBiosHle
         {
             for (int i = 0; i < count; i++) _events[i].Closed = r.ReadBoolean();
         }
+        _lastVBlankEventSequence = -1;
+        _lastVBlankIntRpSequence = -1;
     }
 }
