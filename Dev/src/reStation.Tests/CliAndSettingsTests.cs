@@ -329,8 +329,15 @@ public sealed class CliAndSettingsTests : IDisposable
     [Fact]
     public void ReStationLogger_DevLogsRoot_CreatesDevLogsCleanlyWhenEnabled()
     {
-        string? devLogsDir = ReStationLogger.TryResolveDevLogsDirectory();
-        Assert.False(string.IsNullOrWhiteSpace(devLogsDir));
+        Directory.CreateDirectory(_tempRoot);
+        string fakeRepo = Path.Combine(_tempRoot, "fake-repo");
+        string fakeDev = Path.Combine(fakeRepo, "Dev");
+        string fakeNestedOut = Path.Combine(fakeDev, "src", "reStation.Player", "bin", "Release", "net8.0");
+        Directory.CreateDirectory(fakeNestedOut);
+        File.WriteAllText(Path.Combine(fakeDev, "version.txt"), ReStationEngineInfo.Version);
+
+        string? devLogsDir = ReStationLogger.TryResolveDevLogsDirectory(fakeNestedOut);
+        Assert.Equal(Path.GetFullPath(Path.Combine(fakeDev, "logs")), devLogsDir);
 
         using var devLogger = new ReStationLogger(devLogsDir!, enabled: true, fileName: "dev-verification.log");
         devLogger.Info("DEV", "RS-06 dev-mode logging verified cleanly under Dev\\logs.");
@@ -338,6 +345,10 @@ public sealed class CliAndSettingsTests : IDisposable
         Assert.True(Directory.Exists(devLogsDir));
         Assert.True(File.Exists(devLogger.LogFilePath));
         Assert.Contains("RS-06 dev-mode logging verified", File.ReadAllText(devLogger.LogFilePath), StringComparison.Ordinal);
+
+        string deployedDir = Path.Combine(_tempRoot, "deployed", "app");
+        Directory.CreateDirectory(deployedDir);
+        Assert.Null(ReStationLogger.TryResolveDevLogsDirectory(deployedDir));
     }
 
     [Fact]

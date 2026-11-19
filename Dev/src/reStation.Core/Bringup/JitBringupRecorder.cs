@@ -60,8 +60,10 @@ public sealed class BringupProfileDocument
         }
     }
 
-    /// <summary>Deprecated pre-reSlate v0.3.0 transition compatibility alias of <see cref="IsPureStaticReady"/>.</summary>
+    /// <summary>Deprecated pre-reSlate v0.3.0 C# compatibility alias of <see cref="IsPureStaticReady"/> (never serialized).</summary>
     [Obsolete("Use IsPureStaticReady (Standard 18 canonical key 'isPureStaticReady'). Retained for v0.3.x transition compatibility.")]
+    [JsonPropertyName("__clrOnly_IsR4PromotionReady")]
+    [JsonIgnore]
     public bool IsR4PromotionReady
     {
         get => _isPureStaticReady;
@@ -69,6 +71,19 @@ public sealed class BringupProfileDocument
         {
             if (!_hasExplicitPureStatic)
                 _isPureStaticReady = value;
+        }
+    }
+
+    [JsonPropertyName("isR4PromotionReady")]
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    private bool? LegacyR4PromotionReadyJson
+    {
+        get => null;
+        init
+        {
+            if (value.HasValue && !_hasExplicitPureStatic)
+                _isPureStaticReady = value.Value;
         }
     }
 
@@ -133,7 +148,7 @@ public sealed class JitBringupRecorder
     [JsonIgnore]
     public bool IsBringupCaptureClean => DiscoveredFunctionCount > 0 && !IsSpinWatchdogTripped;
 
-    /// <summary>True only when static AOT ran with zero dynamic JIT/IR/interpreter dispatches and no spin trip.</summary>
+    /// <summary>True only when static AOT ran outside <c>jitBringup</c> with zero dynamic JIT/IR/interpreter dispatches and no spin trip.</summary>
     [JsonIgnore]
     public bool IsPureStaticReady => _attachedCoordinator is { } coord
         ? ComputeIsPureStaticReady(
@@ -141,26 +156,32 @@ public sealed class JitBringupRecorder
             coord.JitDispatchCount,
             coord.ThreadedIrDispatchCount,
             coord.InterpreterFallbackCount,
-            IsSpinWatchdogTripped)
-        : _lastSnapshotPureStaticReady && !IsSpinWatchdogTripped;
+            IsSpinWatchdogTripped,
+            coord.ExecutionTierMode)
+        : !IsBringupMode(ExecutionTierMode) && _lastSnapshotPureStaticReady && !IsSpinWatchdogTripped;
 
     /// <summary>Deprecated pre-reSlate v0.3.0 transition compatibility alias of <see cref="IsPureStaticReady"/>.</summary>
     [Obsolete("Use IsPureStaticReady for R3 Pure Static readiness or IsBringupCaptureClean for bringup capture completeness.")]
     [JsonIgnore]
     public bool IsR4PromotionReady => IsPureStaticReady;
 
-    /// <summary>Computes the canonical Standard 18 <c>isPureStaticReady</c> gate from execution counters.</summary>
+    /// <summary>Computes the canonical Standard 18 <c>isPureStaticReady</c> gate from execution counters and tier mode.</summary>
     public static bool ComputeIsPureStaticReady(
         long compiledDispatchCount,
         long jitDispatchCount,
         long threadedIrDispatchCount,
         long interpreterFallbackCount,
-        bool isSpinWatchdogTripped) =>
-        compiledDispatchCount > 0L
+        bool isSpinWatchdogTripped,
+        string? executionTierMode = null) =>
+        !IsBringupMode(executionTierMode)
+        && compiledDispatchCount > 0L
         && jitDispatchCount == 0L
         && threadedIrDispatchCount == 0L
         && interpreterFallbackCount == 0L
         && !isSpinWatchdogTripped;
+
+    private static bool IsBringupMode(string? executionTierMode) =>
+        string.Equals(executionTierMode, ReStationExecutionTierModes.JitBringup, StringComparison.OrdinalIgnoreCase);
 
     internal void AttachCoordinator(Tier3ExecutionCoordinator? coordinator) => _attachedCoordinator = coordinator;
 
@@ -256,11 +277,12 @@ public sealed class JitBringupRecorder
         }
 
         Tier3ExecutionCoordinator? effectiveCoord = coordinator ?? _attachedCoordinator;
+        string effectiveTier = effectiveCoord?.ExecutionTierMode ?? ExecutionTierMode;
         long compiled = Math.Max(compiledDispatchCount, effectiveCoord?.CompiledDispatchCount ?? 0L);
         long jit = effectiveCoord?.JitDispatchCount ?? 0L;
         long threadedIr = effectiveCoord?.ThreadedIrDispatchCount ?? 0L;
         long interp = Math.Max(interpreterFallbackCount, effectiveCoord?.InterpreterFallbackCount ?? 0L);
-        bool pureStaticReady = ComputeIsPureStaticReady(compiled, jit, threadedIr, interp, IsSpinWatchdogTripped);
+        bool pureStaticReady = ComputeIsPureStaticReady(compiled, jit, threadedIr, interp, IsSpinWatchdogTripped, effectiveTier);
         _lastSnapshotPureStaticReady = pureStaticReady;
 
         return new BringupProfileDocument

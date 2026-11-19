@@ -220,7 +220,7 @@ public sealed class AotRecipeSpec
 /// </summary>
 public interface IReStationDecompProvider : IDecompPlatformProvider
 {
-    /// <summary>Target engine identifier (always <c>reStation</c>).</summary>
+    /// <summary>Target engine identifier (canonical <c>reSlate</c>).</summary>
     string EngineId { get; }
 
     /// <summary>Clean-room SLEIGH specification identifier used for R3000A instruction lifting.</summary>

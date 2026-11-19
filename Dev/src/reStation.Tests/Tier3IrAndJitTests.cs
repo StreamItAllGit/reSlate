@@ -336,9 +336,18 @@ public sealed class Tier3IrAndJitTests : IDisposable
             Assert.False(doc.RootElement.GetProperty("isPureStaticReady").GetBoolean());
             Assert.True(doc.RootElement.GetProperty("jitDispatchCount").GetInt64() + doc.RootElement.GetProperty("threadedIrDispatchCount").GetInt64() > 0L);
             Assert.False(doc.RootElement.TryGetProperty("isBringupCaptureClean", out _));
+            Assert.False(doc.RootElement.TryGetProperty("isR4PromotionReady", out _));
         }
         Assert.False(recorder.IsPureStaticReady);
         Assert.True(recorder.IsBringupCaptureClean);
+
+        // Active --jit-bringup must stay false even when compiled dispatches ran with zero dynamic JIT/IR fallbacks
+        var bringupCoord = new Tier3ExecutionCoordinator(new RamPageEpochTable(), ReStationExecutionTierModes.JitBringup);
+        bringupCoord.RecordCompiledDispatch(5L);
+        var bringupRec = new JitBringupRecorder("bringup-pass", ReStationExecutionTierModes.JitBringup, bringupProfilePath: Path.Combine(_tempRoot, "bringup-zero-fallback", "bringup.profile.json"));
+        BringupProfileDocument bringupDoc = bringupRec.BuildSnapshot(bringupCoord);
+        Assert.False(bringupDoc.IsPureStaticReady);
+        Assert.False(bringupRec.IsPureStaticReady);
 
         // Pure static run: CompiledDispatchCount > 0 && zero JIT/IR/interpreter && !spinTripped
         var pureCoord = new Tier3ExecutionCoordinator(new RamPageEpochTable(), ReStationExecutionTierModes.StaticAotOnly);

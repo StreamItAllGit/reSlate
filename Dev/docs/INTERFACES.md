@@ -25,7 +25,7 @@
 #### Clean-Room `.decomp` & AOT Contracts (`IReStationDecompProvider.cs`)
 - `ReStationExecutionTierModes`: `StaticAotOnly = "staticAotOnly"`, `AotWithJitFallback = "aotWithJitFallback"`, `AotWithThreadedIr = "aotWithThreadedIr"`, `JitBringup = "jitBringup"`, `InterpreterOracle = "interpreterOracle"`, `Default = AotWithJitFallback`, `TryNormalize(string? mode, out string normalized)`, `Normalize(string? mode)`, `IsValid(string? mode)`, `ToFoundationTierMode(string? mode)`, `FromFoundationTierMode(RecompExecutionTierMode tier)`.
 - `IReStationDecompProvider : IDecompPlatformProvider`:
-  - `string EngineId { get; }` (`"reStation"`), `string SleighLanguageId { get; }` (`"MIPS:LE:32:R3000A_GTE"`)
+  - `string EngineId { get; }` (`"reSlate"`), `string SleighLanguageId { get; }` (`"MIPS:LE:32:R3000A_GTE"`)
   - `Task<AotRecipeSpec> BuildAotRecipeAsync(DecompRunOptions options, CancellationToken ct = default)`
   - `DecompCleanRoomValidationResult ValidateCleanRoomPackage(string packageOrDirectory)`
 - `AotRecipeSpec`: `SchemaVersion`, `PlatformId` (`"ps1"`), `ModuleId`, `DiscSerial`, `ExecutionTierMode`, `SleighSpecId`, `TargetArchitecture` (`"R3000A"`), `LittleEndian`, `PrimaryBootExecutable`, `IReadOnlyList<AotRecipeExecutableSpec> Executables`, `IReadOnlyList<uint> EntryAddresses`, `IReadOnlyList<string> CleanRoomArtifacts`, `GeneratedCacheAssemblyName`, `ExtensionData`, `void Validate(string sourceLabel = "aot-recipe.json")`.

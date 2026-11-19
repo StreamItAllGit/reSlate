@@ -105,7 +105,7 @@ flowchart LR
 
 ---
 
-## 4. File & Symbol Lookup Registry (`166` Tracked Source/Script Files — Max `353` Non-Test Code SLOC)
+## 4. File & Symbol Lookup Registry (`177` Tracked `Dev\src` + `Dev\scripts` Files · `135` Non-Test `.cs`/`.ps1` — Max `353` Code SLOC)
 
 All non-test C# and PowerShell source files comply strictly with Standard 32's `400` code-only SLOC limit (`0` files over `400`). Key `v0.3.0` additions/splits and modified anchors include:
 
@@ -146,7 +146,7 @@ All non-test C# and PowerShell source files comply strictly with Standard 32's `
 
 ## 6. Failure Modes & Resilience
 
-- **Mid-Stack Quick-Load (`F9`):** When `R[31] != ReturnSentinelPc`, `PsxCpu.DispatchFunction` invokes `PsxInterpreter.ResumeFromSnapshot` directly; `HasCompiledEntry` avoids false positives inside `[TextStart, TextEnd)`.
+- **Mid-Stack Quick-Load (`F9`):** When `R[31] != ReturnSentinelPc`, `PsxCpu.DispatchFunction` invokes `PsxCpu.ResumeMidStack` (executing natively via `Tier3ExecutionCoordinator`, or via `PsxInterpreter.ResumeFromSnapshot` only when `--execution-tier interpreterOracle` is selected); `HasCompiledEntry` avoids false positives inside `[TextStart, TextEnd)`.
 - **OpenGL Context Creation Failure:** `HostVideoSurface.TrySwitchBackend` preserves window handle, logs exact driver failure, reverts to `software` cleanly, and displays an inline Video-tab warning banner.
 - **Joypad / Polled Timer Deadlocks:** `PsxJoypadPort` clears `/ACK` automatically after `96` cycles while keeping `_irqPending` (`0x200`) independent; `PsxTimersAndDma` advances timers before reading/writing `RCnt*`.
 - **Unbuilt Offline Ghidra Toolchain:** `PsxDecompPlatformProvider` fails closed on D2 `invokeGhidra=true` (`PSX_GHIDRA_BATCH_FAILED`) while allowing D0–D3 recipe synthesis without network calls (`MISSING_OFFLINE_TOOLCHAIN` diagnostic when toolchain missing in `Full`).
@@ -177,7 +177,7 @@ All non-test C# and PowerShell source files comply strictly with Standard 32's `
 - **ADR-004 (2026-11-15 · v0.2.0) — Dual-Layer Software UI Compositing & `1060x34` Compact Strip:** Decoupled `SDL_Texture` UI overlay blending from CPU pixel compositing and isolated `F3` HUD rendering from full-screen allocations.
 - **ADR-005 (2026-11-15 · v0.2.0) — Multi-Bind `Schema A` & `Schema B` Controller/Isometric Modes:** Unified `[1st, 2nd, 3rd]` KBM/wheel/gamepad bindings (`ModernBindingsJsonConverter`) with `!gameplay` Menu Arrow fallback without breaking `v0.1.x` scalar `GameActionDescriptor` signatures.
 - **ADR-006 (2026-11-16 · v0.2.8) — Dynamic `ControlOptions` (`metadataJson`), Hor+ `16:9` Side Wings & Decoupled `60 Hz` VBlank:** Replaced hardcoded pastoral-sim (`MeadowValley BackToEarth`) drawer pills with `IModuleInputProfileProvider.ControlOptions` + `MetadataJsonConverter`, replaced GTE `0.75` squash with unstretched Hor+ `16:9` side wings (`PsxWidescreenGeometry` + `_wideFbo`/`_wideHiBuf` while keeping 24-bit MDEC FMVs at `4:3`), locked outer VBlank cadence to `60.0 Hz`, and implemented BIOS `B0:0x09 CloseEvent` + `ExecOverlay` `IntRP` isolation + bounded SPU stream draining.
-- **ADR-007 (2026-11-18 · v0.3.0) — `reSlate` Identity Split & `reEngine.Host v0.3.0` Boundary:** Preserves `reStation.{Contracts,Core}` PE ABI, `reStation.*` namespaces, and `Personal/reStation/` while shipping `reSlate.exe`, `reSlate.Player.exe`, `reSlate.Compiler.exe`, `reSlate.Decomp.dll`, `reSlate-Setup`, `reSlate-v0.3.0-win-x64-Portable.zip`, `engineId: "reSlate"`, `engines\reSlate\`, and `SharedLibs\reSlate\v0.3.0\`; consumes `reEngine.Host.Contracts` (`HostContractBridge` + Debug-only `DebugAutomationHook`) and defers `Vulkan` (`RS-304`), `ParallelCpu` (`RS-305`), and `ISubTickFrameHook`/`hdpacks\` (`RS-306`) to `v0.3.1`.
+- **ADR-007 (2026-11-18 · v0.3.0) — `reSlate` Identity Split & `reEngine.Host v0.3.0` Boundary:** Preserves `reStation.{Contracts,Core}` PE ABI, `reStation.*` namespaces, and repo folder `Personal/reStation` while shipping `reSlate.exe`, `reSlate.Player.exe`, `reSlate.Compiler.exe`, `reSlate.Decomp.dll`, `reSlate-Setup`, `reSlate-v0.3.0-win-x64-Portable.zip`, `engineId: "reSlate"`, `engines\reSlate\`, and `SharedLibs\reSlate\v0.3.0\`; consumes `reEngine.Host.Contracts` (`HostContractBridge` + Debug-only `DebugAutomationHook`) and defers `Vulkan` (`RS-304`), `ParallelCpu` (`RS-305`), and `ISubTickFrameHook`/`hdpacks\` (`RS-306`) to `v0.3.1`.
 - **ADR-008 (2026-11-18 · v0.3.0) — Live Native AOT/JIT Mandate (`Zero Silent Emulator Fallback`):** Wires `Tier3ExecutionCoordinator` directly into `PsxCpu.Call`/`DispatchFunction` with `PsxMemoryBus.OnRamWriteRange` coherence, fails closed in `staticAotOnly`, quarantines `PsxInterpreter` exclusively to `--execution-tier interpreterOracle`, and emits canonical `isPureStaticReady`.
 
 ---
