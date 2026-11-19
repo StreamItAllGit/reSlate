@@ -32,8 +32,10 @@ public sealed class PsxDecompAndSlaTests : IDisposable
     {
         var provider = new PsxDecompPlatformProvider();
         Assert.Equal("ps1", provider.PlatformId);
-        Assert.Equal("reStation", provider.EngineId);
-        Assert.Equal("0.2.8", provider.MinimumEngineVersion);
+        Assert.Equal("reSlate", provider.EngineId);
+        Assert.Equal("0.3.0", provider.MinimumEngineVersion);
+        Assert.Contains("reSlate", provider.DisplayName, StringComparison.Ordinal);
+        Assert.DoesNotContain("emulator", provider.DisplayName, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("MIPS:LE:32:R3000A_GTE", provider.SleighLanguageId);
 
         string slaSpec = PsxGteSlaExtension.LoadSlaSpecText();
@@ -213,6 +215,121 @@ public sealed class PsxDecompAndSlaTests : IDisposable
         Directory.CreateDirectory(gplDir);
         File.WriteAllText(Path.Combine(gplDir, "ghidra_psx_ldr.py"), "# GNU General Public License");
         Assert.False(provider.ValidateCleanRoomPackage(gplDir).IsValid);
+    }
+
+    [Fact]
+    public async Task RunDecompD4_PreservesHeaderOnlyLp32_AndEnforcesCraftsmanshipGateOnCSourcesOrReports()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string pkgDir = Path.Combine(_tempRoot, "pkg");
+        Directory.CreateDirectory(pkgDir);
+        File.WriteAllText(Path.Combine(pkgDir, "module.decomp.json"), """
+        {
+          "schemaVersion": 1,
+          "moduleId": "ps1d4sample",
+          "platformId": "ps1",
+          "engineId": "reSlate",
+          "compatibleEngineTrack": "0.3.x",
+          "engineVersion": "0.3.0",
+          "preservedTiers": ["D1_Raw", "D2_Structured", "D3_Mapped", "D4_FunctionalRewrite"]
+        }
+        """);
+
+        var provider = new PsxDecompPlatformProvider();
+
+        // 1. Header-only LP32 RunDecompAsync(D4) must pass cleanly without requiring media or C exports.
+        string lp32Out = Path.Combine(_tempRoot, "lp32-out");
+        DecompStageResult lp32Res = await provider.RunDecompAsync(new DecompRunOptions(pkgDir, lp32Out, Path.Combine(_tempRoot, "data-empty"), DecompStage.D4));
+        Assert.True(lp32Res.Success, lp32Res.Message);
+        string lp32Json = File.ReadAllText(Path.Combine(lp32Out, "d4-lp32-parity-report.json"));
+        Assert.Contains("\"isPassed\": true", lp32Json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"Passed\"", lp32Json, StringComparison.Ordinal);
+
+        // 2. Dirty C export (tells + mechanical _01.c fragment) must fail closed with PSX_D4_CRAFTSMANSHIP_FAILED.
+        string dirtyExports = Path.Combine(_tempRoot, "dirty-exports");
+        Directory.CreateDirectory(dirtyExports);
+        File.WriteAllText(Path.Combine(dirtyExports, "gameplay_01.c"), "s16 bad(s32 x) { return (s16)((x << 16) >> 16); }\n");
+        var dirtyOpts = new DecompRunOptions(pkgDir, Path.Combine(_tempRoot, "dirty-out"), Path.Combine(_tempRoot, "data-dirty"), DecompStage.D4,
+            PlatformArguments: new Dictionary<string, string> { ["exportsDir"] = dirtyExports });
+        DecompStageResult dirtyRes = await provider.RunDecompAsync(dirtyOpts);
+        Assert.False(dirtyRes.Success);
+        Assert.Equal("PSX_D4_CRAFTSMANSHIP_FAILED", dirtyRes.DiagnosticCode);
+
+        // 3. Clean C export + valid D4_CleanSource report passes and normalizes D4_FunctionalRewrite -> D4_CleanSource.
+        string cleanWs = Path.Combine(_tempRoot, "clean-ws");
+        Directory.CreateDirectory(Path.Combine(cleanWs, "Corpus", "tiers", "D4_CleanSource", "src"));
+        File.WriteAllText(Path.Combine(cleanWs, "Corpus", "tiers", "D4_CleanSource", "src", "gameplay.c"),
+            "typedef void (*PsxCallbackFn)(void);\nextern unsigned int g_state_table[4];\nunsigned int step_game(unsigned int idx) { return g_state_table[idx]; }\n");
+        File.WriteAllText(Path.Combine(cleanWs, "d4_build_report.json"), """
+        {
+          "schemaVersion": 2,
+          "moduleName": "ps1d4sample",
+          "tier": "D4",
+          "compilerErrorCount": 0,
+          "compilerWarningCount": 0,
+          "compilerFlags": ["-Wall", "-Wextra", "-Wno-unused-parameter"],
+          "craftsmanshipTellCount": 0,
+          "isZeroWarningsVerified": true,
+          "isZeroDecompilerTellsVerified": true,
+          "isPassed": true
+        }
+        """);
+        string cleanOut = Path.Combine(_tempRoot, "clean-out");
+        var cleanOpts = new DecompRunOptions(pkgDir, cleanOut, Path.Combine(_tempRoot, "data-clean"), DecompStage.D4,
+            PlatformArguments: new Dictionary<string, string> { ["workspaceDir"] = cleanWs });
+        DecompStageResult cleanRes = await provider.RunDecompAsync(cleanOpts);
+        Assert.True(cleanRes.Success, cleanRes.Message);
+        string craftJson = File.ReadAllText(Path.Combine(cleanOut, "d4-craftsmanship-report.json"));
+        Assert.Contains("\"D4_CleanSource\"", craftJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("D4_FunctionalRewrite", craftJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportPipelineAndGhidraTemplates_EmitCoalescingTypedExternsAndCallbackCasts()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string exportDir = Path.Combine(_tempRoot, "exports");
+        string outDir = Path.Combine(_tempRoot, "out");
+        Directory.CreateDirectory(exportDir);
+        File.WriteAllText(Path.Combine(exportDir, "globals.json"), """
+        { "globals": [{ "name": "g_cd_afile_toc", "elementType": "u32", "elementCount": 32 }] }
+        """);
+        File.WriteAllText(Path.Combine(exportDir, "functions.json"), """
+        { "functions": [{ "name": "gte_project_poly", "address": "0x80012000", "size": 64 }, { "name": "cd_read_sector", "address": "0x80013000", "size": 48 }] }
+        """);
+        File.WriteAllText(Path.Combine(exportDir, "sample.c"), "void run_cb(code *cb, u32 addr) { ((code *)addr)(); gte_rtps(); }\n");
+
+        PsxNormalizedExportSummary summary = PsxExportAndAssetPipeline.NormalizeExportDirectory(exportDir, outDir);
+        string normC = File.ReadAllText(summary.NormalizedCPath);
+        Assert.Contains("extern u32 g_cd_afile_toc[32];", normC, StringComparison.Ordinal);
+        Assert.Contains("(PsxCallbackFn)(uintptr_t)addr", normC, StringComparison.Ordinal);
+        Assert.Contains("PsxCallbackFn cb", normC, StringComparison.Ordinal);
+        Assert.Contains("@coalesced-module", normC, StringComparison.Ordinal);
+        Assert.Contains("psx_gte_rtps()", normC, StringComparison.Ordinal);
+
+        string normFnJson = File.ReadAllText(summary.FunctionsIndexPath);
+        Assert.Contains("\"coalescedModules\"", normFnJson, StringComparison.Ordinal);
+        Assert.Contains("sdk/libgte/gte_math.c", normFnJson, StringComparison.Ordinal);
+        Assert.Contains("sdk/libcd/cd_stream.c", normFnJson, StringComparison.Ordinal);
+
+        string py = PsxGhidraScriptTemplates.GenerateCleanExeLoaderScript();
+        Assert.Contains("reSlate.Decomp", py, StringComparison.Ordinal);
+        Assert.Contains("reSlate.PS1", py, StringComparison.Ordinal);
+        Assert.Contains("classify_coalesced_unit", py, StringComparison.Ordinal);
+        Assert.Contains("(PsxCallbackFn)(uintptr_t)", py, StringComparison.Ordinal);
+        Assert.Contains("collect_typed_array_externs", py, StringComparison.Ordinal);
+        Assert.DoesNotContain("emulator", py, StringComparison.OrdinalIgnoreCase);
+
+        // Clean-room .decomp ZIP rejecting C bodies via DecompD4StrictnessValidator integration.
+        string badDecompZip = Path.Combine(_tempRoot, "cbody-leak.decomp");
+        using (ZipArchive zip = ZipFile.Open(badDecompZip, ZipArchiveMode.Create))
+        {
+            using var w = new StreamWriter(zip.CreateEntry("rewrites/leak.c").Open());
+            w.Write("int32_t LeakFn(int x) { return x + 1; }");
+        }
+        Assert.False(providerValidate(badDecompZip).IsValid);
+
+        static DecompCleanRoomValidationResult providerValidate(string path) => new PsxDecompPlatformProvider().ValidateCleanRoomPackage(path);
     }
 
     private static byte[] BuildPsxExe(uint textAddr, uint pc0, uint[] words, uint bssAddr = 0, uint bssSize = 0)
