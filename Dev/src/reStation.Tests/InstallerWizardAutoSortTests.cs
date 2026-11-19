@@ -144,4 +144,60 @@ public sealed class InstallerWizardAutoSortTests : IDisposable
         Assert.Equal(Path.Combine(genericMisc, "reEngine"), actualSecondary);
         Assert.Equal(Path.Combine(genericMisc, "reEngine", "engines", "reSlate", versionFolder), actualInstall);
     }
+
+    [Fact]
+    public void NormalizeWizardStationInstallDir_DoesNotTreatPopulatedReEngineDirAsOwnInstall()
+    {
+        string tempRoot = Path.Combine(Path.GetTempPath(), $"reslate_reengine_guard_{Guid.NewGuid():N}");
+        try
+        {
+            string reEngineDir = Path.Combine(tempRoot, "Misc", "StreamItAll", "reEngine");
+            Directory.CreateDirectory(Path.Combine(reEngineDir, "app"));
+            Directory.CreateDirectory(Path.Combine(reEngineDir, "engines", "reStation", "v0.2.8"));
+            File.WriteAllText(Path.Combine(reEngineDir, "reEngine.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(reEngineDir, "app", "reEngine.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(reEngineDir, "app", "reEngine-Uninstall.exe"), string.Empty);
+            File.WriteAllText(
+                Path.Combine(reEngineDir, "app", "install-manifest.json"),
+                "{\"product_name\":\"reEngine\",\"appId\":\"reengine\"}");
+            File.WriteAllText(Path.Combine(reEngineDir, "engines", "reStation", "v0.2.8", "reStation.exe"), string.Empty);
+
+            Assert.True(reStation.Installer.ReStationWizardPathNormalizer.IsReEngineDirectory(reEngineDir));
+            Assert.False(reStation.Installer.ReStationInstallerBootstrap.HasDirectInstallation(reEngineDir));
+
+            string expectedSideBySide = Path.Combine(
+                reEngineDir,
+                "engines",
+                "reSlate",
+                $"v{reStation.Installer.ReStationInstallerTheme.Version}");
+            Assert.Equal(
+                expectedSideBySide,
+                reStation.Installer.ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(reEngineDir));
+
+            string ownInstallDir = Path.Combine(tempRoot, "CustomInstall", "reSlate");
+            Directory.CreateDirectory(Path.Combine(ownInstallDir, "app"));
+            File.WriteAllText(
+                Path.Combine(ownInstallDir, "app", "install-manifest.json"),
+                "{\"product_name\":\"reSlate\",\"appId\":\"reslate\"}");
+            Assert.False(reStation.Installer.ReStationWizardPathNormalizer.IsReEngineDirectory(ownInstallDir));
+            Assert.True(reStation.Installer.ReStationInstallerBootstrap.HasDirectInstallation(ownInstallDir));
+            Assert.Equal(
+                ownInstallDir,
+                reStation.Installer.ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(ownInstallDir));
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, recursive: true);
+                }
+            }
+            catch
+            {
+                // Ignore transient file locks during temp cleanup.
+            }
+        }
+    }
 }

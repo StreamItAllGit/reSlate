@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-hf.1] - 2026-11-18
+### Fixed
+- **Installer `reEngine` Root Collision Guard (`HasDirectInstallation` & `NormalizeWizardStationInstallDir`):** Updated `ReStationInstallerBootstrap.HasDirectInstallation` and `ReStationWizardPathNormalizer` to reject populated `reEngine` directories (via `IsReEngineDirectory` and strict `"product_name"` / `"appId"` inspection inside `app\install-manifest.json`) before falling back to `HasDirectInstallation`, preventing `reSlate-Setup` from treating `reEngine`'s manifest as a direct `reSlate` installation and overwriting `reEngine.exe` instead of installing into `engines\reSlate\v0.3.0-hf.1\`.
+- **Poisoned Registry & Existing-Engine Path Resolution (`ReStationInstallPathResolver`):** Updated `DiscoverExistingInstall` and `ResolveFromExistingEngineInstall` so an existing `Uninstall\reSlate` path pointing at a `reEngine` root cannot hijack `preferredInstallDir` or inherit `reEngine`'s `settings.json` profile, resolving cleanly to `<reEngineDir>\engines\reSlate\v0.3.0-hf.1` with regression tests covering both populated `reEngine` directories and poisoned registry states (`268/268` dual Release + Debug tests, `0` warnings).
+
 ## [0.3.0] - 2026-11-18
 ### Added
 - **Live Tier 3 Native AOT/JIT Dispatch & Canonical `isPureStaticReady`:** Wired `Tier3ExecutionCoordinator` (`RyuJitBlockBackend` primary, Zero-RWX `ThreadedIrBackend` secondary, `PsxMemoryBus.OnRamWriteRange` coherence) directly into `PsxCpu.Call`/`DispatchFunction`, failing closed in `staticAotOnly` and quarantining `PsxInterpreter` exclusively to `--execution-tier interpreterOracle`; added canonical `BringupProfileDocument.IsPureStaticReady` (`[Obsolete]` `IsR4PromotionReady` read-alias) and `[JsonIgnore]` `IsBringupCaptureClean`.

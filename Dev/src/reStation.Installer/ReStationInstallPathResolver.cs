@@ -143,7 +143,8 @@ internal static partial class ReStationInstallPathResolver
 
     internal static string ResolveFromExistingEngineInstall(string reEngineInstallDir)
     {
-        return ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(reEngineInstallDir);
+        string enginesRoot = ReStationWizardPathNormalizer.ResolvePreferredEnginesRootDir(reEngineInstallDir);
+        return Path.Combine(enginesRoot, ReStationInstallerTheme.EngineId, $"v{ReStationInstallerTheme.Version}");
     }
 
     internal static string? TryReadSavedInstallProfile(string? installDir)
@@ -201,6 +202,8 @@ internal static partial class ReStationInstallPathResolver
 
         string? resolvedEngineDir = null;
         string? preferredInstallDir = null;
+        bool slateDirIsReEngine = existingSlateDir is not null &&
+            ReStationWizardPathNormalizer.IsReEngineDirectory(existingSlateDir);
 
         if (existingSlateDir is not null)
         {
@@ -209,7 +212,7 @@ internal static partial class ReStationInstallPathResolver
                 resolvedEngineDir = fromSlate;
                 preferredInstallDir = ResolveFromExistingEngineInstall(fromSlate);
             }
-            else
+            else if (!slateDirIsReEngine)
             {
                 string leaf = Path.GetFileName(existingSlateDir);
                 preferredInstallDir = VersionFolderRegex().IsMatch(leaf) && Path.GetDirectoryName(existingSlateDir) is string parent
@@ -238,7 +241,8 @@ internal static partial class ReStationInstallPathResolver
             return null;
 
         preferredInstallDir ??= ResolveFromExistingEngineInstall(resolvedEngineDir!);
-        string? savedProfile = TryReadSavedInstallProfile(existingSlateDir)
+        string? slateProfileDir = slateDirIsReEngine ? null : existingSlateDir;
+        string? savedProfile = TryReadSavedInstallProfile(slateProfileDir)
             ?? TryReadSavedInstallProfile(existingStationDir)
             ?? TryReadSavedInstallProfile(preferredInstallDir);
 

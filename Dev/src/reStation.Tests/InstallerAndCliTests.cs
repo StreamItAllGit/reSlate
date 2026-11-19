@@ -28,7 +28,7 @@ public sealed class InstallerAndCliTests : IDisposable
         Assert.False(descriptor.AllowAutoStart);
         Assert.Equal("reSlate", descriptor.ProductName);
         Assert.Equal("reSlate", descriptor.DisplayName);
-        Assert.Equal("0.3.0", descriptor.Version);
+        Assert.Equal("0.3.0-hf.1", descriptor.Version);
         Assert.Equal(ReStationInstallerTheme.Version, descriptor.Version);
         Assert.Equal("reSlate.Installer.Embedded.payload.zip", descriptor.EmbeddedPayloadResourceName);
         Assert.Equal("reSlate.exe", descriptor.MainExecutableRelativePath);
@@ -41,8 +41,8 @@ public sealed class InstallerAndCliTests : IDisposable
         Assert.NotNull(manifest);
         Assert.Equal("reslate", manifest!.AppId);
         Assert.Equal("reSlate", manifest.DisplayName);
-        Assert.Equal("0.3.0", manifest.Version);
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0", manifest.UmbrellaSubpath);
+        Assert.Equal("0.3.0-hf.1", manifest.Version);
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.1", manifest.UmbrellaSubpath);
         Assert.Equal("reSlate.exe", manifest.MainExecutableRelativePath);
         Assert.False(manifest.AllowAutoStart);
 
@@ -125,7 +125,7 @@ public sealed class InstallerAndCliTests : IDisposable
                 StringComparison.OrdinalIgnoreCase);
             Assert.False(
                 resolvedInstall.Contains(Path.Combine("reEngine", "engines"), StringComparison.OrdinalIgnoreCase),
-                "Installer target must use peer engines\\reSlate\\v0.3.0 rather than nested reEngine\\engines\\.");
+                "Installer target must use peer engines\\reSlate\\v0.3.0-hf.1 rather than nested reEngine\\engines\\.");
         }
         finally
         {
@@ -197,8 +197,8 @@ public sealed class InstallerAndCliTests : IDisposable
     [Fact]
     public void InstallerAndLauncher_ExposeCurrentMetadataParameterizedAssemblyAndZeroEmptyCatches()
     {
-        Assert.Equal("0.3.0", ReStationInstallerTheme.Version);
-        Assert.Equal("reSlate-Setup-v0.3.0-win-x64", typeof(Program).Assembly.GetName().Name);
+        Assert.Equal("0.3.0-hf.1", ReStationInstallerTheme.Version);
+        Assert.Equal("reSlate-Setup-v0.3.0-hf.1-win-x64", typeof(Program).Assembly.GetName().Name);
 
         string srcRoot = FindSrcRoot();
         string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));
@@ -257,7 +257,7 @@ public sealed class InstallerAndCliTests : IDisposable
             string isolated2 = Path.Combine(tempRoot, "case2-isolated");
             string leaf2 = ReStationInstallerBootstrap.ComputeSideBySideDir(Path.Combine(isolated2, "reEngine"));
             Directory.CreateDirectory(Path.Combine(leaf2, "app"));
-            File.WriteAllText(Path.Combine(leaf2, "app", "install-manifest.json"), "{}");
+            File.WriteAllText(Path.Combine(leaf2, "app", "install-manifest.json"), "{\"product_name\":\"reSlate\",\"appId\":\"reslate\"}");
 
             string[] normalizedIsolatedBase = ReStationInstallerBootstrap.NormalizeUninstallArgs(
                 new[] { "--uninstall", "--data-dir", isolated2, "--install-dir", isolated2 });
@@ -305,7 +305,7 @@ public sealed class InstallerAndCliTests : IDisposable
         string readyJson = File.ReadAllText(readyPath);
         Assert.Contains("\"engineId\": \"reSlate\"", readyJson, StringComparison.Ordinal);
         Assert.Contains("\"appId\": \"reslate\"", readyJson, StringComparison.Ordinal);
-        Assert.Contains("\"version\": \"0.3.0\"", readyJson, StringComparison.Ordinal);
+        Assert.Contains("\"version\": \"0.3.0-hf.1\"", readyJson, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(installDir, "data", "config", "settings.json")));
 
         Program.RemoveReadyMarkerIfPresent(installDir);

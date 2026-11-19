@@ -33,7 +33,7 @@ public sealed class PsxDecompAndSlaTests : IDisposable
         var provider = new PsxDecompPlatformProvider();
         Assert.Equal("ps1", provider.PlatformId);
         Assert.Equal("reSlate", provider.EngineId);
-        Assert.Equal("0.3.0", provider.MinimumEngineVersion);
+        Assert.Equal("0.3.0-hf.1", provider.MinimumEngineVersion);
         Assert.Contains("reSlate", provider.DisplayName, StringComparison.Ordinal);
         Assert.DoesNotContain("emulator", provider.DisplayName, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("MIPS:LE:32:R3000A_GTE", provider.SleighLanguageId);
@@ -230,7 +230,7 @@ public sealed class PsxDecompAndSlaTests : IDisposable
           "platformId": "ps1",
           "engineId": "reSlate",
           "compatibleEngineTrack": "0.3.x",
-          "engineVersion": "0.3.0",
+          "engineVersion": "0.3.0-hf.1",
           "preservedTiers": ["D1_Raw", "D2_Structured", "D3_Mapped", "D4_FunctionalRewrite"]
         }
         """);

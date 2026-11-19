@@ -18,6 +18,20 @@ internal static class ReStationWizardPathNormalizer
 {
     internal static string VersionFolder => $"v{ReStationInstallerTheme.Version}";
 
+    internal static bool IsReEngineDirectory(string? dir)
+    {
+        if (string.IsNullOrWhiteSpace(dir))
+            return false;
+
+        string normalized = NormalizeTrimmedFullPath(dir);
+        string leaf = Path.GetFileName(normalized);
+        return string.Equals(leaf, "reEngine", StringComparison.OrdinalIgnoreCase) ||
+               File.Exists(Path.Combine(normalized, "reEngine.exe")) ||
+               File.Exists(Path.Combine(normalized, "app", "reEngine.exe")) ||
+               File.Exists(Path.Combine(normalized, "app", "reEngine-Uninstall.exe")) ||
+               Directory.Exists(Path.Combine(normalized, "engines"));
+    }
+
     public static string NormalizeWizardReEngineDir(string? rawPath)
     {
         if (string.IsNullOrWhiteSpace(rawPath))
@@ -81,6 +95,12 @@ internal static class ReStationWizardPathNormalizer
         DirectoryInfo? parent = Directory.GetParent(normalized);
         string parentName = parent?.Name ?? string.Empty;
 
+        if (string.Equals(leaf, "reEngine", StringComparison.OrdinalIgnoreCase) || IsReEngineDirectory(normalized))
+        {
+            string enginesRoot = ResolvePreferredEnginesRootDir(normalized);
+            return Path.Combine(enginesRoot, ReStationInstallerTheme.EngineId, VersionFolder);
+        }
+
         if (string.Equals(leaf, VersionFolder, StringComparison.OrdinalIgnoreCase) ||
             ((string.Equals(parentName, ReStationInstallerTheme.EngineId, StringComparison.OrdinalIgnoreCase) ||
               string.Equals(parentName, ReStationInstallerTheme.LegacyEngineId, StringComparison.OrdinalIgnoreCase)) &&
@@ -98,12 +118,6 @@ internal static class ReStationWizardPathNormalizer
         if (string.Equals(leaf, "engines", StringComparison.OrdinalIgnoreCase))
         {
             return Path.Combine(normalized, ReStationInstallerTheme.EngineId, VersionFolder);
-        }
-
-        if (string.Equals(leaf, "reEngine", StringComparison.OrdinalIgnoreCase) || HasReEngineMarker(normalized))
-        {
-            string enginesRoot = ResolvePreferredEnginesRootDir(normalized);
-            return Path.Combine(enginesRoot, ReStationInstallerTheme.EngineId, VersionFolder);
         }
 
         string preferredReEngine = Path.Combine(normalized, "reEngine");
@@ -238,10 +252,8 @@ internal static class ReStationWizardPathNormalizer
     }
 
     private static bool HasReEngineMarker(string dir) =>
-        File.Exists(Path.Combine(dir, "reEngine.exe")) ||
-        File.Exists(Path.Combine(dir, "app", "reEngine.exe")) ||
-        File.Exists(Path.Combine(dir, "reEngine.Core.dll")) ||
-        Directory.Exists(Path.Combine(dir, "engines"));
+        IsReEngineDirectory(dir) ||
+        File.Exists(Path.Combine(dir, "reEngine.Core.dll"));
 
     private static string? TryInferExistingReEngineRoot(string stationInstallDir)
     {

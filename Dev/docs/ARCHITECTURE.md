@@ -1,6 +1,6 @@
 # reSlate — System Architecture & Symbol Map
 
-- **Synced Version:** `0.3.0` (`2026-11-18` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`; repository path `Personal/reStation`)
+- **Synced Version:** `0.3.0-hf.1` (`2026-11-18` · Public Beta Hotfix · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`; repository path `Personal/reStation`)
 - **Scope:** Runtime Context, Assembly Dependency Graph, Execution Pipelines, File Inventory & Data Stores
 - **License:** Mozilla Public License Version 2.0 (`MPL-2.0`, root [`LICENSE`](../../LICENSE))
 
@@ -56,7 +56,7 @@ flowchart LR
     CMP["reSlate.Compiler.exe (net8.0)"]
     PLY["reSlate.Player.exe (net8.0 / Debug net8.0-windows)"]
     LNC["reSlate.exe (net8.0-windows SingleFile Stub)"]
-    INS["reSlate-Setup-v0.3.0-win-x64.exe (net8.0-windows)"]
+    INS["reSlate-Setup-v0.3.0-hf.1-win-x64.exe (net8.0-windows)"]
     TST["reStation.Tests.dll (xUnit, APP_ISOLATED_TEST=1)"]
 
     EXT --> CON
@@ -117,7 +117,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 | `Dev/scripts/run_stage2_sandbox_e2e.ps1` | 238 | 218 | 4-step visible Stage 2 Sandbox E2E (`run_sandbox_e2e.py`, visible `Setup Wizard`, visible SDL3 MediaGate & F1/F3 Player, Release `ExitCode=2`) |
 | `Dev/scripts/stage2_e2e_helpers.ps1` | 283 | 255 | `Win32VisibleWindow`, `Show-VisibleWindowOnTop`, `Send-WindowClose`, loopback tree/PNG assertions & 4-drive child env |
 | `Dev/scripts/sanitize_release_docs.ps1` | 191 | 171 | Relative link rewriter, clean-room trademark scrub outside legal footer, end-user doc sanitization |
-| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 206 | 138 | `ReStationEngineInfo` (`AppId="reslate"`, `EngineId="reSlate"`, `0.3.0`, `0.3.x`), `EngineAliasCatalog.AreEquivalent` manifest check |
+| `Dev/src/reStation.Contracts/IReStationModuleManifest.cs` | 206 | 138 | `ReStationEngineInfo` (`AppId="reslate"`, `EngineId="reSlate"`, `0.3.0-hf.1`, `0.3.x`), `EngineAliasCatalog.AreEquivalent` manifest check |
 | `Dev/src/reStation.Contracts/IPsxRenderBackend.cs` | 56 | 21 | `PsxRenderBackendIds` (`opengl`, `software`, `v0.3.1`-deferred `vulkan`/`parallelCpu`) |
 | `Dev/src/reStation.Core/Bios/MemCardMcrStore.cs` | 375 | 342 | Slot 1+2 128 KB `.mcr` store under `<dataDir>\memcards\`, `<dataDir>\saves\` auto-migration, dirty VBlank debounce, raw bytes |
 | `Dev/src/reStation.Core/Bios/PsxBiosHle.MemCard.cs` | 148 | 125 | BIOS `B0:0x4E/0x4F` 128B transfers (`NotifyRamWriteRange`), `A0:0xAB/0xAC`, `B0:0x50` `_new_card` |
@@ -129,10 +129,11 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 | `Dev/src/reStation.Decomp/PsxD4CraftsmanshipValidator.cs` | 423 | 348 | `D4_CleanSource` 6-tell regex gate, `_01.._NN.c` fragment rejection, `-Wall -Wextra -Wno-unused-parameter` verifier |
 | `Dev/src/reStation.Installer/InstallerAutomationHook.cs` | 89 | 70 | `#if DEBUG \|\| RESTATION_TEST_AUTOMATION` WinForms `Wizard_*` IDs + `AutomationLoopbackServer` (Release fails closed `ExitCode=2`) |
 | `Dev/src/reStation.Installer/Program.cs` | 400 | 355 | Installer CLI dispatch, interactive WinForms wizard launcher, `ResolveInitialPaths` wiring & post-install actions |
-| `Dev/src/reStation.Installer/ReStationInstallPathResolver.cs` | 342 | 278 | HKCU existing `reSlate`/`reEngine`/`reStation` + `LastInstallBaseDir` path & saved profile discovery (`SandboxResolution.IsSandboxActive`- & `ShouldSuppressHostMutations`-gated) |
+| `Dev/src/reStation.Installer/ReStationInstallPathResolver.cs` | 346 | 282 | HKCU existing `reSlate`/`reEngine`/`reStation` + `LastInstallBaseDir` path & saved profile discovery (rejecting poisoned `reEngine` `Uninstall\reSlate` entries; `SandboxResolution.IsSandboxActive`- & `ShouldSuppressHostMutations`-gated) |
+| `Dev/src/reStation.Installer/ReStationInstallerBootstrap.cs` / `ReStationWizardPathNormalizer.cs` | 340 / 313 | 301 / 259 | Strict `product_name`/`appId` `install-manifest.json` verification, `IsReEngineDirectory` guard before direct-install fallback, Setup auto-sort |
 | `Dev/src/reStation.Player/Program.cs` / `.EventPump.cs` / `.FrameLoop.cs` / `.MediaGate.cs` | 373 / 243 / 385 / 229 | 330 / 228 / 348 / 209 | Direct `CliOptions` entrypoint, `SettingsMigrationHelper` wiring, `60 Hz` SPU lock, repeat filtering, `--doctor` |
 | `Dev/src/reStation.Player/HostContractBridge.cs` / `DebugAutomationHook.cs` | 263 / 232 | 233 / 203 | `reEngine.Host.Contracts.IHostAutomationTarget` bridge & `#if DEBUG || RESTATION_TEST_AUTOMATION` STA loopback |
-| `Dev/src/reStation.Tests/*.cs` (`30` suites) | 120..474 | 101..402 | `266/266` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
+| `Dev/src/reStation.Tests/*.cs` (`30` suites) | 120..530 | 101..450 | `268/268` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
 
 ---
 
@@ -142,7 +143,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 | :--- | :--- | :--- |
 | `<dataDir>\config\settings.json` (`Dev\data\settings.example.json`) | `RecompSettings` + `SettingsMigrationHelper` | Auto-migrated from `<dataDir>\settings.json`; `appId` (`"reslate"`), `executionTierMode`, `backendId`, `resolutionScale`, `isWidescreen16By9`, `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `modernActionBindings`, `modernControllerBindings`, `metadataJson` |
 | `<dataDir>\settings.controls.json` | `GlobalControllerProfile` | Global PS1 1:1 scancode bindings |
-| `<dataDir>\cache\<moduleId>\<romSha256_16>-reSlate-0.3.0-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
+| `<dataDir>\cache\<moduleId>\<romSha256_16>-reSlate-0.3.0-hf.1-<modVer>\<moduleId>.Generated.dll` | `PlayerLocalAotCompiler` + `AotCacheManager` | Local machine-compiled AOT assemblies + manifest index |
 | `<dataDir>\saves\*.rst1` | `QuickSaveManager` + `QuickSaveTrailer` | Version 1 binary snapshot + `"RSTX"` additive sections (incl. `"MCD2"`) |
 | `<dataDir>\memcards\memcard_<id>_slot{1,2}.mcr` | `MemCardMcrStore` + `SioMemCardProtocol` | Dual 128 KB PS1 memory cards (non-destructively migrated from `<dataDir>\saves\memcard_*.mcr`) |
 | `Dev\logs\` & `<InstallDir>\logs\` | `ReStationLogger` | `runtime.log` (`<=15s` heartbeats), `crashes\crash_*.json`, `screenshots\` |
@@ -161,7 +162,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 
 ## 7. Security & Privacy Model
 
-- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0\` (`v0.2.8` under `reStation\`; `LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
+- **Zero-PII Default Path:** User-scope `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0-hf.1\` (`v0.2.8` under `reStation\`; `LauncherArgsHelper` + `ReStationInstallerTheme`) eliminates hardcoded drive paths or workstation usernames.
 - **No Auto-Start / No Telemetry:** `AllowAutoStart = false`; zero background listeners or network sockets.
 - **Human-Gated Legacy Cleanup:** Stranded `v0.1.1` cleanup requires explicit `--migrate-legacy` + `--confirm-legacy-cleanup` (or interactive modal `Yes`) and always preserves `data\rom\`.
 
@@ -169,7 +170,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`266/266` passing in both configurations across `30` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`268/268` passing in both configurations across `30` test files, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
 - **Debug/Test-Only `Foundation.Automation` Stage 2 Sandbox E2E (`v0.3.0`):** `Dev\scripts\run_stage2_sandbox_e2e.ps1` runs `Foundation\Dev\tools\run_sandbox_e2e.py` against the 4-drive Sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE`, asserting `hostDiffCount == 0`), drives a visible `-p:ReStationTestAutomation=true` Setup Wizard (`InstallerAutomationHook` inside `O:\` sandbox), drives visible SDL3 MediaGate & live `RunHostLoop` F1 Drawer / F3 HUD button interactions + `settings.json` persistence (`DebugAutomationHook` + `SDL3.dll`), and verifies pure `Release` rejects `--automation-port` with `ExitCode = 2` on both `reSlate.Player.exe` (`Assert-BinaryPurity`) and `reSlate-Setup` (`Assert-InstallerPurity`).
 
 ---

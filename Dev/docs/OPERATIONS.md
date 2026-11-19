@@ -1,6 +1,6 @@
 # reSlate — Operations & Verification Runbook
 
-- **Synced Version:** `0.3.0` (`2026-11-18` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu` & Enhancement SDK)*
+- **Synced Version:** `0.3.0-hf.1` (`2026-11-18` · Public Beta Hotfix · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu` & Enhancement SDK)*
 - **Scope:** Install Topology, CLI Flags, Settings, Log Audit & Release Verification
 - **Canonical Production Boundary:** Zero automated edits or unconfirmed writes to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\` or any live installation during tests, builds, or audits.
 
@@ -8,12 +8,12 @@
 
 ## 1. Install Topology (`AllowAutoStart = false`)
 
-Starting in **`v0.3.0`**, `reSlate` installs per-user under `engines\reSlate\v0.3.0\` alongside the required `.ready` discovery marker (`v0.2.8` and earlier installed under `engines\reStation\v<Ver>\`):
+Starting in **`v0.3.0`**, `reSlate` installs per-user under `engines\reSlate\v0.3.0-hf.1\` alongside the required `.ready` discovery marker (`v0.2.8` and earlier installed under `engines\reStation\v<Ver>\`):
 
 ```text
 %LOCALAPPDATA%\Programs\StreamItAll\reEngine\
 ├── toolchain\                          (Optional Full profile offline Ghidra + OpenJDK)
-└── engines\reSlate\v0.3.0\             (v0.2.8 and earlier: engines\reStation\v<Ver>\)
+└── engines\reSlate\v0.3.0-hf.1\        (v0.2.8 and earlier: engines\reStation\v<Ver>\)
     ├── reSlate.exe                     (Single-file launcher -> app\reSlate.Player.exe)
     ├── .ready                          (Required for reEngine v0.3.0+ engine discovery)
     ├── engine.manifest.json            (engineId: "reSlate", appId: "reslate", decompProviderAssembly: "app/reSlate.Decomp.dll")
@@ -50,14 +50,14 @@ Starting in **`v0.3.0`**, `reSlate` installs per-user under `engines\reSlate\v0.
 ### Compiler (`reSlate.Compiler.exe`)
 - `--disc`, `--gamedata-dir`, `--exe-path`, `--decomp-dir`, `--functions-json`, `--out-dir`, `--module-id`, `--serial`, `--title`, `--version`, `--aot-recipe`, `--execution-tier`, `--emit-clean-room` (emits `aot-recipe.json` + clean `module.recomp.json` with zero `*.Generated.dll`), `--out-package`, `--compile-dll`, `--compile-generated-dll`, `--data-dir`, `--thin-shell`, `--help`.
 
-### Installer (`reSlate-Setup-v0.3.0-win-x64.exe`)
+### Installer (`reSlate-Setup-v0.3.0-hf.1-win-x64.exe`)
 - `--install-dir <dir>` / `--target-dir <dir>` / `--reengine-dir <dir>` / `--suite-dir <dir>` / `--payload <zip>` / `--profile Lightweight|Full` / `--data-dir <dir>` / `--config <file>` / `--log-dir <dir>` / `--automation-port <n>` / `--automation-token <tok>` (`Debug`/`RESTATION_TEST_AUTOMATION` only; `ExitCode = 2` in `Release`) / `--migrate-legacy` / `--confirm-legacy-cleanup` / `--uninstall` / `--silent` (`--quiet`) / `--dry-run` / `--verify` / `--tray-only` (`APP_ISOLATED_TEST=1` suppresses host/registry mutations in automated tests).
 
 ---
 
 ## 3. Config & Settings File Reference
 
-Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.3.0` template (`appId: "reslate"`, `umbrellaSubpath: "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0"`) persisted to `<dataDir>\config\settings.json` (`SettingsMigrationHelper.MigrateForConfigPathIfNeeded` automatically migrates legacy `<dataDir>\settings.json` non-destructively while keeping `.bak`):
+Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.3.0-hf.1` template (`appId: "reslate"`, `umbrellaSubpath: "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.1"`) persisted to `<dataDir>\config\settings.json` (`SettingsMigrationHelper.MigrateForConfigPathIfNeeded` automatically migrates legacy `<dataDir>\settings.json` non-destructively while keeping `.bak`):
 - **Suite & Decomp Metadata:** `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`.
 - **Audio/Video & Framing:** `backendId` (`"opengl"` / `"software"`), `resolutionScale`, `isWidescreen16By9` (`false` default for `4:3` framing; unstretched Hor+ `16:9` when enabled), `frameRateMode`, `targetFps`, `isVsyncEnabled`, `isPgxpEnabled`, `isFpsOverlayEnabled`, `shouldFastLoadData`, `masterVolume`, `useGlobalFormatRules`.
 - **Input (`Schema A` & Per-Game Options):** `inputProfileMode`, `controlMode`, `modernActionBindings` (`Dictionary<string, int[<=3]>` via `ModernBindingsJsonConverter` with legacy scalar read support), `modernControllerBindings` (`int[<=3]` codes `2001..2032`), `metadataJson` (`Dictionary<string, string>` per-game `ControlOptions`), legacy `controllerDpadMode`/`isometricMoveMode` compatibility fields, and `jsonExtensionData` passthrough.
@@ -66,14 +66,14 @@ Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provid
 
 ## 4. Ports, Locks & Sister-App Coexistence
 
-- **Zero Network Ports in Release:** Pure `Release` `reSlate.exe`, `reSlate.Player.exe`, and `reSlate-Setup-v0.3.0-win-x64.exe` binaries strip `Foundation.Automation` completely, open zero listening TCP/UDP sockets during normal operation, and fail closed with `ExitCode = 2` when `--automation-port` is passed (only `Debug` / `RESTATION_TEST_AUTOMATION=true` builds expose `127.0.0.1` loopback automation).
+- **Zero Network Ports in Release:** Pure `Release` `reSlate.exe`, `reSlate.Player.exe`, and `reSlate-Setup-v0.3.0-hf.1-win-x64.exe` binaries strip `Foundation.Automation` completely, open zero listening TCP/UDP sockets during normal operation, and fail closed with `ExitCode = 2` when `--automation-port` is passed (only `Debug` / `RESTATION_TEST_AUTOMATION=true` builds expose `127.0.0.1` loopback automation).
 - **Process Supervision (`--wait`) & Exit Codes:** [`LauncherArgsHelper.AttachJobGuard`](../src/reStation.Launcher/LauncherArgsHelper.cs) assigns a Windows `KILL_ON_JOB_CLOSE` Job Object so closing the caller/router terminates supervised `reSlate.exe` sessions cleanly with exact exit code propagation (`0` clean, `1` runtime/`--verify` fault, `2` CLI error / disallowed Release `--automation-port`, `3` path containment rejection, `4` disc/archive verification error, `5` `--jit-bringup` VBlank stall guard, `6` unavailable or `v0.3.1`-deferred `--require-backend`, `130` `SIGINT`).
 
 ---
 
 ## 5. Logs & Crash Bundles (Two-Tier Sweep)
 
-1. **Production (`Read-Only` during Audits):** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0\logs\` (`runtime.log`, `crashes\`; `v0.2.8` and earlier wrote under `engines\reStation\v<Ver>\logs\`).
+1. **Production (`Read-Only` during Audits):** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0-hf.1\logs\` (`runtime.log`, `crashes\`; `v0.2.8` and earlier wrote under `engines\reStation\v<Ver>\logs\`).
 2. **Development Logs:** `Dev\logs\` (resolved automatically via [`ReStationLogger.TryResolveDevLogsDirectory`](../src/reStation.Core/Core/ReStationLogger.cs#L117-L134) inside source checkouts; excluded by root `.gitignore`).
 
 Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`, `fps`, `backend`, `subTicks`, `vramOps`, `spuVoices`, `status`). Crash bundles write `crashes\crash_*.json` plus preceding log tail context.
@@ -95,17 +95,17 @@ Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`,
    dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore
    dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true --no-restore
    ```
-   Verify all non-exempt production files follow the code-only SLOC ceiling (`<= 250` preferred, `400` soft cap, `600` hard cap excluding comments/whitespace; tests exempt) and **`266/266` passing (`0` warnings, `0` failures, `0` skipped)** in both configurations.
+   Verify all non-exempt production files follow the code-only SLOC ceiling (`<= 250` preferred, `400` soft cap, `600` hard cap excluding comments/whitespace; tests exempt) and **`268/268` passing (`0` warnings, `0` failures, `0` skipped)** in both configurations.
 2. **Visible Interactive 4-Step Debug/Test `Foundation.Automation` 4-Drive Sandbox E2E:**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.0 -EvidenceDir <temp_dir>
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.0-hf.1 -EvidenceDir <temp_dir>
    ```
    - Runs `Foundation\Dev\tools\run_sandbox_e2e.py` against the isolated 4-drive sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE` via `%USERPROFILE%\.gemini\.secrets\.env`, asserting `hostDiffCount == 0`), drives a visible interactive `-p:ReStationTestAutomation=true` Setup Wizard (`InstallerAutomationHook` inside `O:\` with profile toggles, details log expand, install, `Finish`, `.ready`/`reSlate.exe --version`, uninstall & `0` host diff), drives visible SDL3 MediaGate & live `RunHostLoop` F1 Drawer / F3 HUD button interactions + `settings.json` persistence (`DebugAutomationHook` + `SDL3.dll`), optionally copies the 3 live PNGs to `-EvidenceDir`, and verifies pure `Release` rejects `--automation-port` with `ExitCode = 2` on both `reSlate.Player.exe` and `reSlate-Setup`.
 3. **Single-Pass Release Build (`Dev\scripts\build_release.ps1` + `Dev\scripts\package_helpers.ps1`):**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.3.0
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.3.0-hf.1
    ```
-   Emits `Builds\v0.3.0\` (`.ready` marker, `app\LICENSE`, `engine.manifest.json`, `reEngine.Host.dll`, zero `data\rom\`, **zero `AGENTS.md`** inside `Builds\`/`app\`/`payload.zip`, **zero forbidden `Installers\` root folder**), compiles `Releases\v0.3.0\README.md` from `USER_GUIDE.md` (+ any `USER_GUIDE.*.md`) via [`sanitize_release_docs.ps1`](../scripts/sanitize_release_docs.ps1) (rewriting repo-relative `[label](Dev/...)` before leak filtering + verifying zero unexempt trademarks), packages **`reSlate-v0.3.0-win-x64-Portable.zip`** alongside signed **`reSlate-Setup-v0.3.0-win-x64.exe`** into NTFS-hardlinked **7-file `Releases\v0.3.0\` + `Latest\`** mirrored at `<ProjectsRoot>\Releases\Personal\reStation\` (+ sibling `<ProjectsRoot>\Releases\Personal\reSlate\` junction), runs `audit_installer.ps1 -InstallerPath Releases\v0.3.0` (`0` findings) + `Assert-BinaryPurity` (`0` `Foundation.Automation` / `System.Windows.Forms` references in Release Player) + `Assert-InstallerPurity` (`0` `Foundation.Automation` bytes + `ExitCode = 2` on Release Setup), publishes immutable `<ProjectsRoot>\SharedLibs\reSlate\v0.3.0\` (keeping `SharedLibs\reStation\v0.1.0..v0.2.8` intact), and snapshots `Archive\reSlate-v0.3.0-src.7z`.
+   Emits `Builds\v0.3.0-hf.1\` (`.ready` marker, `app\LICENSE`, `engine.manifest.json`, `reEngine.Host.dll`, zero `data\rom\`, **zero `AGENTS.md`** inside `Builds\`/`app\`/`payload.zip`, **zero forbidden `Installers\` root folder**), compiles `Releases\v0.3.0-hf.1\README.md` from `USER_GUIDE.md` (+ any `USER_GUIDE.*.md`) via [`sanitize_release_docs.ps1`](../scripts/sanitize_release_docs.ps1) (rewriting repo-relative `[label](Dev/...)` before leak filtering + verifying zero unexempt trademarks), packages **`reSlate-v0.3.0-hf.1-win-x64-Portable.zip`** alongside signed **`reSlate-Setup-v0.3.0-hf.1-win-x64.exe`** into NTFS-hardlinked **7-file `Releases\v0.3.0-hf.1\` + `Latest\`** mirrored at `<ProjectsRoot>\Releases\Personal\reStation\` (+ sibling `<ProjectsRoot>\Releases\Personal\reSlate\` junction), runs `audit_installer.ps1 -InstallerPath Releases\v0.3.0-hf.1` (`0` findings) + `Assert-BinaryPurity` (`0` `Foundation.Automation` / `System.Windows.Forms` references in Release Player) + `Assert-InstallerPurity` (`0` `Foundation.Automation` bytes + `ExitCode = 2` on Release Setup), publishes immutable `<ProjectsRoot>\SharedLibs\reSlate\v0.3.0-hf.1\` (keeping `SharedLibs\reStation\v0.1.0..v0.2.8` intact), and snapshots `Archive\reSlate-v0.3.0-hf.1-src.7z`.
 4. **Public History Hygiene & 4-Channel Beta Distribution (`StreamItAllGit/reSlate`):**
    - Keep `.gitignore` strict on `Archive/`, `Builds/`, `Releases/`, `Dev/docs/*/`, `Dev/data/`, `Dev/logs/`, and runtime databases, keep `git log --all` + `%an <%ae>` free of secrets, workstation paths, and unexempt trademarks (`git-filter-repo` pre-public scrub), and sanitize release docs before pushing or publishing.
    - Ship across **4 Release Channels**: (1) **GitHub Releases** (`gh release create --prerelease` attaching `Setup.exe`, `-Portable.zip`, `.7z`, `SHA256SUMS.txt` on [StreamItAllGit/reSlate](https://github.com/StreamItAllGit/reSlate/releases)), (2) **Google Drive Release Mirror** (`https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG`, uploading the 7-file `Latest\` bundle + `.7z` archives via `gdrive`), (3) **Discord Dev Updates** (`active.state -> discordPost` webhook delivery), and (4) **Notion Public Hub** (`*.notion.site` public project page check once connected).

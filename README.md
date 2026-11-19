@@ -6,9 +6,9 @@
 
 Clean-room SlateOne (MIPS32 R3000A) static recompilation engine, `.decomp` lifter, player-PC local AOT compiler, and modular runtime for `reEngine` (formerly `reStation`; repository path `Personal/reStation`).
 
-![Version](https://img.shields.io/badge/version-0.3.0--beta-blue?style=flat) ![Next](https://img.shields.io/badge/next-v0.3.1-teal?style=flat) ![License](https://img.shields.io/badge/license-MPL--2.0-green?style=flat) ![Runtime](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat) ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat)
+![Version](https://img.shields.io/badge/version-0.3.0--hf.1--beta-blue?style=flat) ![Next](https://img.shields.io/badge/next-v0.3.1-teal?style=flat) ![License](https://img.shields.io/badge/license-MPL--2.0-green?style=flat) ![Runtime](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat) ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat)
 
-**Active Milestone (`v0.3.0` Public Beta -> `v0.3.1`):** `▓▓▓▓▓▓░░░░` **55% toward v1.0.0** — `v0.3.0` cuts over binaries and install paths to `reSlate`, integrates `reEngine.Host.Contracts`, enables live Tier 3 RyuJIT and Zero-RWX Shared-IR execution with `PsxInterpreter` quarantined to `--execution-tier interpreterOracle`, unifies Slot 1+2 `SIO0 0x81` and BIOS `_new_card` memory cards, locks `60 Hz` `44.1 kHz` SPU audio with swap-only `TargetFps=30` and single-edge menu input, auto-detects existing upgrade directories in Setup, enforces the clean-source decompilation gate, and verifies `266/266` dual Release and Debug unit tests (`0` warnings); `v0.3.1` next adds shared `reEngine.Host` `Vulkan`, `ParallelCpu`, and the enhancement SDK.
+**Active Milestone (`v0.3.0-hf.1` Public Beta -> `v0.3.1`):** `▓▓▓▓▓▓░░░░` **55% toward v1.0.0** — `v0.3.0-hf.1` fixes `reEngine`-root directory matching in `reSlate-Setup` so existing `reEngine` folders auto-target `engines\reSlate\v0.3.0-hf.1\` cleanly atop the `v0.3.0` foundation (cutover to `reSlate`, `reEngine.Host.Contracts`, live Tier 3 RyuJIT and Zero-RWX Shared-IR execution with `PsxInterpreter` quarantined to `--execution-tier interpreterOracle`, unified Slot 1+2 `SIO0 0x81` and BIOS `_new_card` memory cards, `60 Hz` `44.1 kHz` SPU audio with swap-only `TargetFps=30` and single-edge menu input, clean-source decompilation gate, and `268/268` dual Release and Debug unit tests with `0` warnings); `v0.3.1` next adds shared `reEngine.Host` `Vulkan`, `ParallelCpu`, and the enhancement SDK.
 
 </div>
 
@@ -16,11 +16,11 @@ Clean-room SlateOne (MIPS32 R3000A) static recompilation engine, `.decomp` lifte
 
 ## About
 
-> **Beta (Pre-1.0):** `reSlate` (`v0.3.0`) is an active pre-1.0 public beta release targeting `v1.0.0` desktop stability and `v2.0.0` cross-platform support.
+> **Beta (Pre-1.0):** `reSlate` (`v0.3.0-hf.1`) is an active pre-1.0 public beta release targeting `v1.0.0` desktop stability and `v2.0.0` cross-platform support.
 
 `reSlate` decouples clean-room `SlateOne` (`R3000A` + `GTE` COP2) reverse engineering from end-user gameplay—operating strictly as a static AOT recompiler, native Tier 3 Shared-IR/RyuJIT runtime translator, and clean-room HLE hardware runtime rather than a generic compatibility interpreter. Launched side by side by [reEngine](https://github.com/StreamItAllGit/reEngine) with zero background daemons (`AllowAutoStart = false`), it converts clean `.recomp` packages and verified user-supplied media (`data\rom\`) into locally compiled native `.NET 8.0` assemblies (`<dataDir>\cache\<Game>.Generated.dll`) on first launch.
 
-With `v0.3.0` (Beta, Pre-1.0), binaries, installer outputs, engine IDs (`reSlate`, `appId: "reslate"`), discovery markers (`.ready`), side-by-side install folders (`%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0\`), and downstream SDK drops (`SharedLibs\reSlate\v0.3.0\`) adopt **`reSlate`**. Bidirectional `reSlate` / `reStation` alias resolution in `reEngine v0.3.0` and preserved `reStation.{Contracts,Core}` assembly identities maintain full ABI compatibility with existing `0.1.x` and `0.2.x` modules.
+With `v0.3.0-hf.1` (Beta, Pre-1.0), binaries, installer outputs, engine IDs (`reSlate`, `appId: "reslate"`), discovery markers (`.ready`), side-by-side install folders (`%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0-hf.1\`), and downstream SDK drops (`SharedLibs\reSlate\v0.3.0-hf.1\`) adopt **`reSlate`**. Bidirectional `reSlate` / `reStation` alias resolution in `reEngine v0.3.0` and preserved `reStation.{Contracts,Core}` assembly identities maintain full ABI compatibility with existing `0.1.x` and `0.2.x` modules.
 
 ## Key Features
 
@@ -41,10 +41,10 @@ With `v0.3.0` (Beta, Pre-1.0), binaries, installer outputs, engine IDs (`reSlate
 
 Every `0.x` beta release is published on both [GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases) (`--prerelease`) and the [Google Drive Releases Mirror](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG) in 7-file distributions:
 
-- **`reSlate-Setup-v0.3.0-win-x64.exe`** — Signed per-user setup wizard (`Lightweight` player + local AOT or `Full` offline `.decomp` toolchain integration, automatically detecting existing `reSlate`/`reEngine`/`reStation` install folders and saved profiles on upgrade or defaulting to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0\` with a `.ready` discovery marker).
-- **`reSlate-v0.3.0-win-x64-Portable.zip`** — Standalone portable bundle containing staged binaries, `.ready` marker, license notices, and sanitized docs with zero setup executable inside.
+- **`reSlate-Setup-v0.3.0-hf.1-win-x64.exe`** — Signed per-user setup wizard (`Lightweight` player + local AOT or `Full` offline `.decomp` toolchain integration, automatically detecting existing `reSlate`/`reEngine`/`reStation` install folders and saved profiles on upgrade while rejecting populated `reEngine` roots so Setup targets `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0-hf.1\` with a `.ready` discovery marker).
+- **`reSlate-v0.3.0-hf.1-win-x64-Portable.zip`** — Standalone portable bundle containing staged binaries, `.ready` marker, license notices, and sanitized docs with zero setup executable inside.
 
-*`v0.3.0` (`266/266` dual Release + Debug unit tests, `0` warnings) is signed, sandbox-verified, and live on [GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases) and the [Google Drive Releases Mirror](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG).*
+*`v0.3.0-hf.1` (`268/268` dual Release + Debug unit tests, `0` warnings) is signed, sandbox-verified, and live on [GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases) and the [Google Drive Releases Mirror](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG).*
 
 ### Quick Try
 
@@ -61,13 +61,13 @@ reSlate.exe --doctor --data-dir .\tmp-data --log-dir .\tmp-logs
 <summary>Developer verification, CLI overrides, exit codes, and sandbox testing flags</summary>
 
 ```powershell
-# Run the isolated unit test suite in both Release and Debug with warnings treated as errors (266/266 passing)
+# Run the isolated unit test suite in both Release and Debug with warnings treated as errors (268/268 passing)
 $env:APP_ISOLATED_TEST = "1"
 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true
 dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true
 
 # Install silently via the Setup executable into an isolated test root
-reSlate-Setup-v0.3.0-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine" --silent
+reSlate-Setup-v0.3.0-hf.1-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine" --silent
 ```
 
 | CLI Flag | Purpose |
@@ -97,7 +97,7 @@ reSlate-Setup-v0.3.0-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPP
 ## Documentation
 
 - [Features](FEATURES.md) — Current capabilities and source mapping
-- [Roadmap](ROADMAP.md) — Active `v0.3.0` completion status and `v0.3.1`–`v2.0.0` milestones
+- [Roadmap](ROADMAP.md) — Active `v0.3.0-hf.1` completion status and `v0.3.1`–`v2.0.0` milestones
 - [Changelog](CHANGELOG.md) — Version history ledger
 - [Security Policy](SECURITY.md) — Supported tracks, containment boundaries, and vulnerability reporting
 - [Contributing](CONTRIBUTING.md) — Local test setup, PR checklist, and clean-room rules

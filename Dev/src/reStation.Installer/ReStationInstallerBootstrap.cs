@@ -4,6 +4,7 @@
 // @exports: ReStationInstallerBootstrap
 
 using System.Reflection;
+using System.Text.Json;
 using Foundation.Core;
 using Foundation.Installer;
 using reEngine.Core.Bootstrap;
@@ -56,13 +57,50 @@ internal static class ReStationInstallerBootstrap
     {
         if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return false;
         string full = Path.GetFullPath(dir);
+        if (ReStationWizardPathNormalizer.IsReEngineDirectory(full)) return false;
+
         return File.Exists(Path.Combine(full, ReStationInstallerTheme.MainExecutable)) ||
                File.Exists(Path.Combine(full, "reSlate.exe")) ||
                File.Exists(Path.Combine(full, "reStation.exe")) ||
                File.Exists(Path.Combine(full, "app", "reSlate.Player.exe")) ||
                File.Exists(Path.Combine(full, "app", "reStation.Player.exe")) ||
-               File.Exists(Path.Combine(full, "app", "install-manifest.json")) ||
-               File.Exists(Path.Combine(full, "install-manifest.json"));
+               IsOwnInstallManifest(Path.Combine(full, "app", "install-manifest.json")) ||
+               IsOwnInstallManifest(Path.Combine(full, "install-manifest.json"));
+    }
+
+    private static bool IsOwnInstallManifest(string manifestPath)
+    {
+        if (!File.Exists(manifestPath)) return false;
+        try
+        {
+            using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
+
+            foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
+            {
+                if (!string.Equals(prop.Name, "product_name", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(prop.Name, "appId", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (prop.Value.ValueKind != JsonValueKind.String) continue;
+                string? val = prop.Value.GetString();
+                if (string.Equals(val, ReStationInstallerTheme.EngineId, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(val, ReStationInstallerTheme.LegacyEngineId, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(val, ReStationInstallerTheme.AppId, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(val, ReStationInstallerTheme.LegacyEngineId.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
+
+        return false;
     }
 
     internal static string? TryResolveSideBySideLeaf(string baseDir)

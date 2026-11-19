@@ -1,6 +1,6 @@
 # reSlate — Interfaces, Public Contracts & Schemas
 
-- **Version:** `v0.3.0` *(GitHub Public-Ready Beta · `appId: "reslate"` · `engineId: "reSlate"` · `SupportedEngineTracks: ["0.3.x", "0.2.x", "0.1.x"]`)*
+- **Version:** `v0.3.0-hf.1` *(GitHub Public-Ready Beta Hotfix · `appId: "reslate"` · `engineId: "reSlate"` · `SupportedEngineTracks: ["0.3.x", "0.2.x", "0.1.x"]`)*
 - **Pinned Upstream Dependencies:** `Foundation v0.5.0` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`, `Foundation.Launcher`, plus Debug/`RESTATION_TEST_AUTOMATION`-only `Foundation.Automation`) & `reEngine v0.3.0` (`reEngine.Core`, `reEngine.Host`)
 
 ---
@@ -32,7 +32,7 @@
 - `AotRecipeExecutableSpec`: `BootExePath`, `Sha256`, `LoadAddress`, `EntryAddress`, `GlobalPointer`, `TextSizeBytes`, `SleighLanguageId`.
 
 #### Manifest, CPU, Host & GPU Contracts
-- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "reslate"`, `EngineId = "reSlate"`, `Version = "0.3.0"`, `CompatibleEngineTrack = "0.3.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.3.x", "0.2.x", "0.1.x"]`.
+- `ReStationEngineInfo` (`IReStationModuleManifest.cs`): `AppId = "reslate"`, `EngineId = "reSlate"`, `Version = "0.3.0-hf.1"`, `CompatibleEngineTrack = "0.3.x"`, `PlatformId = "ps1"`, `DefaultPreloadRomDir = "data/rom"`, `DefaultAotRecipePath = "aot-recipe.json"`, `SupportedEngineTracks = ["0.3.x", "0.2.x", "0.1.x"]`.
 - `IReStationModuleManifest : IRecompModuleManifest` (`ReStationModuleManifest`): `SerialNumber`, `EntryAssembly`, `DefaultBootExecutable`, `ModuleTypeName`, `EngineVersion`, `CompatibleEngineTrack`, `DefaultFramerateMode` (`RecompTimingMode`), `PreloadRomDir`, `SupportedEngineTracks`, `ExecutionTierMode`, `AotRecipe`, `AotRecipeSpec`, `LoadFromFile(string manifestPath)`, `SaveToFile(string manifestPath)`, `Validate(string sourceLabel)` (bidirectional `EngineAliasCatalog.AreEquivalent` check accepting `"reSlate"` and `"reStation"`).
 - `IRecompModule` / `IOverlayRecompModule : IRecompModule` (`ExeId`, `ExeName`, `TextStart`, `TextEnd`, `TryExecuteFunction(IReStationCpu, uint pc)`, plus overlay `LoadRamAddress`, `ContentSizeBytes`, `ContentSha256Hex`).
 - `IReStationCpu` / `IReStationCpuEx`: Register/bus/GTE/MDEC accessors plus `UnwindTargetPc`, `SkipPolygonRasterization`, `BeginSubTickFrame()`, `bool HasCompiledEntry(uint canonPc)`, `void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false)`, `bool TryAdvanceToNextVBlank()`.
@@ -90,4 +90,4 @@
 
 ## 5. Versioning & Compatibility Notes
 - **Backward Compatibility (`reSlate` Partial Rename):** `reStation.Contracts.dll` and `reStation.Core.dll` retain their PE assembly names (`reStation.*` C# namespaces) so existing `0.1.x` and `0.2.x` `.recomp` cartridges bind cleanly at runtime, while launcher/player/compiler/decomp/installer outputs switch to `reSlate.exe`, `reSlate.Player.exe`, `reSlate.Compiler.exe`, `reSlate.Decomp.dll`, `reSlate-Setup-v<Ver>-win-x64.exe`, and `reSlate-v<Ver>-win-x64-Portable.zip`. `ReStationModuleManifest.Validate` uses bidirectional `reSlate` <-> `reStation` alias matching (`EngineAliasCatalog.AreEquivalent`).
-- **Scope Split (`v0.3.0` vs `v0.3.1`):** `v0.3.0` ships `reSlate` identity, `reEngine.Host.Contracts` bridge, live Tier 3 native JIT/IR (`isPureStaticReady`), `SIO0 0x81` + BIOS `_new_card` memory cards, `60 Hz` SPU lock + single-edge menu input, `D4_CleanSource` craftsmanship verification, and Debug/Test visible Stage 2 Sandbox E2E (`266/266` Release & Debug tests). Shared cross-console `Vulkan`, `ParallelCpu`, and `ISubTickFrameHook`/`hdpacks\` defer cleanly to `v0.3.1` alongside `reEngine.Host`.
+- **Scope Split (`v0.3.0-hf.1` vs `v0.3.1`):** `v0.3.0` + `v0.3.0-hf.1` ship `reSlate` identity, `reEngine.Host.Contracts` bridge, live Tier 3 native JIT/IR (`isPureStaticReady`), `SIO0 0x81` + BIOS `_new_card` memory cards, `60 Hz` SPU lock + single-edge menu input, `D4_CleanSource` craftsmanship verification, `reEngine`-safe installer path normalization (`IsReEngineDirectory` + manifest product guard), and Debug/Test visible Stage 2 Sandbox E2E (`268/268` Release & Debug tests). Shared cross-console `Vulkan`, `ParallelCpu`, and `ISubTickFrameHook`/`hdpacks\` defer cleanly to `v0.3.1` alongside `reEngine.Host`.

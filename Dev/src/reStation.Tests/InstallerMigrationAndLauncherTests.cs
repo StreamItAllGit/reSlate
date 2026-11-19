@@ -30,7 +30,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.False(ReStationInstallerTheme.AllowAutoStart);
         Assert.False(reStation.Installer.Program.AllowAutoStart);
         Assert.Equal("lightweight", ReStationInstallerTheme.DefaultInstallProfile);
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0", ReStationInstallerTheme.UmbrellaSubpath);
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.1", ReStationInstallerTheme.UmbrellaSubpath);
 
         InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
         Assert.False(theme.AllowAutoStart);
@@ -116,13 +116,13 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
     public void LauncherArgsHelper_ResolvesPeerReEngineAndSuiteDirs_AndZeroPiiDefaultPath()
     {
         string canonical = LauncherArgsHelper.ResolveCanonicalDefaultEngineDir();
-        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reSlate", "v0.3.0"), canonical, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reSlate", "v0.3.0-hf.1"), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"D:\Programs", canonical, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("%LOCALAPPDATA%", ReStationInstallerTheme.CreateSecondaryPathPicker().Placeholder, StringComparison.Ordinal);
 
         string peerRouter = Path.Combine(_tempRoot, "suiteA", "reEngine");
-        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reSlate", "v0.3.0", "app", "reSlate.Player.exe");
+        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reSlate", "v0.3.0-hf.1", "app", "reSlate.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(peerPlayer)!);
         File.WriteAllText(peerPlayer, string.Empty);
 
@@ -135,7 +135,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.Equal(Path.GetFullPath(peerPlayer), Path.GetFullPath(resolvedPeer));
 
         string portableSuite = Path.Combine(_tempRoot, "portable");
-        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.3.0", "app", "reStation.Player.exe");
+        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.3.0-hf.1", "app", "reStation.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(portablePlayer)!);
         File.WriteAllText(portablePlayer, string.Empty);
 
@@ -383,6 +383,62 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
             activeSandbox: Foundation.Core.SandboxResolution.Inactive,
             suppressHostMutations: true);
         Assert.DoesNotContain("inactive-sandbox-host", suppressedSilent, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ResolveInitialPaths_WithRealOnDiskReEngineAndPoisonedReSlate_ResolvesSideBySideEnginesFolder()
+    {
+        string baseDir = Path.Combine(_tempRoot, "Games", "Misc", "StreamItAll");
+        string reEngineDir = Path.Combine(baseDir, "reEngine");
+        Directory.CreateDirectory(Path.Combine(reEngineDir, "app"));
+        Directory.CreateDirectory(Path.Combine(reEngineDir, "data", "config"));
+        File.WriteAllText(Path.Combine(reEngineDir, "reEngine.exe"), string.Empty);
+        File.WriteAllText(
+            Path.Combine(reEngineDir, "app", "install-manifest.json"),
+            "{\"product_name\":\"reEngine\",\"appId\":\"reengine\"}");
+        File.WriteAllText(
+            Path.Combine(reEngineDir, "data", "config", "settings.json"),
+            "{\"installProfile\":\"full\"}");
+
+        string expectedInstallDir = Path.Combine(
+            Path.GetFullPath(reEngineDir),
+            "engines",
+            "reSlate",
+            $"v{ReStationInstallerTheme.Version}");
+
+        var poisonedRegistry = new FakePlatformRegistry();
+        poisonedRegistry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reEngine", "InstallLocation", reEngineDir);
+        poisonedRegistry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reSlate", "InstallLocation", reEngineDir);
+        poisonedRegistry.SetString(@"Software\StreamItAll", "LastInstallBaseDir", baseDir);
+
+        ResolvedWizardInstallPaths fromPoisoned = ReStationInstallPathResolver.ResolveInitialPaths(
+            poisonedRegistry,
+            activeSandbox: null,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.Equal(Path.GetFullPath(reEngineDir), fromPoisoned.ReEngineInstallDir);
+        Assert.Equal(expectedInstallDir, fromPoisoned.InstallDir);
+        Assert.Equal(ReStationInstallerTheme.DefaultInstallProfile, fromPoisoned.ProfileId);
+
+        var lastBaseRegistry = new FakePlatformRegistry();
+        lastBaseRegistry.SetString(@"Software\StreamItAll", "LastInstallBaseDir", baseDir);
+
+        ResolvedWizardInstallPaths fromLastBase = ReStationInstallPathResolver.ResolveInitialPaths(
+            lastBaseRegistry,
+            activeSandbox: null,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.Equal(Path.GetFullPath(reEngineDir), fromLastBase.ReEngineInstallDir);
+        Assert.Equal(expectedInstallDir, fromLastBase.InstallDir);
+        Assert.Equal(ReStationInstallerTheme.DefaultInstallProfile, fromLastBase.ProfileId);
     }
 
     private sealed class FakePlatformRegistry : Foundation.Core.IPlatformRegistry

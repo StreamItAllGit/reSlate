@@ -1,6 +1,6 @@
 # reSlate — Roadmap & Milestones
 
-**Current Active Version:** `0.3.0` *(Public Pre-1.0 Beta — `266/266` Dual Release & Debug Tests Passing, Stage 2 Sandbox Verified & Live on [GitHub](https://github.com/StreamItAllGit/reSlate) / [Google Drive](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG))*  
+**Current Active Version:** `0.3.0-hf.1` *(Public Pre-1.0 Beta Hotfix — `268/268` Dual Release & Debug Tests Passing, Stage 2 Sandbox Verified & Live on [GitHub](https://github.com/StreamItAllGit/reSlate) / [Google Drive](https://drive.google.com/drive/folders/13tsUPvPsycAB1HFL_eUukCBATe3vEWhG))*  
 **Next Target Milestone:** `0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu` & Enhancement SDK)*  
 **Lifecycle State:** [`active.state`](active.state)  
 **Last Updated:** `2026-11-18`
@@ -53,6 +53,7 @@ flowchart LR
 ---
 
 ## 4. Completed Milestones
+- [x] **`0.3.0-hf.1` (`2026-11-18`):** Fixed Setup `reEngine`-root collision in `HasDirectInstallation`, `NormalizeWizardStationInstallDir`, and `DiscoverExistingInstall` (`IsReEngineDirectory` + strict `product_name`/`appId` install-manifest checks) so upgrades pointing at existing `reEngine` folders always resolve to `engines\reSlate\v0.3.0-hf.1\` rather than overwriting `reEngine.exe`, verified across `268/268` dual Release & Debug unit tests (`0` warnings) and 4-drive Stage 2 Sandbox E2E. ([Notes](CHANGELOG.md#030-hf1---2026-11-18))
 - [x] **`0.3.0` (`2026-11-18`):** Launched `reSlate v0.3.0` Public Beta (`StreamItAllGit/reSlate`) with `reSlate` binary/path cutover preserving `reStation.{Contracts,Core}` ABI, `reEngine.Host.Contracts` alignment, live Tier 3 RyuJIT & Zero-RWX IR (`interpreterOracle` quarantine + `isPureStaticReady`), unified `SIO0 0x81` / BIOS `_new_card` Slot 1+2 `.mcr` persistence, `60 Hz` SPU lock with swap-only `TargetFps=30` and single-edge menu input, `D4_CleanSource` 6-tell/`-Wall` craftsmanship gate, `ReStationInstallPathResolver` existing-install & saved-profile auto-detection on Setup, Debug/Test-only loopback UI automation (`ExitCode = 2` in `Release`), `266/266` passing Release & Debug tests (`0` warnings), 4-drive Stage 2 sandbox E2E, scrubbed public Git history, and 7-file `Portable.zip` + signed installer distribution. ([Notes](CHANGELOG.md#030---2026-11-18))
 - [x] **`0.2.8` (`2026-11-16`):** Module-declared `ControlOptions` (`metadataJson`), unstretched Hor+ `16:9` side wings (`4:3` MDEC FMVs), decoupled `60 Hz` VBlank loop, BIOS `CloseEvent` reuse, `ExecOverlay` isolation, bounded SPU audio drain, and `184/184` passing tests. *(Shipped as `reStation`.)*
 - [x] **`0.2.7` (`2026-11-15`):** Kernel `IntRP` priority chains, `GetC0Table`, SIO0 IRQ7 poll tick, `IRecompQuickSaveProvider`, `--jit-bringup` `ExitCode = 5` watchdog, and `LockedCap -> Original` timing default (`180/180` tests).

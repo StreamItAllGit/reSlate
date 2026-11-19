@@ -7,7 +7,7 @@
   "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.3.0",
+  "version": "0.3.0-hf.1",
   "activeMilestone": "0.3.1",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-18",
@@ -27,7 +27,7 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "reSlate v0.3.0 Public Beta launched (https://github.com/StreamItAllGit/reSlate | Google Drive mirror 13tsUPvPsycAB1HFL_eUukCBATe3vEWhG | 266/266 Release+Debug tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 verified; @dean Gate 2 PASS; @inspecter PASS; ReStationInstallPathResolver auto-detects HKCU reSlate/reEngine/reStation, LastInstallBaseDir & saved installProfile). Outputs cut over to reSlate (AppId=reslate, EngineId=reSlate, reStation.{Contracts,Core} ABI intact, .ready marker, data\\config\\settings.json, Slot 1+2 data\\memcards\\, live Tier 3 RyuJIT/Zero-RWX + interpreterOracle quarantine, canonical isPureStaticReady, 60 Hz SPU lock + swap-only TargetFps=30 + single-edge input, D4_CleanSource 6-tell/-Wall gate). Notion Hub sync/public web publish pending OAuth reconnect. Next milestone v0.3.1 adds shared reEngine.Host Vulkan, ParallelCpu & Enhancement SDK.",
+  "notes": "reSlate v0.3.0-hf.1 Public Beta Hotfix launched (https://github.com/StreamItAllGit/reSlate | Google Drive mirror 13tsUPvPsycAB1HFL_eUukCBATe3vEWhG | 268/268 Release+Debug tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 verified; @dean Gate 2 PASS; ReStationInstallerBootstrap + ReStationWizardPathNormalizer + ReStationInstallPathResolver reject populated reEngine roots via IsReEngineDirectory and product_name/appId install-manifest inspection so reSlate-Setup cleanly targets engines\\reSlate\\v0.3.0-hf.1). Outputs cut over to reSlate (AppId=reslate, EngineId=reSlate, reStation.{Contracts,Core} ABI intact, .ready marker, data\\config\\settings.json, Slot 1+2 data\\memcards\\, live Tier 3 RyuJIT/Zero-RWX + interpreterOracle quarantine, canonical isPureStaticReady, 60 Hz SPU lock + swap-only TargetFps=30 + single-edge input, D4_CleanSource 6-tell/-Wall gate). Notion Hub sync/public web publish pending OAuth reconnect. Next milestone v0.3.1 adds shared reEngine.Host Vulkan, ParallelCpu & Enhancement SDK.",
   "discordPost": {
     "isEnabled": true,
     "serverName": null,
@@ -38,5 +38,5 @@
     "secretEnvKey": "DISCORD_WEBHOOK_FOUNDATION",
     "autoPostOnRelease": true
   },
-  "updatedAtUtc": "2026-11-19T03:50:00.000Z"
+  "updatedAtUtc": "2026-11-19T04:27:10.000Z"
 }
