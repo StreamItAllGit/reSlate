@@ -1,11 +1,13 @@
 // @module: reStation.Installer.Program
 // @purpose: Zero-daemon 4-pillar single-EXE setup host wiring interactive InstallerWizardForm, InstallerManifestStore, .ready marker emission, and 3-mode sandbox containment.
-// @depends-on: System, System.Collections.Generic, System.IO, System.IO.Compression, System.Linq, System.Reflection, System.Runtime.CompilerServices, System.Text, System.Text.Json, System.Windows.Forms, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
+// @depends-on: System, System.Collections.Concurrent, System.Collections.Generic, System.IO, System.IO.Compression, System.Linq, System.Reflection, System.Runtime.CompilerServices, System.Runtime.Loader, System.Text, System.Text.Json, System.Windows.Forms, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: Program
 
+using System.Collections.Concurrent;
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
@@ -25,19 +27,29 @@ internal static class Program
 
     private static readonly string[] EmbeddedAssemblies =
         { "Foundation.Core", "Foundation.Installer", "Foundation.Retro", "reEngine.Core" };
+    private static readonly ConcurrentDictionary<string, Assembly> ResolvedAssemblies = new(StringComparer.OrdinalIgnoreCase);
 
     static Program()
     {
-        AppDomain.CurrentDomain.AssemblyResolve += static (_, e) =>
+        AssemblyLoadContext.Default.Resolving += static (_, assemblyName) =>
         {
-            string? shortName = new AssemblyName(e.Name).Name;
-            if (!EmbeddedAssemblies.Contains(shortName, StringComparer.OrdinalIgnoreCase)) return null;
-            using Stream? gzStream = typeof(Program).Assembly.GetManifestResourceStream($"{shortName}.dll.gz");
-            if (gzStream is null) return null;
-            using var gzip = new GZipStream(gzStream, CompressionMode.Decompress);
-            using var ms = new MemoryStream();
-            gzip.CopyTo(ms);
-            return Assembly.Load(ms.ToArray());
+            string? shortName = assemblyName.Name;
+            if (string.IsNullOrWhiteSpace(shortName) ||
+                !EmbeddedAssemblies.Contains(shortName, StringComparer.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            return ResolvedAssemblies.GetOrAdd(shortName, static name =>
+            {
+                using Stream? gzStream = typeof(Program).Assembly.GetManifestResourceStream($"{name}.dll.gz")
+                    ?? throw new FileNotFoundException($"Missing embedded installer dependency '{name}.dll.gz'.");
+                using var gzip = new GZipStream(gzStream, CompressionMode.Decompress);
+                using var ms = new MemoryStream();
+                gzip.CopyTo(ms);
+                ms.Position = 0;
+                return AssemblyLoadContext.Default.LoadFromStream(ms);
+            });
         };
     }
 
