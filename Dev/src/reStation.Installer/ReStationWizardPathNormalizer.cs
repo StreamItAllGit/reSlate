@@ -1,5 +1,5 @@
 // @module: reStation.Installer.ReStationWizardPathNormalizer
-// @purpose: Live Setup Wizard folder auto-sorting into engines\reStation\v<Ver> / <parent>\reEngine and suite resolution.
+// @purpose: Live Setup Wizard folder auto-sorting into engines\reSlate\v<Ver> / <parent>\reEngine and suite resolution.
 // @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Windows.Forms, Foundation.Installer
 // @exports: ReStationWizardPathNormalizer
 
@@ -11,7 +11,7 @@ namespace reStation.Installer;
 /// <summary>
 /// Normalizes interactive Setup Wizard directory selections so choosing a generic parent folder
 /// (for example <c>&lt;custom-dir&gt;\Misc</c>) sorts <c>reEngine</c> into <c>&lt;parent&gt;\reEngine</c>
-/// and <c>reStation</c> into <c>&lt;reEngineDir&gt;\engines\reStation\v&lt;Version&gt;</c> without
+/// and <c>reSlate</c> into <c>&lt;reEngineDir&gt;\engines\reSlate\v&lt;Version&gt;</c> without
 /// altering explicit CLI paths.
 /// </summary>
 internal static class ReStationWizardPathNormalizer
@@ -82,7 +82,8 @@ internal static class ReStationWizardPathNormalizer
         string parentName = parent?.Name ?? string.Empty;
 
         if (string.Equals(leaf, VersionFolder, StringComparison.OrdinalIgnoreCase) ||
-            (string.Equals(parentName, ReStationInstallerTheme.EngineId, StringComparison.OrdinalIgnoreCase) &&
+            ((string.Equals(parentName, ReStationInstallerTheme.EngineId, StringComparison.OrdinalIgnoreCase) ||
+              string.Equals(parentName, ReStationInstallerTheme.LegacyEngineId, StringComparison.OrdinalIgnoreCase)) &&
              leaf.StartsWith("v", StringComparison.OrdinalIgnoreCase)) ||
             ReStationInstallerBootstrap.HasDirectInstallation(normalized))
         {

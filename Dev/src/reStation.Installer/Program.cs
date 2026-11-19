@@ -1,12 +1,15 @@
 // @module: reStation.Installer.Program
-// @purpose: Zero-daemon 4-pillar single-EXE setup host wiring interactive InstallerWizardForm (--profile, --reengine-dir, opt-in --migrate-legacy) and CLI containment.
-// @depends-on: System, System.Collections.Generic, System.IO, System.IO.Compression, System.Linq, System.Reflection, System.Runtime.CompilerServices, System.Windows.Forms, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
+// @purpose: Zero-daemon 4-pillar single-EXE setup host wiring interactive InstallerWizardForm, InstallerManifestStore, .ready marker emission, and 3-mode sandbox containment.
+// @depends-on: System, System.Collections.Generic, System.IO, System.IO.Compression, System.Linq, System.Reflection, System.Runtime.CompilerServices, System.Text, System.Text.Json, System.Windows.Forms, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: Program
 
 using System.IO.Compression;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
 using System.Windows.Forms;
+using Foundation.Core;
 using Foundation.Installer;
 using reEngine.Core.Bootstrap;
 
@@ -76,6 +79,19 @@ internal static class Program
         }
 
         bool isolatedTest = ReStationInstallerBootstrap.IsIsolatedTestEnabled();
+        InstallerRuntimeContext? runtimeCtx = null;
+        try
+        {
+            runtimeCtx = new InstallerRuntimeContext(
+                cliDataDir: cli.DataDir, cliConfigPath: cli.ConfigPath, cliLogDir: cli.LogDir,
+                dryRun: cli.DryRun, envPrefix: descriptor.EnvPrefix);
+        }
+        catch (Exception ex) when (SandboxEnvironmentSeam.IsContainmentViolation(ex))
+        {
+            Console.Error.WriteLine(ex.Message);
+            return SandboxEnvironmentSeam.ContainmentExitCode;
+        }
+
         bool isInteractiveGui = !cli.ShowVersion && !cli.ShowHelp && !cli.Silent &&
                                 !isolatedTest && !cli.DryRun && !cli.VerifyOnly &&
                                 string.IsNullOrWhiteSpace(cli.InstallDir) && OperatingSystem.IsWindows();
@@ -90,17 +106,23 @@ internal static class Program
         if (prepared != 0) return prepared;
 
         int exitCode = StandardInstallerHost.Run(descriptor, effectiveArgs, typeof(Program).Assembly);
-        if (exitCode == 0 && !verifyOnly && !uninstall && !dryRun)
+        string? resolvedInstall = ReStationInstallerBootstrap.ReadInstallDir(effectiveArgs) ?? installDir;
+        string effectiveInstall = !string.IsNullOrWhiteSpace(resolvedInstall)
+            ? Path.GetFullPath(resolvedInstall)
+            : theme.DefaultInstallDir;
+
+        if (exitCode == 0 && uninstall && !cli.ShowVersion && !cli.ShowHelp && !verifyOnly && !dryRun)
         {
-            string? resolvedInstall = ReStationInstallerBootstrap.ReadInstallDir(effectiveArgs) ?? installDir;
-            string effectiveInstall = !string.IsNullOrWhiteSpace(resolvedInstall)
-                ? Path.GetFullPath(resolvedInstall)
-                : theme.DefaultInstallDir;
+            RemoveReadyMarkerIfPresent(effectiveInstall);
+        }
+        else if (exitCode == 0 && !cli.ShowVersion && !cli.ShowHelp && !verifyOnly && !uninstall && !dryRun)
+        {
             string? isolatedRoot = isolatedTest ? ReStationInstallerBootstrap.TryResolveIsolatedDataRoot(effectiveArgs) : null;
             string effectiveReEngineDir = ResolveEffectiveReEngineDir(reEngineDir, suiteDir, isolatedRoot, isolatedTest);
             string? effectiveSuiteDir = ResolveEffectiveSuiteDir(suiteDir, effectiveReEngineDir);
             ApplyPostInstallActions(effectiveInstall, profileId, effectiveSuiteDir, effectiveReEngineDir,
-                migrateLegacy, confirmLegacyCleanup, isolatedTest, isolatedRoot ?? dataDir, silent);
+                migrateLegacy, confirmLegacyCleanup, isolatedTest, isolatedRoot ?? dataDir, silent,
+                runtimeCtx.ShouldSuppressLiveHostMutations, runtimeCtx.Sandbox);
         }
 
         return exitCode;
@@ -169,27 +191,58 @@ internal static class Program
             string? chosenSuiteDir = ResolveEffectiveSuiteDir(suiteDir, chosenReEngineDir);
 
             ApplyPostInstallActions(chosenInstallDir, chosenProfile, chosenSuiteDir, chosenReEngineDir,
-                wizard.MigrateLegacyChecked, confirmLegacyCleanup, isolatedTest: false, dataDir: cli.DataDir,
-                silent: false);
+                wizard.MigrateLegacyChecked, confirmLegacyCleanup, ctx.IsIsolatedTestProcess, cli.DataDir,
+                silent: false, ctx.ShouldSuppressLiveHostMutations, ctx.Sandbox);
         }
 
         return wizard.ExitCode;
     }
 
-    private static void ApplyPostInstallActions(
+    internal static void ApplyPostInstallActions(
         string installDir, string profileId, string? suiteDir, string? reEngineDir,
-        bool migrateLegacy, bool confirmLegacyCleanup, bool isolatedTest, string? dataDir, bool silent)
+        bool migrateLegacy, bool confirmLegacyCleanup, bool isolatedTest, string? dataDir, bool silent,
+        bool suppressLiveHostMutations = false, SandboxResolution? sandbox = null)
     {
         if (!Directory.Exists(installDir)) return;
 
         if (migrateLegacy)
         {
             LegacyMigrationResult migration = ReStationLegacyMigrationHelper.TryMigrateLegacyHostArtifacts(
-                installDir, isolatedTest, dataDir, silent, dryRun: false, confirmLegacyCleanup);
+                installDir, isolatedTest, dataDir, silent, dryRun: false, confirmLegacyCleanup,
+                sandbox, suppressLiveHostMutations);
             Console.WriteLine(migration.Summary);
         }
 
         ReStationLegacyMigrationHelper.PersistInstallProfileSettings(installDir, profileId, suiteDir, reEngineDir);
+        WriteReadyMarker(installDir);
+    }
+
+    internal static void WriteReadyMarker(string installDir)
+    {
+        string fullInstall = Path.GetFullPath(installDir);
+        Directory.CreateDirectory(fullInstall);
+        string readyPath = Path.Combine(fullInstall, ".ready");
+        string tmpPath = readyPath + ".tmp";
+        string payload = JsonSerializer.Serialize(new
+        {
+            engineId = ReStationInstallerTheme.EngineId,
+            appId = ReStationInstallerTheme.AppId,
+            version = ReStationInstallerTheme.Version,
+            completedAtUtc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        }, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(tmpPath, payload + Environment.NewLine, new UTF8Encoding(false));
+        File.Move(tmpPath, readyPath, overwrite: true);
+    }
+
+    internal static void RemoveReadyMarkerIfPresent(string installDir)
+    {
+        if (string.IsNullOrWhiteSpace(installDir)) return;
+        string readyPath = Path.Combine(Path.GetFullPath(installDir), ".ready");
+        if (File.Exists(readyPath)) File.Delete(readyPath);
+        if (Directory.Exists(installDir) && !Directory.EnumerateFileSystemEntries(installDir).Any())
+        {
+            Directory.Delete(installDir, recursive: false);
+        }
     }
 
     internal static InstallerAppDescriptor CreateDescriptor() => ReStationInstallerTheme.CreateDescriptor();

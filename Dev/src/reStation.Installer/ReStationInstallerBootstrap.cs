@@ -1,5 +1,5 @@
 // @module: reStation.Installer.ReStationInstallerBootstrap
-// @purpose: Side-by-side engines\reStation\v0.2.8 target resolution, --reengine-dir/--suite-dir support, and fail-closed APP_ISOLATED_TEST=1 containment without nested Setup bloat.
+// @purpose: Side-by-side engines\reSlate\v0.3.0 target resolution (with reStation fallback), --reengine-dir/--suite-dir support, and fail-closed 3-mode sandbox/APP_ISOLATED_TEST=1 containment.
 // @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Reflection, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerBootstrap
 
@@ -57,6 +57,9 @@ internal static class ReStationInstallerBootstrap
         if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir)) return false;
         string full = Path.GetFullPath(dir);
         return File.Exists(Path.Combine(full, ReStationInstallerTheme.MainExecutable)) ||
+               File.Exists(Path.Combine(full, "reSlate.exe")) ||
+               File.Exists(Path.Combine(full, "reStation.exe")) ||
+               File.Exists(Path.Combine(full, "app", "reSlate.Player.exe")) ||
                File.Exists(Path.Combine(full, "app", "reStation.Player.exe")) ||
                File.Exists(Path.Combine(full, "app", "install-manifest.json")) ||
                File.Exists(Path.Combine(full, "install-manifest.json"));
@@ -66,11 +69,15 @@ internal static class ReStationInstallerBootstrap
     {
         if (string.IsNullOrWhiteSpace(baseDir)) return null;
         string fullBase = Path.GetFullPath(baseDir);
+        string verFolder = $"v{ReStationInstallerTheme.Version}";
         string[] candidates =
         {
-            Path.Combine(fullBase, "engines", ReStationInstallerTheme.EngineId, $"v{ReStationInstallerTheme.Version}"),
+            Path.Combine(fullBase, "engines", ReStationInstallerTheme.EngineId, verFolder),
             ComputeSideBySideDir(fullBase),
-            ComputeSideBySideDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteName))
+            ComputeSideBySideDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteName)),
+            Path.Combine(fullBase, "engines", ReStationInstallerTheme.LegacyEngineId, verFolder),
+            ReEngineBootstrapHelper.BuildEngineVersionInstallDir(fullBase, ReStationInstallerTheme.LegacyEngineId, ReStationInstallerTheme.Version),
+            ReEngineBootstrapHelper.BuildEngineVersionInstallDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteName), ReStationInstallerTheme.LegacyEngineId, ReStationInstallerTheme.Version)
         };
         return candidates.FirstOrDefault(HasDirectInstallation);
     }
@@ -78,6 +85,7 @@ internal static class ReStationInstallerBootstrap
     internal static string? TryResolveIsolatedDataRoot(IReadOnlyList<string> args)
     {
         string? raw = ReadValue(args, "--data-dir")
+            ?? Environment.GetEnvironmentVariable("RESLATE_DATA_DIR")
             ?? Environment.GetEnvironmentVariable("RESTATION_DATA_DIR")
             ?? Environment.GetEnvironmentVariable("DATA_DIR")
             ?? Environment.GetEnvironmentVariable("APP_HOME");
@@ -204,7 +212,7 @@ internal static class ReStationInstallerBootstrap
             : Path.Combine(fullSuite, ReStationInstallerTheme.SuiteName);
     }
 
-    private static string? FindSiblingExternalReEngineInstaller(bool isolatedTest, string? isolatedRoot)
+    private static string? FindSiblingExternalReEngineInstaller(bool isolatedTest, string? isolatedRoot, SandboxResolution? sandbox = null)
     {
         string? selfPath = Environment.ProcessPath;
         string? selfDir = string.IsNullOrWhiteSpace(selfPath) ? null : Path.GetDirectoryName(Path.GetFullPath(selfPath));
@@ -217,6 +225,10 @@ internal static class ReStationInstallerBootstrap
         {
             string fullRoot = Path.GetFullPath(isolatedRoot).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
             if (!Path.GetFullPath(candidate).StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase)) return null;
+        }
+        if (candidate is not null && sandbox is { IsSandboxActive: true } && !SandboxEnvironmentSeam.IsPathWithinSandbox(candidate, sandbox))
+        {
+            return null;
         }
         return candidate;
     }
@@ -232,8 +244,12 @@ internal static class ReStationInstallerBootstrap
             try
             {
                 effectiveArgs = NormalizeUninstallArgs(args, out string? defaultLeaf);
-                if (!string.IsNullOrWhiteSpace(defaultLeaf) && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable)))
+                if (!string.IsNullOrWhiteSpace(defaultLeaf) &&
+                    string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable)) &&
+                    string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ReStationInstallerTheme.LegacyInstallDirEnvironmentVariable)))
+                {
                     Environment.SetEnvironmentVariable(ReStationInstallerTheme.InstallDirEnvironmentVariable, defaultLeaf);
+                }
                 return 0;
             }
             catch (InvalidOperationException ex) { Console.Error.WriteLine(ex.Message); return 3; }
@@ -242,6 +258,7 @@ internal static class ReStationInstallerBootstrap
         if (ShouldSkip(args, Environment.ProcessPath, uninstallerExeName)) return 0;
 
         bool isolatedTest = IsIsolatedTestEnabled();
+        SandboxResolution sandbox = isolatedTest ? SandboxResolution.Inactive : SandboxEnvironmentSeam.ResolveCurrent();
         string? explicitInstall = ReadInstallDir(args);
         try
         {
@@ -256,7 +273,7 @@ internal static class ReStationInstallerBootstrap
                 explicitReEngineDir = AppEnvironment.AssertPathContained(explicitReEngineDir, isolatedRoot);
 
             string targetReEngineDir = ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitReEngineDir, isolatedRoot, isolatedTest);
-            string? siblingInstaller = FindSiblingExternalReEngineInstaller(isolatedTest, isolatedRoot);
+            string? siblingInstaller = FindSiblingExternalReEngineInstaller(isolatedTest, isolatedRoot, sandbox);
             if (!string.IsNullOrWhiteSpace(siblingInstaller))
             {
                 ReEngineBootstrapResult res = ReEngineBootstrapHelper

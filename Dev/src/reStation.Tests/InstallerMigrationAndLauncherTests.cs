@@ -30,7 +30,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.False(ReStationInstallerTheme.AllowAutoStart);
         Assert.False(reStation.Installer.Program.AllowAutoStart);
         Assert.Equal("lightweight", ReStationInstallerTheme.DefaultInstallProfile);
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reStation\\v0.2.8", ReStationInstallerTheme.UmbrellaSubpath);
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0", ReStationInstallerTheme.UmbrellaSubpath);
 
         InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
         Assert.False(theme.AllowAutoStart);
@@ -81,7 +81,8 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.False(noClean.StrandedArtifactsCleaned);
         Assert.True(File.Exists(Path.Combine(legacyData, "crash-old.json")));
         Assert.True(File.Exists(Path.Combine(targetInstall, "data", "rom", "GAME.BIN")));
-        Assert.Contains("\"resolutionScale\":8", File.ReadAllText(Path.Combine(targetInstall, "data", "settings.json")), StringComparison.Ordinal);
+        string canonicalSettingsPath = Path.Combine(targetInstall, "data", "config", "settings.json");
+        Assert.Contains("\"resolutionScale\":8", File.ReadAllText(canonicalSettingsPath), StringComparison.Ordinal);
 
         // Explicit confirmation cleans stranded non-ROM artifacts while leaving legacy data\rom\ intact.
         LegacyMigrationResult withClean = ReStationLegacyMigrationHelper.TryMigrateLegacyHostArtifacts(
@@ -92,24 +93,36 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
 
         string fakeReEngineDir = Path.Combine(_tempRoot, "StreamItAll", "reEngine", "reEngine");
         ReStationLegacyMigrationHelper.PersistInstallProfileSettings(targetInstall, "full", Path.GetDirectoryName(fakeReEngineDir), fakeReEngineDir);
-        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(targetInstall, "data", "settings.json")));
+        using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(canonicalSettingsPath));
+        Assert.Equal("reslate", doc.RootElement.GetProperty("appId").GetString());
         Assert.Equal("full", doc.RootElement.GetProperty("installProfile").GetString());
         Assert.Equal("D3", doc.RootElement.GetProperty("goalDecompTier").GetString());
         Assert.False(doc.RootElement.TryGetProperty("targetDecompTier", out _));
         Assert.Equal(Path.GetFullPath(fakeReEngineDir), doc.RootElement.GetProperty("reEngineInstallDir").GetString());
+
+        // Non-destructive flat settings.json -> config\settings.json migration inside PersistInstallProfileSettings
+        string flatUpgradeDir = Path.Combine(_tempRoot, "flat-upgrade");
+        string flatDataDir = Path.Combine(flatUpgradeDir, "data");
+        Directory.CreateDirectory(flatDataDir);
+        File.WriteAllText(Path.Combine(flatDataDir, "settings.json"), "{\"schemaVersion\":1,\"backendId\":\"opengl\",\"resolutionScale\":4}");
+        ReStationLegacyMigrationHelper.PersistInstallProfileSettings(flatUpgradeDir, "lightweight", null, null);
+        Assert.True(File.Exists(Path.Combine(flatDataDir, "settings.json")));
+        using JsonDocument upgradedDoc = JsonDocument.Parse(File.ReadAllText(Path.Combine(flatDataDir, "config", "settings.json")));
+        Assert.Equal("opengl", upgradedDoc.RootElement.GetProperty("backendId").GetString());
+        Assert.Equal(4, upgradedDoc.RootElement.GetProperty("resolutionScale").GetInt32());
     }
 
     [Fact]
     public void LauncherArgsHelper_ResolvesPeerReEngineAndSuiteDirs_AndZeroPiiDefaultPath()
     {
         string canonical = LauncherArgsHelper.ResolveCanonicalDefaultEngineDir();
-        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reStation", "v0.2.8"), canonical, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reSlate", "v0.3.0"), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"D:\Programs", canonical, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("%LOCALAPPDATA%", ReStationInstallerTheme.CreateSecondaryPathPicker().Placeholder, StringComparison.Ordinal);
 
         string peerRouter = Path.Combine(_tempRoot, "suiteA", "reEngine");
-        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reStation", "v0.2.8", "app", "reStation.Player.exe");
+        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reSlate", "v0.3.0", "app", "reSlate.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(peerPlayer)!);
         File.WriteAllText(peerPlayer, string.Empty);
 
@@ -122,7 +135,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.Equal(Path.GetFullPath(peerPlayer), Path.GetFullPath(resolvedPeer));
 
         string portableSuite = Path.Combine(_tempRoot, "portable");
-        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.2.8", "app", "reStation.Player.exe");
+        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.3.0", "app", "reStation.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(portablePlayer)!);
         File.WriteAllText(portablePlayer, string.Empty);
 
@@ -130,5 +143,31 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         string resolvedSuite = LauncherArgsHelper.ResolveTargetPlayerExecutable(_tempRoot, suiteRe, suiteOnly);
         Assert.Equal(Path.GetFullPath(portablePlayer), Path.GetFullPath(resolvedSuite));
         Assert.Contains("StreamItAll", ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(), StringComparison.OrdinalIgnoreCase);
+
+        string envPrimary = Path.Combine(_tempRoot, "env-reslate");
+        string envPrimaryExe = Path.Combine(envPrimary, "app", "reSlate.Player.exe");
+        string envFallback = Path.Combine(_tempRoot, "env-restation");
+        string envFallbackExe = Path.Combine(envFallback, "app", "reStation.Player.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(envPrimaryExe)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(envFallbackExe)!);
+        File.WriteAllText(envPrimaryExe, string.Empty);
+        File.WriteAllText(envFallbackExe, string.Empty);
+
+        string? prevReslate = Environment.GetEnvironmentVariable("RESLATE_INSTALL_DIR");
+        string? prevRestation = Environment.GetEnvironmentVariable("RESTATION_INSTALL_DIR");
+        try
+        {
+            Environment.SetEnvironmentVariable("RESLATE_INSTALL_DIR", envPrimary);
+            Environment.SetEnvironmentVariable("RESTATION_INSTALL_DIR", envFallback);
+            Assert.Equal(Path.GetFullPath(envPrimaryExe), Path.GetFullPath(LauncherArgsHelper.ResolveTargetPlayerExecutable(_tempRoot, null, null)));
+
+            Environment.SetEnvironmentVariable("RESLATE_INSTALL_DIR", null);
+            Assert.Equal(Path.GetFullPath(envFallbackExe), Path.GetFullPath(LauncherArgsHelper.ResolveTargetPlayerExecutable(_tempRoot, null, null)));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("RESLATE_INSTALL_DIR", prevReslate);
+            Environment.SetEnvironmentVariable("RESTATION_INSTALL_DIR", prevRestation);
+        }
     }
 }

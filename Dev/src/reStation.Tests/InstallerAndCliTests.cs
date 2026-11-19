@@ -26,9 +26,30 @@ public sealed class InstallerAndCliTests : IDisposable
         var descriptor = ReStationInstallerTheme.CreateDescriptor();
 
         Assert.False(descriptor.AllowAutoStart);
-        Assert.Equal("reStation", descriptor.ProductName);
+        Assert.Equal("reSlate", descriptor.ProductName);
+        Assert.Equal("reSlate", descriptor.DisplayName);
+        Assert.Equal("0.3.0", descriptor.Version);
         Assert.Equal(ReStationInstallerTheme.Version, descriptor.Version);
-        Assert.Equal("reStation.Installer.Embedded.payload.zip", descriptor.EmbeddedPayloadResourceName);
+        Assert.Equal("reSlate.Installer.Embedded.payload.zip", descriptor.EmbeddedPayloadResourceName);
+        Assert.Equal("reSlate.exe", descriptor.MainExecutableRelativePath);
+    }
+
+    [Fact]
+    public void InstallerManifestStore_LoadsEmbeddedManifest_AndEnforcesZeroDaemonThemeOptions()
+    {
+        InstallerMarkupManifest? manifest = ReStationInstallerTheme.LoadManifest();
+        Assert.NotNull(manifest);
+        Assert.Equal("reslate", manifest!.AppId);
+        Assert.Equal("reSlate", manifest.DisplayName);
+        Assert.Equal("0.3.0", manifest.Version);
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0", manifest.UmbrellaSubpath);
+        Assert.Equal("reSlate.exe", manifest.MainExecutableRelativePath);
+        Assert.False(manifest.AllowAutoStart);
+
+        InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
+        Assert.False(theme.AllowAutoStart);
+        Assert.False(theme.BootstrapSharedSuiteDaemon);
+        Assert.Equal("reSlate.exe", theme.ExecutableFileName);
     }
 
     [Fact]
@@ -51,6 +72,7 @@ public sealed class InstallerAndCliTests : IDisposable
     [InlineData(new[] { "--dry-run" }, null, true)]
     [InlineData(new[] { "--uninstall" }, null, true)]
     [InlineData(new[] { "--silent" }, "C:\\temp\\uninstall.exe", true)]
+    [InlineData(new[] { "--silent" }, "C:\\temp\\reSlate-Setup.exe", false)]
     [InlineData(new[] { "--silent" }, "C:\\temp\\reStation-Setup.exe", false)]
     public void InstallerBootstrap_ShouldSkip_MatchesInformationalAndUninstallInvocations(
         string[] args, string? processPath, bool expectedSkip)
@@ -65,7 +87,7 @@ public sealed class InstallerAndCliTests : IDisposable
         string reEngineRoot = Path.Combine(_tempRoot, "reEngine");
         string sideBySide = ReStationInstallerBootstrap.ComputeSideBySideDir(reEngineRoot);
 
-        string expected = Path.Combine(_tempRoot, "engines", "reStation", "v" + ReStationInstallerTheme.Version);
+        string expected = Path.Combine(_tempRoot, "engines", "reSlate", "v" + ReStationInstallerTheme.Version);
         Assert.Equal(Path.GetFullPath(expected), Path.GetFullPath(sideBySide));
     }
 
@@ -98,12 +120,12 @@ public sealed class InstallerAndCliTests : IDisposable
             string resolvedInstall = AppEnvironment.AssertPathContained(effective[installIdx + 1], isolatedRoot);
             Assert.Equal(Path.GetFullPath(isolatedRoot), resolvedData);
             Assert.EndsWith(
-                Path.Combine("engines", "reStation", "v" + ReStationInstallerTheme.Version),
+                Path.Combine("engines", "reSlate", "v" + ReStationInstallerTheme.Version),
                 resolvedInstall,
                 StringComparison.OrdinalIgnoreCase);
             Assert.False(
                 resolvedInstall.Contains(Path.Combine("reEngine", "engines"), StringComparison.OrdinalIgnoreCase),
-                "Installer target must use peer engines\\reStation\\v0.2.8 rather than nested reEngine\\engines\\.");
+                "Installer target must use peer engines\\reSlate\\v0.3.0 rather than nested reEngine\\engines\\.");
         }
         finally
         {
@@ -175,12 +197,12 @@ public sealed class InstallerAndCliTests : IDisposable
     [Fact]
     public void InstallerAndLauncher_ExposeCurrentMetadataParameterizedAssemblyAndZeroEmptyCatches()
     {
-        Assert.Equal("0.2.8", ReStationInstallerTheme.Version);
-        Assert.Equal("reStation-Setup-v0.2.8-win-x64", typeof(Program).Assembly.GetName().Name);
+        Assert.Equal("0.3.0", ReStationInstallerTheme.Version);
+        Assert.Equal("reSlate-Setup-v0.3.0-win-x64", typeof(Program).Assembly.GetName().Name);
 
         string srcRoot = FindSrcRoot();
         string installerCsproj = File.ReadAllText(Path.Combine(srcRoot, "reStation.Installer", "reStation.Installer.csproj"));
-        Assert.Contains("<AssemblyName>reStation-Setup-v$(Version)-win-x64</AssemblyName>", installerCsproj, StringComparison.Ordinal);
+        Assert.Contains("<AssemblyName>reSlate-Setup-v$(Version)-win-x64</AssemblyName>", installerCsproj, StringComparison.Ordinal);
         Assert.DoesNotContain("Embedded.reEngine-Setup", installerCsproj, StringComparison.Ordinal);
         Assert.Contains("LogicalName=\"Foundation.Retro.dll.gz\"", installerCsproj, StringComparison.Ordinal);
         Assert.Contains("LogicalName=\"reEngine.Core.dll.gz\"", installerCsproj, StringComparison.Ordinal);
@@ -219,7 +241,13 @@ public sealed class InstallerAndCliTests : IDisposable
             string reEngineRoot = Path.Combine(case1Suite, "reEngine");
             string leaf1 = ReStationInstallerBootstrap.ComputeSideBySideDir(reEngineRoot);
             Directory.CreateDirectory(leaf1);
-            File.WriteAllText(Path.Combine(leaf1, "reStation.exe"), string.Empty);
+            File.WriteAllText(Path.Combine(leaf1, "reSlate.exe"), string.Empty);
+
+            string legacyDir = Path.Combine(tempRoot, "legacy-leaf");
+            Directory.CreateDirectory(Path.Combine(legacyDir, "app"));
+            File.WriteAllText(Path.Combine(legacyDir, "app", "reStation.Player.exe"), string.Empty);
+            Assert.True(ReStationInstallerBootstrap.HasDirectInstallation(leaf1));
+            Assert.True(ReStationInstallerBootstrap.HasDirectInstallation(legacyDir));
 
             string[] normalizedRoot = ReStationInstallerBootstrap.NormalizeUninstallArgs(
                 new[] { "--uninstall", "--data-dir", case1Suite, "--install-dir", reEngineRoot });
@@ -260,6 +288,49 @@ public sealed class InstallerAndCliTests : IDisposable
             Environment.SetEnvironmentVariable("APP_ISOLATED_TEST", prevIsolated);
             if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
             if (Directory.Exists(outsideDir)) Directory.Delete(outsideDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void InstallerProgram_ApplyPostInstallActions_WritesReadyMarkerAndCanonicalSettings_AndSandboxSuppressesHost()
+    {
+        string installDir = Path.Combine(_tempRoot, "install-ready");
+        Directory.CreateDirectory(installDir);
+        Program.ApplyPostInstallActions(installDir, "lightweight", _tempRoot, _tempRoot,
+            migrateLegacy: false, confirmLegacyCleanup: false, isolatedTest: true, dataDir: _tempRoot, silent: true,
+            suppressLiveHostMutations: true);
+
+        string readyPath = Path.Combine(installDir, ".ready");
+        Assert.True(File.Exists(readyPath));
+        string readyJson = File.ReadAllText(readyPath);
+        Assert.Contains("\"engineId\": \"reSlate\"", readyJson, StringComparison.Ordinal);
+        Assert.Contains("\"appId\": \"reslate\"", readyJson, StringComparison.Ordinal);
+        Assert.Contains("\"version\": \"0.3.0\"", readyJson, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(installDir, "data", "config", "settings.json")));
+
+        Program.RemoveReadyMarkerIfPresent(installDir);
+        Assert.False(File.Exists(readyPath));
+
+        string sbRoot = Path.Combine(_tempRoot, "sb");
+        var sandbox = new SandboxResolution(
+            true, sbRoot, Path.Combine(sbRoot, "C"), Path.Combine(sbRoot, "D"),
+            Path.Combine(sbRoot, "E"), null, Path.Combine(sbRoot, "C", "Users", "Sandbox"),
+            Path.Combine(sbRoot, "registry", "registry.hive.json"),
+            Path.Combine(sbRoot, "registry", "registry.baseline.json"),
+            Path.Combine(sbRoot, "locks", "registry.hive.lock"));
+        string? prevIso = Environment.GetEnvironmentVariable("APP_ISOLATED_TEST");
+        Environment.SetEnvironmentVariable("APP_ISOLATED_TEST", null);
+        try
+        {
+            var ctx = new InstallerRuntimeContext(
+                Path.Combine(sbRoot, "data"), null, Path.Combine(sbRoot, "logs"), false, "RESLATE", sandboxOverride: sandbox);
+            Assert.True(ctx.IsSandboxActive);
+            Assert.True(ctx.ShouldSuppressLiveHostMutations);
+            Assert.False(ctx.ShouldSuppressHostMutations);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("APP_ISOLATED_TEST", prevIso);
         }
     }
 

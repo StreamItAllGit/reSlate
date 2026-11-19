@@ -25,10 +25,16 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
     [InlineData(new[] { "--wait" }, true)]
     [InlineData(new[] { " --WAIT ", "--preload-media", "rom.cue" }, true)]
     [InlineData(new[] { "--verify" }, true)]
+    [InlineData(new[] { "--doctor" }, true)]
+    [InlineData(new[] { "--vsync", "--doctor" }, true)]
+    [InlineData(new[] { "--vsync", "off", "--wait" }, true)]
+    [InlineData(new[] { "--require-backend", "opengl", "--wait" }, true)]
     [InlineData(new[] { "--tray-only" }, true)]
     [InlineData(new[] { "--help" }, true)]
     [InlineData(new[] { "-h" }, true)]
     [InlineData(new[] { "/?" }, true)]
+    [InlineData(new[] { "--automation-port", "5199" }, false)]
+    [InlineData(new[] { "--vsync", "--backend", "opengl" }, false)]
     [InlineData(new[] { "--module", "game.recomp.json", "--preload-media", "data\\rom\\disc.cue" }, false)]
     [InlineData(new string[0], false)]
     public void LauncherArgsHelper_RequiresSyncWait_MatchesWaitAndCliFlags(string[] args, bool expected)
@@ -42,14 +48,28 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
     {
         string baseDir = Path.Combine(_tempRoot, "caller");
         string rooted = Path.Combine(_tempRoot, "abs", "disc.cue");
-        string[] raw = { "--wait", "--preload-media", "\"mods\\game.cue\"", "--module", rooted, "--scale", "4" };
+        string[] raw =
+        {
+            "--wait", "--preload-media", "\"mods\\game.cue\"", "--module", rooted,
+            "--save-dir", "saves", "--fixture", "fx\\boot.json", "--dump-audio", "out.wav",
+            "--require-backend", "opengl", "--port", "5100", "--automation-port", "0",
+            "--automation-token", "tok123", "--vsync", "--scale", "4"
+        };
 
         string[] resolved = LauncherArgsHelper.ResolveRelativePathArgs(raw, baseDir);
 
         Assert.Equal("--wait", resolved[0]);
         Assert.Equal(Path.GetFullPath(Path.Combine(baseDir, "mods", "game.cue")), resolved[2]);
         Assert.Equal(rooted, resolved[4]);
-        Assert.Equal("4", resolved[6]);
+        Assert.Equal(Path.GetFullPath(Path.Combine(baseDir, "saves")), resolved[6]);
+        Assert.Equal(Path.GetFullPath(Path.Combine(baseDir, "fx", "boot.json")), resolved[8]);
+        Assert.Equal(Path.GetFullPath(Path.Combine(baseDir, "out.wav")), resolved[10]);
+        Assert.Equal("opengl", resolved[12]);
+        Assert.Equal("5100", resolved[14]);
+        Assert.Equal("0", resolved[16]);
+        Assert.Equal("tok123", resolved[18]);
+        Assert.Equal("--vsync", resolved[19]);
+        Assert.Equal("4", resolved[21]);
         Assert.Empty(LauncherArgsHelper.ResolveRelativePathArgs(null, baseDir));
     }
 
@@ -166,29 +186,150 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
     }
 
     [Fact]
-    public void BuildReleaseScript_AndMetadataFiles_Match020DualManifestContract()
+    public void BuildReleaseScript_AndMetadataFiles_Match030ReSlateDualManifestContract()
     {
         string devDir = FindDevRoot();
-        string script = File.ReadAllText(Path.Combine(devDir, "scripts", "build_release.ps1"));
-        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "build_release.ps1")).Length <= 400);
-        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "sanitize_release_docs.ps1")).Length <= 400);
-        Assert.DoesNotContain("reEngine-Setup-v0.1.3-win-x64.exe", script, StringComparison.Ordinal);
-        Assert.Contains("reStation.Decomp.dll", script, StringComparison.Ordinal);
-        Assert.Contains("settings.example.json", script, StringComparison.Ordinal);
-        Assert.DoesNotContain(@"data\rom\.keep", script, StringComparison.Ordinal);
-        Assert.Contains("LICENSE", script, StringComparison.Ordinal);
-        Assert.Contains("--preload-media", script, StringComparison.Ordinal);
-        Assert.Contains("--wait", script, StringComparison.Ordinal);
-        Assert.Contains("--version", script, StringComparison.Ordinal);
-        Assert.Contains("Remove-Item -LiteralPath $sdkDir", script, StringComparison.Ordinal);
-        Assert.Contains("engine.manifest.json", script, StringComparison.Ordinal);
-        Assert.Contains("sdk-manifest.json", script, StringComparison.Ordinal);
-        Assert.Contains("supportedEngineTracks", script, StringComparison.Ordinal);
-        Assert.Contains("README.md", script, StringComparison.Ordinal);
+        string buildScript = File.ReadAllText(Path.Combine(devDir, "scripts", "build_release.ps1"));
+        string helpersScript = File.ReadAllText(Path.Combine(devDir, "scripts", "package_helpers.ps1"));
+        string sanitizeScript = File.ReadAllText(Path.Combine(devDir, "scripts", "sanitize_release_docs.ps1"));
+        string e2eScript = File.ReadAllText(Path.Combine(devDir, "scripts", "run_stage2_sandbox_e2e.ps1"));
 
-        Assert.Equal("0.2.8", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "build_release.ps1")).Length < 300);
+        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "package_helpers.ps1")).Length < 300);
+        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "sanitize_release_docs.ps1")).Length < 300);
+        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "run_stage2_sandbox_e2e.ps1")).Length < 300);
+
+        Assert.DoesNotContain("A5414BDD36F7F113C7B2356F189B7A43F69C35E6", buildScript, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("A5414BDD36F7F113C7B2356F189B7A43F69C35E6", helpersScript, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("reEngine-Setup-v0.1.3-win-x64.exe", buildScript, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"data\rom\.keep", buildScript, StringComparison.Ordinal);
+        Assert.DoesNotContain("$installersDir = Join-Path $root \"Installers\"", buildScript, StringComparison.Ordinal);
+
+        Assert.Contains("Assert-CodeOnlySlocGate", buildScript, StringComparison.Ordinal);
+        Assert.Contains("Resolve-CodeSigningCertificate", buildScript, StringComparison.Ordinal);
+        Assert.Contains("-AuditScriptPath", buildScript, StringComparison.Ordinal);
+        Assert.Contains("reSlate.Decomp.dll", buildScript, StringComparison.Ordinal);
+        Assert.Contains("reEngine.Host.dll", buildScript, StringComparison.Ordinal);
+        Assert.Contains("settings.example.json", buildScript, StringComparison.Ordinal);
+        Assert.Contains("Assert-BinaryPurity", buildScript, StringComparison.Ordinal);
+        Assert.Contains("--preload-media", buildScript, StringComparison.Ordinal);
+        Assert.Contains("--require-backend", buildScript, StringComparison.Ordinal);
+        Assert.Contains("--doctor", buildScript, StringComparison.Ordinal);
+        Assert.Contains("$_.Name -ieq \"AGENTS.md\"", buildScript, StringComparison.Ordinal);
+
+        Assert.Contains("Foundation.Automation", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("System.Windows.Forms", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("HardLink", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("Portable.zip", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("SharedLibs\\reSlate", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("engine.manifest.json", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("sdk-manifest.json", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("supportedEngineTracks", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("app/reSlate.Decomp.dll", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("USER_GUIDE.*.md", helpersScript, StringComparison.Ordinal);
+        Assert.Contains(".ready", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("Prune-MinorVersionArchives", sanitizeScript, StringComparison.Ordinal);
+        Assert.Contains("RequireAllFourDrives", e2eScript, StringComparison.Ordinal);
+
+        Assert.Equal("0.3.0", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.2.8", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.0", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("reslate", appManifest.RootElement.GetProperty("appId").GetString());
+
+        using JsonDocument settingsExample = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "data", "settings.example.json")));
+        Assert.Equal("reslate", settingsExample.RootElement.GetProperty("appId").GetString());
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
+    }
+
+    [Fact]
+    public void SanitizeReleaseDocs_RewritesRelativeLinks_ScrubsTrademarksOutsideLegal_AndPrunesBeyond3Minors()
+    {
+        string devDir = FindDevRoot();
+        string scriptPath = Path.Combine(devDir, "scripts", "sanitize_release_docs.ps1");
+        Directory.CreateDirectory(_tempRoot);
+        string inputMd = Path.Combine(_tempRoot, "input.md");
+        string cleanOut = Path.Combine(_tempRoot, "clean.md");
+        string leakOut = Path.Combine(_tempRoot, "leak.md");
+        string archDir = Path.Combine(_tempRoot, "archives");
+        Directory.CreateDirectory(archDir);
+        foreach (string name in new[] { "Latest.7z", "v0.3.0.7z", "v0.2.8.7z", "v0.1.5.7z", "v0.0.9.7z" })
+        {
+            File.WriteAllText(Path.Combine(archDir, name), "7z");
+        }
+
+        File.WriteAllText(inputMd,
+            "# Guide\r\n" +
+            "- See [User Guide](Dev/docs/USER_GUIDE.md) and PlayStation DualShock controls.\r\n" +
+            "- Internal [file](Dev/src/reStation.Core/Foo.cs) stays scrubbed if label leaks Dev\\src\\.\r\n" +
+            "## 8. License & Legal\r\n" +
+            "- *PlayStation* and *DualShock* are trademarks of Sony Interactive Entertainment Inc.\r\n");
+
+        string psCommand =
+            $". '{scriptPath.Replace("'", "''")}'; " +
+            $"$raw = Read-Utf8Text '{inputMd.Replace("'", "''")}'; " +
+            $"$clean = Sanitize-MarkdownForEndUser $raw; " +
+            $"Write-Utf8Text '{cleanOut.Replace("'", "''")}' $clean; " +
+            $"Assert-EndUserMarkdownClean '{cleanOut.Replace("'", "''")}'; " +
+            $"Prune-MinorVersionArchives -ArchiveDir '{archDir.Replace("'", "''")}' -KeepMinorCount 3 -KeepVersionName 'v0.3.0'";
+
+        var (exitCode, _, stderr) = RunPowerShell(psCommand);
+        Assert.True(exitCode == 0, stderr);
+
+        string cleanText = File.ReadAllText(cleanOut);
+        Assert.Contains("See User Guide and SlateOne Gamepad controls.", cleanText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Dev/docs/USER_GUIDE.md", cleanText, StringComparison.Ordinal);
+        Assert.Contains("*PlayStation* and *DualShock* are trademarks of Sony Interactive Entertainment Inc.", cleanText, StringComparison.Ordinal);
+
+        Assert.True(File.Exists(Path.Combine(archDir, "Latest.7z")));
+        Assert.True(File.Exists(Path.Combine(archDir, "v0.3.0.7z")));
+        Assert.True(File.Exists(Path.Combine(archDir, "v0.2.8.7z")));
+        Assert.True(File.Exists(Path.Combine(archDir, "v0.1.5.7z")));
+        Assert.False(File.Exists(Path.Combine(archDir, "v0.0.9.7z")));
+
+        File.WriteAllText(leakOut, "# Bad\r\nPlayStation mention outside legal.\r\n");
+        string leakCmd =
+            $". '{scriptPath.Replace("'", "''")}'; " +
+            $"Assert-EndUserMarkdownClean '{leakOut.Replace("'", "''")}'";
+        var (leakExit, _, _) = RunPowerShell(leakCmd);
+        Assert.NotEqual(0, leakExit);
+    }
+
+    [Fact]
+    public void Stage2SandboxScript_DryRun_ValidatesRunnerAndFourDriveContract()
+    {
+        string devDir = FindDevRoot();
+        string scriptPath = Path.Combine(devDir, "scripts", "run_stage2_sandbox_e2e.ps1");
+        string psCommand = $"& '{scriptPath.Replace("'", "''")}' -DryRun -RequireAllFourDrives:$false";
+        var (exitCode, stdout, stderr) = RunPowerShell(psCommand);
+        Assert.True(exitCode == 0, stderr);
+
+        using JsonDocument doc = JsonDocument.Parse(stdout);
+        Assert.True(doc.RootElement.GetProperty("dryRun").GetBoolean());
+        Assert.Equal("0.3.0", doc.RootElement.GetProperty("version").GetString());
+        Assert.Contains("run_sandbox_e2e.py", doc.RootElement.GetProperty("sandboxRunner").GetString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static (int ExitCode, string Stdout, string Stderr) RunPowerShell(string command)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "powershell",
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        psi.ArgumentList.Add("-NoProfile");
+        psi.ArgumentList.Add("-ExecutionPolicy");
+        psi.ArgumentList.Add("Bypass");
+        psi.ArgumentList.Add("-Command");
+        psi.ArgumentList.Add(command);
+        using Process? proc = Process.Start(psi);
+        Assert.NotNull(proc);
+        string stdout = proc!.StandardOutput.ReadToEnd();
+        string stderr = proc.StandardError.ReadToEnd();
+        Assert.True(proc.WaitForExit(15000), "PowerShell test invocation timed out.");
+        return (proc.ExitCode, stdout, stderr);
     }
 
     private static string FindDevRoot()
