@@ -133,7 +133,9 @@ public sealed partial class PsxBiosHle
             case 0x43: ExecOverlay(_cpu.R[4], _cpu.R[5], _cpu.R[6]); break;
             case 0x49: _cpu.Gpu.WriteGp0(_cpu.R[4]); break;
             case 0x44 or 0x54 or 0x71 or 0x72 or 0x9F: _cpu.R[2] = 1; break;
-            case 0x70 or 0xAB: DeliverCardIoEnd(); _cpu.R[2] = 1; break;
+            case 0x70: DeliverCardIoEnd(); _cpu.R[2] = 1; break;
+            case 0xAB: _cpu.R[2] = CardInfo(_cpu.R[4]); break;
+            case 0xAC: _cpu.R[2] = CardLoadDirectory(_cpu.R[4]); break;
             default: _cpu.R[2] = 0; break;
         }
     }
@@ -177,10 +179,13 @@ public sealed partial class PsxBiosHle
             case 0x36: _cpu.R[2] = CloseCardFile((int)_cpu.R[4]); break;
             case 0x3B or 0x42: _cpu.R[2] = FirstFile(ReadCString(_cpu.R[4]), _cpu.R[5]); break;
             case 0x3C or 0x43: _cpu.R[2] = NextFile(_cpu.R[4]); break;
-            case 0x40 or 0x41: MemCard.Format(); _cpu.R[2] = 1; break;
+            case 0x40 or 0x41: _cpu.R[2] = FormatCard(ReadCString(_cpu.R[4])); break;
             case 0x45: _cpu.R[2] = MemCard.Erase(ReadCString(_cpu.R[4])) ? 1U : 0U; break;
             case 0x4A or 0x4B or 0x55 or 0x5B: _cpu.R[2] = 1; break;
-            case 0x4C or 0x4E or 0x4F: DeliverCardIoEnd(); _cpu.R[2] = 1; break;
+            case 0x4C: DeliverCardIoEnd(); _cpu.R[2] = 1; break;
+            case 0x4E: _cpu.R[2] = CardWriteSector(_cpu.R[4], _cpu.R[5], _cpu.R[6]); break;
+            case 0x4F: _cpu.R[2] = CardReadSector(_cpu.R[4], _cpu.R[5], _cpu.R[6]); break;
+            case 0x50: _cpu.R[2] = NewCard(); break;
             case 0x56: EnsureKernelTables(); _cpu.R[2] = C0TableAddr; break;
             default: _cpu.R[2] = 0; break;
         }

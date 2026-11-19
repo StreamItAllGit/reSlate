@@ -17,18 +17,49 @@ public static class QuickSaveTrailer
     public const uint TrailerMagic = 0x58545352U; // "RSTX"
     public const ushort TrailerVersion = 1;
     public const string ChunkBios = "BIOS";
+    public const string ChunkMemCard = "MCD2";
     public const string ChunkOverlay = "OVLY";
+    private const uint MemCardChunkMagic = 0x3244434DU; // "MCD2"
+    private const ushort MemCardChunkVersion = 1;
     private const int MaxChunkCount = 64;
     private const int MaxPayloadBytes = 16 * 1024 * 1024;
 
-    /// <summary>Captures default runtime extension chunks ("BIOS") from <paramref name="cpu"/> for slot saves.</summary>
+    /// <summary>Captures default runtime extension chunks ("BIOS", "MCD2") from <paramref name="cpu"/> for slot saves.</summary>
     public static IReadOnlyDictionary<string, byte[]> CaptureDefaultChunks(PsxCpu cpu)
     {
         ArgumentNullException.ThrowIfNull(cpu);
-        return new Dictionary<string, byte[]>(1, StringComparer.Ordinal)
+        return new Dictionary<string, byte[]>(2, StringComparer.Ordinal)
         {
-            [ChunkBios] = cpu.Bios.CaptureSnapshot()
+            [ChunkBios] = cpu.Bios.CaptureSnapshot(),
+            [ChunkMemCard] = CaptureMemCardChunk(cpu)
         };
+    }
+
+    /// <summary>Serializes Slot 1+2 memory card dirty/flag/protocol state for the "MCD2" RSTX chunk.</summary>
+    public static byte[] CaptureMemCardChunk(PsxCpu cpu)
+    {
+        ArgumentNullException.ThrowIfNull(cpu);
+        using var ms = new MemoryStream(192);
+        using var w = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+        w.Write(MemCardChunkMagic);
+        w.Write(MemCardChunkVersion);
+        cpu.Bios.MemCard.WriteSnapshotState(w);
+        cpu.Joypad.MemCardProtocol.WriteSnapshotState(w);
+        w.Flush();
+        return ms.ToArray();
+    }
+
+    /// <summary>Restores Slot 1+2 memory card dirty/flag/protocol state from an "MCD2" RSTX chunk.</summary>
+    public static void RestoreMemCardChunk(PsxCpu cpu, ReadOnlySpan<byte> payload)
+    {
+        ArgumentNullException.ThrowIfNull(cpu);
+        if (payload.Length < 6) throw new InvalidDataException("Invalid MCD2 RSTX chunk length.");
+        using var ms = new MemoryStream(payload.ToArray(), writable: false);
+        using var r = new BinaryReader(ms, Encoding.UTF8);
+        if (r.ReadUInt32() != MemCardChunkMagic || r.ReadUInt16() != MemCardChunkVersion)
+            throw new InvalidDataException("Invalid MCD2 RSTX chunk header.");
+        cpu.Bios.MemCard.ReadSnapshotState(r);
+        cpu.Joypad.MemCardProtocol.ReadSnapshotState(r);
     }
 
     /// <summary>Writes the serialized "RSTX" trailer body, uint32 body length, and trailing "RSTX" magic to <paramref name="output"/>.</summary>

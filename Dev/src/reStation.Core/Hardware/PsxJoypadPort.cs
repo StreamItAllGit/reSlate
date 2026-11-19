@@ -1,6 +1,6 @@
 // @module: reStation.Core.Hardware.PsxJoypadPort
-// @purpose: SIO0 joypad/memory-card serial port (0x1F801040-0x1F80104F) speaking the digital (0x41) / DualShock analog (0x73) pad protocol.
-// @depends-on: reStation.Core.Cpu.PsxCpu (controller state), reStation.Core.Hardware.PsxTimersAndDma (IRQ7)
+// @purpose: SIO0 joypad/memory-card serial port (0x1F801040-0x1F80104F) speaking digital/DualShock pad and 0x81 Memory Card protocols.
+// @depends-on: reStation.Core.Cpu.PsxCpu, reStation.Core.Hardware.PsxTimersAndDma, reStation.Core.Hardware.SioMemCardProtocol
 // @exports: PsxJoypadPort
 // @owner: devv-cpu-cd (T2)
 
@@ -18,6 +18,7 @@ public sealed class PsxJoypadPort
     private const uint SnapshotMarker = 0x55534A52U; // "RJSU"
 
     private readonly PsxCpu _cpu;
+    private readonly SioMemCardProtocol _memCard;
     private readonly byte[] _response = new byte[9];
     private int _responseLength;
     private int _sequence = -1;
@@ -31,7 +32,13 @@ public sealed class PsxJoypadPort
     private long _ackEndCycle = long.MaxValue;
     private ushort _mode, _control, _baud;
 
-    public PsxJoypadPort(PsxCpu cpu) => _cpu = cpu ?? throw new ArgumentNullException(nameof(cpu));
+    public PsxJoypadPort(PsxCpu cpu)
+    {
+        _cpu = cpu ?? throw new ArgumentNullException(nameof(cpu));
+        _memCard = new SioMemCardProtocol(() => _cpu.Bios.MemCard);
+    }
+
+    internal SioMemCardProtocol MemCardProtocol => _memCard;
 
     /// <summary>When true, port 1 answers as a DualShock in analog mode (ID 0x73) instead of a digital pad (0x41).</summary>
     public bool AnalogMode { get; set; }
@@ -71,7 +78,7 @@ public sealed class PsxJoypadPort
                 _control = (ushort)(value & ~0x0050);
                 if ((value & 0x0010) != 0) _irqPending = false; // ACK: reset IRQ7 latch (bit 9)
                 if ((value & 0x0040) != 0) Reset();
-                if ((value & 0x0002) == 0) { _sequence = -1; _ackAtCycle = long.MaxValue; _ackEndCycle = long.MaxValue; _ackLine = false; } // /JOYn deasserted ends the packet
+                if ((value & 0x0002) == 0) { _sequence = -1; _memCard.ResetSession(); _ackAtCycle = long.MaxValue; _ackEndCycle = long.MaxValue; _ackLine = false; } // /JOYn deasserted ends the packet
                 break;
             case 0xE: _baud = value; break;
         }
@@ -103,11 +110,22 @@ public sealed class PsxJoypadPort
         _ackEndCycle = long.MaxValue;
         bool port2 = (_control & 0x2000) != 0;
         bool ack;
-        if (_sequence < 0)
+        if (_memCard.IsActive)
         {
-            ack = tx == 0x01 && !port2;
-            _rxData = 0xFF;
-            if (ack) _sequence = 0;
+            (_rxData, ack) = _memCard.TransferByte(tx);
+        }
+        else if (_sequence < 0)
+        {
+            if (tx == SioMemCardProtocol.AddressSelect)
+            {
+                (_rxData, ack) = _memCard.BeginSession(port2 ? 1 : 0);
+            }
+            else
+            {
+                ack = tx == 0x01 && !port2;
+                _rxData = 0xFF;
+                if (ack) _sequence = 0;
+            }
         }
         else if (_sequence == 0)
         {
@@ -123,7 +141,6 @@ public sealed class PsxJoypadPort
                 _rxData = 0xFF;
                 ack = false;
                 _sequence = -1;
-                _ackAtCycle = long.MaxValue;
             }
         }
         else
@@ -135,7 +152,7 @@ public sealed class PsxJoypadPort
             if (!ack) _sequence = -1;
         }
         _rxPending = true;
-        if (ack) _ackAtCycle = _cpu.TotalCycles + AckDelayCycles;
+        _ackAtCycle = ack ? _cpu.TotalCycles + AckDelayCycles : long.MaxValue;
     }
 
     private bool TryBuildCommandResponse(byte cmd)
@@ -209,6 +226,7 @@ public sealed class PsxJoypadPort
     private void Reset()
     {
         _sequence = -1;
+        _memCard.ResetSession();
         _rxPending = false;
         _ackLine = false;
         _irqPending = false;
@@ -232,7 +250,7 @@ public sealed class PsxJoypadPort
         ArgumentNullException.ThrowIfNull(r);
         if (r.ReadUInt32() != SnapshotMarker) throw new InvalidDataException("Snapshot joypad marker mismatch.");
         _mode = r.ReadUInt16(); _control = r.ReadUInt16(); _baud = r.ReadUInt16(); AnalogMode = r.ReadBoolean();
-        _sequence = -1; _rxPending = false; _ackLine = false; _irqPending = false; _configMode = false;
+        _sequence = -1; _memCard.ResetSession(); _rxPending = false; _ackLine = false; _irqPending = false; _configMode = false;
         _ackAtCycle = long.MaxValue; _ackEndCycle = long.MaxValue;
     }
 }

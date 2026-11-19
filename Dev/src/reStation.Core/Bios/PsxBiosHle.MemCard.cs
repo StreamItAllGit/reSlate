@@ -20,10 +20,71 @@ public sealed partial class PsxBiosHle
     private List<(string Name, int SizeBytes, int FirstBlock)> _dirSearch = new();
     private int _dirCursor, _nextFd = 2;
 
-    internal void SetCardIdentity(string? moduleId, string? serialFallback = null) =>
-        MemCard.SetCardIdentity(!string.IsNullOrWhiteSpace(moduleId) ? moduleId : serialFallback);
+    public void SetCardIdentity(string? moduleId, string? serialFallback = null) =>
+        MemCard.SetCardIdentity(moduleId, serialFallback);
 
-    internal void FlushMemCardsIfDirty() => MemCard.Flush();
+    internal void FlushMemCardsIfDirty() => MemCard.FlushIfDirty();
+
+    private static bool TryResolveCardChannel(uint chan, out int slot)
+    {
+        if (chan == 0x00U) { slot = 0; return true; }
+        if (chan == 0x10U) { slot = 1; return true; }
+        slot = -1;
+        return false;
+    }
+
+    private uint CardWriteSector(uint chan, uint sector, uint srcAddr)
+    {
+        if (!TryResolveCardChannel(chan, out int slot)) { DeliverCardEvent(0x0100U); return 0U; }
+        if (sector >= MemCardMcrStore.SectorCount) { DeliverCardEvent(0x8000U); return 0U; }
+        Span<byte> buf = stackalloc byte[MemCardMcrStore.SectorSize];
+        if (_cpu.Bus.TryGetRamSpan(srcAddr, MemCardMcrStore.SectorSize, out Span<byte> ram)) ram.CopyTo(buf);
+        else for (int i = 0; i < MemCardMcrStore.SectorSize; i++) buf[i] = _cpu.Bus.Read8(srcAddr + (uint)i);
+        MemCard.WriteSector(slot, (int)sector, buf);
+        DeliverCardIoEnd();
+        return 1U;
+    }
+
+    private uint CardReadSector(uint chan, uint sector, uint dstAddr)
+    {
+        if (!TryResolveCardChannel(chan, out int slot)) { DeliverCardEvent(0x0100U); return 0U; }
+        if (sector >= MemCardMcrStore.SectorCount) { DeliverCardEvent(0x8000U); return 0U; }
+        Span<byte> buf = stackalloc byte[MemCardMcrStore.SectorSize];
+        MemCard.ReadSector(slot, (int)sector, buf);
+        if (_cpu.Bus.TryGetRamSpan(dstAddr, MemCardMcrStore.SectorSize, out Span<byte> ram)) buf.CopyTo(ram);
+        else for (int i = 0; i < MemCardMcrStore.SectorSize; i++) _cpu.Bus.Write8(dstAddr + (uint)i, buf[i]);
+        _cpu.Bus.NotifyRamWriteRange(dstAddr, MemCardMcrStore.SectorSize);
+        DeliverCardIoEnd();
+        return 1U;
+    }
+
+    private uint NewCard()
+    {
+        MemCard.AcknowledgeNewCard();
+        return 1U;
+    }
+
+    private uint CardInfo(uint chan)
+    {
+        if (!TryResolveCardChannel(chan, out int slot)) { DeliverCardEvent(0x0100U); return 0U; }
+        if (MemCard.IsSlotNewCard(slot) && HasEnabledEvent(0xF4000001U, 0x2000U))
+        {
+            DeliverClassEvent(0xF0000011U, 0x0004U);
+            DeliverClassEvent(0xF4000001U, 0x2000U);
+        }
+        else DeliverCardIoEnd();
+        return 1U;
+    }
+
+    private uint CardLoadDirectory(uint chan) => CardInfo(chan);
+
+    private uint FormatCard(string devName)
+    {
+        int slot = devName.StartsWith("bu10:", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+        MemCard.Format(slot);
+        MemCard.ClearSlotNewCardFlag(slot);
+        return 1U;
+    }
 
     private uint OpenCardFile(string name, uint flags)
     {
