@@ -1,5 +1,5 @@
 // @module: reStation.Tests.InstallerWizardAutoSortTests
-// @purpose: Verifies Setup Wizard live folder auto-sorting into engines\reStation\v<Ver> / <parent>\reEngine and suite resolution.
+// @purpose: Verifies Setup Wizard live folder auto-sorting into engines\reSlate\v<Ver> / <parent>\reEngine and suite resolution.
 // @depends-on: System, System.IO, System.Reflection, System.Threading, System.Windows.Forms, Foundation.Core, Foundation.Installer, reStation.Installer, Xunit
 // @exports: InstallerWizardAutoSortTests
 
@@ -31,20 +31,20 @@ public sealed class InstallerWizardAutoSortTests : IDisposable
 
         string genericMisc = Path.Combine(_tempRoot, "Misc");
         Assert.Equal(
-            Path.Combine(genericMisc, "reEngine", "engines", "reStation", versionFolder),
+            Path.Combine(genericMisc, "reEngine", "engines", "reSlate", versionFolder),
             ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(genericMisc));
 
         string selectedReEngine = Path.Combine(genericMisc, "reEngine");
         Assert.Equal(
-            Path.Combine(selectedReEngine, "engines", "reStation", versionFolder),
+            Path.Combine(selectedReEngine, "engines", "reSlate", versionFolder),
             ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(selectedReEngine));
 
         string selectedEngines = Path.Combine(selectedReEngine, "engines");
         Assert.Equal(
-            Path.Combine(selectedEngines, "reStation", versionFolder),
+            Path.Combine(selectedEngines, "reSlate", versionFolder),
             ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(selectedEngines));
 
-        string selectedStation = Path.Combine(selectedEngines, "reStation");
+        string selectedStation = Path.Combine(selectedEngines, "reSlate");
         Assert.Equal(
             Path.Combine(selectedStation, versionFolder),
             ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(selectedStation));
@@ -53,6 +53,13 @@ public sealed class InstallerWizardAutoSortTests : IDisposable
         Assert.Equal(
             exactVersionDir,
             ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(exactVersionDir));
+
+        string legacyInstalledDir = Path.Combine(selectedEngines, "reStation", "v0.2.8");
+        Directory.CreateDirectory(legacyInstalledDir);
+        File.WriteAllText(Path.Combine(legacyInstalledDir, "reStation.exe"), string.Empty);
+        Assert.Equal(
+            legacyInstalledDir,
+            ReStationWizardPathNormalizer.NormalizeWizardStationInstallDir(legacyInstalledDir));
     }
 
     [Fact]
@@ -103,7 +110,7 @@ public sealed class InstallerWizardAutoSortTests : IDisposable
                 using var wizard = new InstallerWizardForm(
                     engine: engine,
                     ctx: ctx,
-                    initialInstallDir: Path.Combine(_tempRoot, "initial", "engines", "reStation", versionFolder),
+                    initialInstallDir: Path.Combine(_tempRoot, "initial", "engines", "reSlate", versionFolder),
                     externalPayloadPath: null,
                     isUninstallMode: false,
                     initialCreateShortcuts: false,
@@ -135,6 +142,6 @@ public sealed class InstallerWizardAutoSortTests : IDisposable
         Assert.Null(uiError);
 
         Assert.Equal(Path.Combine(genericMisc, "reEngine"), actualSecondary);
-        Assert.Equal(Path.Combine(genericMisc, "reEngine", "engines", "reStation", versionFolder), actualInstall);
+        Assert.Equal(Path.Combine(genericMisc, "reEngine", "engines", "reSlate", versionFolder), actualInstall);
     }
 }

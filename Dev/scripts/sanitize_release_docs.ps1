@@ -1,8 +1,8 @@
 #Requires -Version 5.1
 # @module: Dev/scripts/sanitize_release_docs.ps1
-# @purpose: UTF-8 end-user Markdown sanitization, PII/internal-leak detection, and Builds/Releases version pruning.
+# @purpose: UTF-8 end-user Markdown sanitization, relative link rewrite, trademark/PII leak checks, and version/archive pruning.
 # @depends-on: System.IO, System.Text.UTF8Encoding
-# @exports: Read-Utf8Text, Write-Utf8Text, Sanitize-MarkdownForEndUser, Assert-EndUserMarkdownClean, Prune-VersionDirectories
+# @exports: Read-Utf8Text, Write-Utf8Text, Sanitize-MarkdownForEndUser, Assert-EndUserMarkdownClean, Prune-VersionDirectories, Prune-MinorVersionArchives
 
 Set-StrictMode -Version Latest
 
@@ -53,29 +53,51 @@ function Get-InternalLeakPattern {
 }
 
 $script:InternalLeakRegex = Get-InternalLeakPattern
+$script:TrademarkRegex = '(?i)\b(?:PlayStation|DualShock|PocketStation|Sony|Nintendo|Sega|King''?s\s*Field|KingsField|Harvest\s*Moon|HMBackToNature|Metal\s*Gear)\b'
+
+function Invoke-TrademarkScrubOutsideLegal([string]$Line) {
+    $l = [regex]::Replace($Line, '(?i)\bPlayStation\b', 'SlateOne')
+    $l = [regex]::Replace($l, '(?i)\bDualShock\b', 'Gamepad')
+    $l = [regex]::Replace($l, '(?i)\bPocketStation\b', 'handheld dock')
+    $l = [regex]::Replace($l, '(?i)\bSony Interactive Entertainment(?:\s+Inc\.?)?\b', 'hardware vendor')
+    $l = [regex]::Replace($l, '(?i)\bSony\b', 'hardware vendor')
+    $l = [regex]::Replace($l, '(?i)\bNintendo\b', 'CartOne vendor')
+    $l = [regex]::Replace($l, '(?i)\bSega\b', 'Blast16 vendor')
+    $l = [regex]::Replace($l, '(?i)\b(?:King''?s\s*Field|KingsField)\b', 'CrownDepths')
+    $l = [regex]::Replace($l, '(?i)\b(?:Harvest\s*Moon|HMBackToNature)\b', 'MeadowValley')
+    $l = [regex]::Replace($l, '(?i)\bMetal\s*Gear\b', 'IronFrame')
+    return $l
+}
 
 function Sanitize-MarkdownForEndUser([string]$Text) {
     $clean = Repair-Utf8Mojibake $Text
     $sectionSign = [string][char]0x00A7
     $enDash = [string][char]0x2013
-    $handleBacktick = '`@(?:pland|inspecter|dean|devv|tessa|nora|milo|simon|julian|holly|rowan|coordinator|monitor|everyone)[a-z0-9-]*`'
-    $handleBare = '@(?:pland|inspecter|dean|devv|tessa|nora|milo|simon|julian|holly|rowan|coordinator|monitor|everyone)[a-z0-9-]*'
-    $stdBacktick = "(?i)``(?:per\s+)?\bStandards?\s+\d+(?:\s*(?:$enDash|-)\s*\d+)?(?:\s*$sectionSign[\d.]+)?``"
-    $stdBare = "(?i)(?:per\s+)?\bStandards?\s+\d+(?:\s*(?:$enDash|-)\s*\d+)?(?:\s*$sectionSign[\d.]+)?"
+    $handlePat = '`?@(?:pland|inspecter|dean|devv|tessa|nora|milo|simon|julian|holly|rowan|coordinator|monitor|everyone)[a-z0-9-]*`?'
+    $stdPat = "(?i)``?(?:per\s+)?\bStandards?\s+\d+(?:\s*(?:$enDash|-)\s*\d+)?(?:\s*$sectionSign[\d.]+)?``?"
+    $relLinkPat = '\[([^\]]+)\]\((?:\./|\.\.[\\/])*(?:Dev|src|tests|docs|scripts|lib|assets)[\\/][^)]+\)'
 
-    $lines = $clean -split "\r?\n"
-    $filtered = foreach ($line in $lines) {
+    $inLicenseSection = $false
+    $filtered = foreach ($line in ($clean -split "\r?\n")) {
+        if ($line -match '^\s*#{1,6}\s+(?:\d+\.\s*)?License\s*&\s*Legal\b') {
+            $inLicenseSection = $true
+        } elseif ($line -match '^\s*##\s+') {
+            $inLicenseSection = $false
+        }
+
         $l = [regex]::Replace($line, '\[([^\]]+)\]\(file:///[^)]+\)', '$1')
+        $l = [regex]::Replace($l, $relLinkPat, '$1')
         $l = [regex]::Replace($l, '\(\s*file:///[^)]+\s*\)', '')
         $l = [regex]::Replace($l, '`file:///[^`]*`', '')
         $l = [regex]::Replace($l, 'file:///[^\s\)\]`"]+', '')
         if ($l -match '^\s*[-*]\s+\*\*(?:Entry Points|Verification Tests|Extension Point[^*]*|Tests):\*\*') {
             continue
         }
-        $l = [regex]::Replace($l, $handleBacktick, '')
-        $l = [regex]::Replace($l, $handleBare, '')
-        $l = [regex]::Replace($l, $stdBacktick, '')
-        $l = [regex]::Replace($l, $stdBare, '')
+        $l = [regex]::Replace($l, $handlePat, '')
+        $l = [regex]::Replace($l, $stdPat, '')
+        if (-not $inLicenseSection) {
+            $l = Invoke-TrademarkScrubOutsideLegal $l
+        }
         $l = [regex]::Replace($l, '\s*\(\s*\)', '')
         $l = [regex]::Replace($l, '(?<=\S) {2,}', ' ')
         if ($l -match $script:InternalLeakRegex) {
@@ -94,19 +116,58 @@ function Assert-EndUserMarkdownClean([Parameter(Mandatory = $true)][string]$File
     if ($content.Contains($mojibakeSection) -or $content.Contains([string][char]0x00E2 + [char]0x20AC)) {
         throw "End-user markdown encoding leak (mojibake) detected in '$FilePath'."
     }
+    $inLicenseSection = $false
     $lineNum = 0
     foreach ($line in ($content -split "\r?\n")) {
         $lineNum++
+        if ($line -match '^\s*#{1,6}\s+(?:\d+\.\s*)?License\s*&\s*Legal\b') {
+            $inLicenseSection = $true
+        } elseif ($line -match '^\s*##\s+') {
+            $inLicenseSection = $false
+        }
         if ($line -match $script:InternalLeakRegex) {
             throw "End-user markdown internal leak detected in '${FilePath}':L${lineNum}: $line"
         }
+        if ((-not $inLicenseSection) -and ($line -match $script:TrademarkRegex)) {
+            throw "End-user markdown trademark leak detected outside License & Legal in '${FilePath}':L${lineNum}: $line"
+        }
+    }
+}
+
+function Prune-MinorVersionArchives(
+    [Parameter(Mandatory = $true)][string]$ArchiveDir,
+    [int]$KeepMinorCount = 3,
+    [string]$KeepVersionName = ""
+) {
+    if (-not (Test-Path -LiteralPath $ArchiveDir) -or $KeepMinorCount -lt 1) { return }
+    $keepMinorKey = ""
+    if (-not [string]::IsNullOrWhiteSpace($KeepVersionName)) {
+        $km = [regex]::Match($KeepVersionName.Trim(), 'v?(\d+)\.(\d+)\.(\d+)')
+        if ($km.Success) { $keepMinorKey = "$($km.Groups[1].Value).$($km.Groups[2].Value)" }
+    }
+
+    $entries = @(Get-ChildItem -LiteralPath $ArchiveDir -Filter *.7z -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $m = [regex]::Match($_.Name, '(?:^|[-_])v?(\d+)\.(\d+)\.(\d+)(?:-[^.]+)?(?:-[a-z0-9-]+)?\.7z$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        if ($m.Success) {
+            $maj = [int]$m.Groups[1].Value
+            $min = [int]$m.Groups[2].Value
+            [PSCustomObject]@{ File = $_; MinorKey = "$maj.$min"; Score = ($maj * 100000L) + $min }
+        }
+    })
+    if ($entries.Count -eq 0) { return }
+
+    $keptMinors = @($entries | Sort-Object Score -Descending | Select-Object -ExpandProperty MinorKey -Unique | Select-Object -First $KeepMinorCount)
+    foreach ($entry in $entries) {
+        if (($keptMinors -contains $entry.MinorKey) -or ($keepMinorKey -and ($entry.MinorKey -eq $keepMinorKey))) { continue }
+        Remove-Item -LiteralPath $entry.File.FullName -Force
     }
 }
 
 function Prune-VersionDirectories(
     [Parameter(Mandatory = $true)][string]$ParentDir,
     [int]$KeepCount = 2,
-    [string]$KeepVersionName = ""
+    [string]$KeepVersionName = "",
+    [int]$KeepArchiveMinors = 3
 ) {
     if (-not (Test-Path -LiteralPath $ParentDir)) { return }
     $versionDirs = Get-ChildItem $ParentDir -Directory -ErrorAction SilentlyContinue |
@@ -123,5 +184,8 @@ function Prune-VersionDirectories(
     foreach ($old in ($versionDirs | Select-Object -Skip $KeepCount)) {
         if (-not [string]::IsNullOrWhiteSpace($KeepVersionName) -and ($old.Name -eq $KeepVersionName)) { continue }
         Remove-Item -LiteralPath $old.FullName -Recurse -Force
+    }
+    if ($KeepArchiveMinors -gt 0) {
+        Prune-MinorVersionArchives -ArchiveDir $ParentDir -KeepMinorCount $KeepArchiveMinors -KeepVersionName $KeepVersionName
     }
 }

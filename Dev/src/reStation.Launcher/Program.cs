@@ -1,5 +1,5 @@
 // @module: reStation.Launcher.Program
-// @purpose: Minimal single-file clean-root launcher resolving app\reStation.Player.exe (or %LOCALAPPDATA% canonical track), AllowAutoStart = false, caller CWD preservation, and sync CLI forwarding.
+// @purpose: Minimal single-file clean-root launcher resolving app\reSlate.Player.exe (with reStation.Player.exe / %LOCALAPPDATA% canonical track fallback), AllowAutoStart = false, caller CWD preservation, and sync CLI forwarding.
 // @depends-on: System, System.ComponentModel, System.Diagnostics, System.IO, System.Reflection, System.Runtime.CompilerServices, System.Runtime.InteropServices, System.Threading, Foundation.Core, Foundation.Launcher
 // @exports: Program
 
@@ -59,7 +59,7 @@ internal static class Program
             : playerDir;
         string playerExe = RootLauncherHost.ResolveTargetExecutable(
             installRoot,
-            Path.Combine("app", "reStation.Player.exe"),
+            Path.Combine("app", LauncherArgsHelper.PrimaryPlayerExecutable),
             Environment.ProcessPath);
         if (!File.Exists(playerExe) && File.Exists(candidateExe))
         {
@@ -68,7 +68,7 @@ internal static class Program
 
         if (!File.Exists(playerExe))
         {
-            Console.Error.WriteLine($"reStation player binary not found at '{playerExe}'.");
+            Console.Error.WriteLine($"reSlate player binary not found at '{playerExe}'.");
             return 1;
         }
 

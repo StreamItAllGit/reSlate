@@ -1,5 +1,5 @@
 // @module: reStation.Launcher.LauncherArgsHelper
-// @purpose: Pure BCL + Foundation.Core CLI sync-wait, caller-CWD path resolution, AllowAutoStart stripping, --reengine-dir/--profile handling, and JobObject guard.
+// @purpose: Pure BCL + Foundation.Core CLI sync-wait, caller-CWD path resolution, AllowAutoStart stripping, --reengine-dir/--profile handling, and JobObject guard for reSlate.
 // @depends-on: System, System.Collections.Generic, System.Diagnostics, System.IO, Foundation.Core
 // @exports: LauncherArgsHelper
 
@@ -10,25 +10,30 @@ namespace reStation.Launcher;
 
 internal static class LauncherArgsHelper
 {
-    internal const string DefaultVersion = "0.2.8";
+    internal const string DefaultVersion = "0.3.0";
     internal const string CanonicalEngineFolder = "v" + DefaultVersion;
+    internal const string PrimaryEngineId = "reSlate";
+    internal const string LegacyEngineId = "reStation";
+    internal const string PrimaryPlayerExecutable = "reSlate.Player.exe";
+    internal const string LegacyPlayerExecutable = "reStation.Player.exe";
 
     internal static readonly string[] SyncWaitFlags =
     {
-        "--wait", "--verify", "--jit-bringup", "--tray-only", "--dry-run",
+        "--wait", "--verify", "--jit-bringup", "--tray-only", "--dry-run", "--doctor",
         "--version", "-v", "--help", "-h", "/?", "help"
     };
 
     internal static readonly HashSet<string> PathValueFlags = new(StringComparer.OrdinalIgnoreCase)
     {
-        "--module", "--disc", "--preload-media",
-        "--dump-screenshot", "--data-dir", "--config", "--log-dir",
-        "--profile", "--reengine-dir", "--suite-dir"
+        "--module", "--disc", "--preload-media", "--dump-screenshot", "--data-dir",
+        "--config", "--log-dir", "--profile", "--reengine-dir", "--suite-dir",
+        "--save-dir", "--fixture", "--dump-audio"
     };
 
-    private static readonly HashSet<string> NonPathValueFlags = new(StringComparer.OrdinalIgnoreCase)
+    internal static readonly HashSet<string> NonPathValueFlags = new(StringComparer.OrdinalIgnoreCase)
     {
-        "--backend", "--scale", "--fps-mode", "--target-fps", "--frames", "--execution-tier"
+        "--backend", "--require-backend", "--scale", "--fps-mode", "--target-fps",
+        "--frames", "--execution-tier", "--port", "--automation-port", "--automation-token", "--vsync"
     };
 
     internal static bool RequiresSyncWait(string[]? args)
@@ -43,7 +48,8 @@ internal static class LauncherArgsHelper
             {
                 return true;
             }
-            if ((PathValueFlags.Contains(key) || NonPathValueFlags.Contains(key)) && !hasInline && i + 1 < args.Length)
+            if ((PathValueFlags.Contains(key) || NonPathValueFlags.Contains(key)) &&
+                !hasInline && ConsumesNextToken(key, i, args))
             {
                 i++;
             }
@@ -82,7 +88,7 @@ internal static class LauncherArgsHelper
                 resolved[i + 1] = unquoted.Length > 0 ? Path.GetFullPath(unquoted, baseDir) : nextRaw;
                 i++;
             }
-            else if (NonPathValueFlags.Contains(key) && i + 1 < args.Length)
+            else if (NonPathValueFlags.Contains(key) && ConsumesNextToken(key, i, args))
             {
                 resolved[i + 1] = args[i + 1] ?? string.Empty;
                 i++;
@@ -131,27 +137,39 @@ internal static class LauncherArgsHelper
             string? suiteParent = Path.GetDirectoryName(fullRe);
             if (!string.IsNullOrWhiteSpace(suiteParent))
             {
-                candidates.Add(Path.Combine(suiteParent, "engines", "reStation", CanonicalEngineFolder, "app", "reStation.Player.exe"));
+                AddEngineCandidates(candidates, Path.Combine(suiteParent, "engines"));
             }
-            candidates.Add(Path.Combine(fullRe, "engines", "reStation", CanonicalEngineFolder, "app", "reStation.Player.exe"));
+            AddEngineCandidates(candidates, Path.Combine(fullRe, "engines"));
         }
 
         if (!string.IsNullOrWhiteSpace(suiteDir))
         {
             string fullSuite = Path.GetFullPath(suiteDir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            candidates.Add(Path.Combine(fullSuite, "engines", "reStation", CanonicalEngineFolder, "app", "reStation.Player.exe"));
+            AddEngineCandidates(candidates, Path.Combine(fullSuite, "engines"));
         }
 
-        string colocated = Path.Combine(normalizedRoot, "app", "reStation.Player.exe");
+        string colocated = Path.Combine(normalizedRoot, "app", PrimaryPlayerExecutable);
         candidates.Add(colocated);
+        candidates.Add(Path.Combine(normalizedRoot, "app", LegacyPlayerExecutable));
 
-        string? envDir = Environment.GetEnvironmentVariable("RESTATION_INSTALL_DIR");
-        if (!string.IsNullOrWhiteSpace(envDir))
+        foreach (string envName in new[] { "RESLATE_INSTALL_DIR", "RESTATION_INSTALL_DIR" })
         {
-            candidates.Add(Path.Combine(Path.GetFullPath(envDir.Trim()), "app", "reStation.Player.exe"));
+            string? envDir = Environment.GetEnvironmentVariable(envName);
+            if (!string.IsNullOrWhiteSpace(envDir))
+            {
+                string fullEnv = Path.GetFullPath(envDir.Trim());
+                candidates.Add(Path.Combine(fullEnv, "app", PrimaryPlayerExecutable));
+                candidates.Add(Path.Combine(fullEnv, "app", LegacyPlayerExecutable));
+            }
         }
 
-        candidates.Add(Path.Combine(ResolveCanonicalDefaultEngineDir(), "app", "reStation.Player.exe"));
+        string defaultPrimary = ResolveCanonicalDefaultEngineDir();
+        candidates.Add(Path.Combine(defaultPrimary, "app", PrimaryPlayerExecutable));
+        candidates.Add(Path.Combine(defaultPrimary, "app", LegacyPlayerExecutable));
+
+        string defaultLegacy = ResolveCanonicalEngineDirFor(LegacyEngineId);
+        candidates.Add(Path.Combine(defaultLegacy, "app", PrimaryPlayerExecutable));
+        candidates.Add(Path.Combine(defaultLegacy, "app", LegacyPlayerExecutable));
 
         foreach (string c in candidates)
         {
@@ -160,14 +178,39 @@ internal static class LauncherArgsHelper
         return colocated;
     }
 
-    internal static string ResolveCanonicalDefaultEngineDir()
+    internal static string ResolveCanonicalDefaultEngineDir() => ResolveCanonicalEngineDirFor(PrimaryEngineId);
+
+    private static string ResolveCanonicalEngineDirFor(string engineId)
     {
         string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         if (string.IsNullOrWhiteSpace(local))
         {
             local = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AppData", "Local");
         }
-        return Path.Combine(local, "Programs", "StreamItAll", "reEngine", "engines", "reStation", CanonicalEngineFolder);
+        return Path.Combine(local, "Programs", "StreamItAll", "reEngine", "engines", engineId, CanonicalEngineFolder);
+    }
+
+    private static void AddEngineCandidates(List<string> candidates, string enginesBaseDir)
+    {
+        foreach (string engineId in new[] { PrimaryEngineId, LegacyEngineId })
+        {
+            string appDir = Path.Combine(enginesBaseDir, engineId, CanonicalEngineFolder, "app");
+            candidates.Add(Path.Combine(appDir, PrimaryPlayerExecutable));
+            candidates.Add(Path.Combine(appDir, LegacyPlayerExecutable));
+        }
+    }
+
+    private static bool ConsumesNextToken(string key, int index, string[] args)
+    {
+        if (index + 1 >= args.Length) return false;
+        if (!string.Equals(key, "--vsync", StringComparison.OrdinalIgnoreCase)) return true;
+        string next = (args[index + 1] ?? string.Empty).Trim();
+        return next.Equals("on", StringComparison.OrdinalIgnoreCase) ||
+               next.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+               next.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+               next.Equals("false", StringComparison.OrdinalIgnoreCase) ||
+               next.Equals("1", StringComparison.Ordinal) ||
+               next.Equals("0", StringComparison.Ordinal);
     }
 
     internal static JobObjectGuard? AttachJobGuard(Process? proc)

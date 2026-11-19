@@ -48,8 +48,12 @@ internal static class ReStationLegacyMigrationHelper
         };
     }
 
-    public static IReadOnlyList<string> ResolveLegacyV011EngineRoots(bool isolated, string? isolatedDataDir)
+    public static IReadOnlyList<string> ResolveLegacyV011EngineRoots(
+        bool isolated,
+        string? isolatedDataDir,
+        SandboxResolution? sandbox = null)
     {
+        string[] engineIds = [ReStationInstallerTheme.EngineId, ReStationInstallerTheme.LegacyEngineId];
         if (isolated)
         {
             if (string.IsNullOrWhiteSpace(isolatedDataDir))
@@ -58,20 +62,41 @@ internal static class ReStationLegacyMigrationHelper
             }
 
             string fullIsolated = Path.GetFullPath(isolatedDataDir);
-            string[] isolatedCandidates =
-            [
-                AppEnvironment.AssertPathContained(
-                    Path.Combine(fullIsolated, "legacy-programs", ReStationInstallerTheme.SuiteName, "engines", ReStationInstallerTheme.EngineId, "v0.1.1"),
-                    fullIsolated),
-                AppEnvironment.AssertPathContained(
-                    Path.Combine(fullIsolated, "legacy-programs", ReStationInstallerTheme.EngineId, "v0.1.1"),
-                    fullIsolated)
-            ];
+            var isolatedCandidates = new List<string>();
+            foreach (string eid in engineIds)
+            {
+                isolatedCandidates.Add(AppEnvironment.AssertPathContained(
+                    Path.Combine(fullIsolated, "legacy-programs", ReStationInstallerTheme.SuiteName, "engines", eid, "v0.1.1"),
+                    fullIsolated));
+                isolatedCandidates.Add(AppEnvironment.AssertPathContained(
+                    Path.Combine(fullIsolated, "legacy-programs", eid, "v0.1.1"),
+                    fullIsolated));
+            }
             return isolatedCandidates.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         }
 
+        if (sandbox is { IsSandboxActive: true })
+        {
+            var sbRoots = new List<string>();
+            string sbLocalPrograms = Path.Combine(KnownFolderPaths.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, sandbox), "Programs");
+            var sbBases = new List<string> { sbLocalPrograms };
+            if (!string.IsNullOrWhiteSpace(sandbox.StorageDriveRoot))
+                sbBases.Add(Path.Combine(sandbox.StorageDriveRoot, "Programs"));
+            foreach (string baseProg in sbBases)
+            {
+                foreach (string eid in engineIds)
+                {
+                    AddExistingRoot(sbRoots, Path.Combine(baseProg, ReStationInstallerTheme.SuiteName, "engines", eid, "v0.1.1"), sandbox);
+                    AddExistingRoot(sbRoots, Path.Combine(baseProg, ReStationInstallerTheme.StudioName, ReStationInstallerTheme.SuiteName, "engines", eid, "v0.1.1"), sandbox);
+                    AddExistingRoot(sbRoots, Path.Combine(baseProg, eid, "v0.1.1"), sandbox);
+                }
+            }
+            return sbRoots;
+        }
+
         var roots = new List<string>();
-        string? envLegacy = Environment.GetEnvironmentVariable("RESTATION_LEGACY_DIR");
+        string? envLegacy = Environment.GetEnvironmentVariable("RESLATE_LEGACY_DIR")
+            ?? Environment.GetEnvironmentVariable("RESTATION_LEGACY_DIR");
         if (!string.IsNullOrWhiteSpace(envLegacy))
         {
             string fullEnv = Path.GetFullPath(envLegacy.Trim());
@@ -82,29 +107,33 @@ internal static class ReStationLegacyMigrationHelper
         string driveRoot = $"{(char)68}:{Path.DirectorySeparatorChar}";
         string programsDrive = Path.Combine(driveRoot, "Programs");
         string localPrograms = Path.Combine(ResolveLocalAppData(), "Programs");
-        string[] candidates =
-        [
-            Path.Combine(programsDrive, ReStationInstallerTheme.SuiteName, "engines", ReStationInstallerTheme.EngineId, "v0.1.1"),
-            Path.Combine(programsDrive, ReStationInstallerTheme.EngineId, "v0.1.1"),
-            Path.Combine(localPrograms, ReStationInstallerTheme.SuiteName, "engines", ReStationInstallerTheme.EngineId, "v0.1.1"),
-            Path.Combine(localPrograms, ReStationInstallerTheme.StudioName, ReStationInstallerTheme.SuiteName, "engines", ReStationInstallerTheme.EngineId, "v0.1.1")
-        ];
-
-        foreach (string c in candidates)
+        foreach (string eid in engineIds)
         {
-            string full = Path.GetFullPath(c);
-            if (Directory.Exists(full) && !roots.Contains(full, StringComparer.OrdinalIgnoreCase))
-            {
-                roots.Add(full);
-            }
+            AddExistingRoot(roots, Path.Combine(programsDrive, ReStationInstallerTheme.SuiteName, "engines", eid, "v0.1.1"));
+            AddExistingRoot(roots, Path.Combine(programsDrive, eid, "v0.1.1"));
+            AddExistingRoot(roots, Path.Combine(localPrograms, ReStationInstallerTheme.SuiteName, "engines", eid, "v0.1.1"));
+            AddExistingRoot(roots, Path.Combine(localPrograms, ReStationInstallerTheme.StudioName, ReStationInstallerTheme.SuiteName, "engines", eid, "v0.1.1"));
         }
         return roots;
     }
 
-    /// <summary>Strictly read-only scan detecting stranded v0.1.1 data files and crash JSONs without modifying disk state.</summary>
-    public static LegacyV011DetectionResult DetectLegacyV011HostArtifacts(bool isolated, string? isolatedDataDir)
+    private static void AddExistingRoot(List<string> roots, string candidate, SandboxResolution? sandbox = null)
     {
-        IReadOnlyList<string> roots = ResolveLegacyV011EngineRoots(isolated, isolatedDataDir);
+        string full = Path.GetFullPath(candidate);
+        if (sandbox is { IsSandboxActive: true } && !SandboxEnvironmentSeam.IsPathWithinSandbox(full, sandbox)) return;
+        if (Directory.Exists(full) && !roots.Contains(full, StringComparer.OrdinalIgnoreCase))
+        {
+            roots.Add(full);
+        }
+    }
+
+    /// <summary>Strictly read-only scan detecting stranded v0.1.1 data files and crash JSONs without modifying disk state.</summary>
+    public static LegacyV011DetectionResult DetectLegacyV011HostArtifacts(
+        bool isolated,
+        string? isolatedDataDir,
+        SandboxResolution? sandbox = null)
+    {
+        IReadOnlyList<string> roots = ResolveLegacyV011EngineRoots(isolated, isolatedDataDir, sandbox);
         var dataDirs = new List<string>();
         var crashFiles = new List<string>();
         int strandedFileCount = 0;
@@ -134,8 +163,13 @@ internal static class ReStationLegacyMigrationHelper
                         }
                     }
 
-                    string candSettings = Path.Combine(dataDir, "settings.json");
-                    if (settingsPath is null && File.Exists(candSettings)) settingsPath = candSettings;
+                    string candConfigSettings = Path.Combine(dataDir, "config", "settings.json");
+                    string candFlatSettings = Path.Combine(dataDir, "settings.json");
+                    if (settingsPath is null)
+                    {
+                        if (File.Exists(candConfigSettings)) settingsPath = candConfigSettings;
+                        else if (File.Exists(candFlatSettings)) settingsPath = candFlatSettings;
+                    }
                 }
 
                 string crashDir = Path.Combine(sub, "logs", "crashes");
@@ -159,8 +193,15 @@ internal static class ReStationLegacyMigrationHelper
         string? reEngineDir)
     {
         string dataDir = Path.Combine(Path.GetFullPath(installDir), "data");
-        Directory.CreateDirectory(dataDir);
-        string settingsPath = Path.Combine(dataDir, "settings.json");
+        string configDir = Path.Combine(dataDir, "config");
+        Directory.CreateDirectory(configDir);
+        string settingsPath = Path.Combine(configDir, "settings.json");
+        string legacyFlatPath = Path.Combine(dataDir, "settings.json");
+
+        if (!File.Exists(settingsPath) && File.Exists(legacyFlatPath))
+        {
+            File.Copy(legacyFlatPath, settingsPath, overwrite: false);
+        }
 
         JsonObject root = File.Exists(settingsPath)
             ? JsonNode.Parse(File.ReadAllText(settingsPath)) as JsonObject ?? new JsonObject()
@@ -187,9 +228,11 @@ internal static class ReStationLegacyMigrationHelper
         string? isolatedDataDir,
         bool silent,
         bool dryRun,
-        bool confirmCleanupFlag)
+        bool confirmCleanupFlag,
+        SandboxResolution? sandbox = null,
+        bool suppressLiveHostMutations = false)
     {
-        LegacyV011DetectionResult detected = DetectLegacyV011HostArtifacts(isolated, isolatedDataDir);
+        LegacyV011DetectionResult detected = DetectLegacyV011HostArtifacts(isolated, isolatedDataDir, sandbox);
         if (detected.CandidateRoots.Count == 0)
         {
             return new LegacyMigrationResult(false, 0, Array.Empty<string>(), false, "No legacy v0.1.1 host installation found.");
@@ -201,8 +244,9 @@ internal static class ReStationLegacyMigrationHelper
 
         if (!dryRun)
         {
-            Directory.CreateDirectory(targetDataDir);
-            string targetSettings = Path.Combine(targetDataDir, "settings.json");
+            string targetConfigDir = Path.Combine(targetDataDir, "config");
+            Directory.CreateDirectory(targetConfigDir);
+            string targetSettings = Path.Combine(targetConfigDir, "settings.json");
             if (!string.IsNullOrWhiteSpace(detected.SettingsFilePath) && File.Exists(detected.SettingsFilePath) && !File.Exists(targetSettings))
             {
                 File.Copy(detected.SettingsFilePath, targetSettings, overwrite: false);
@@ -229,7 +273,8 @@ internal static class ReStationLegacyMigrationHelper
         var strandedPaths = detected.StrandedDataDirs.Concat(detected.StrandedCrashFiles).ToList();
         bool cleaned = false;
 
-        if (!dryRun && detected.HasStrandedArtifacts && ShouldAllowCleanup(detected, silent, isolated, confirmCleanupFlag))
+        if (!dryRun && detected.HasStrandedArtifacts &&
+            ShouldAllowCleanup(detected, silent, isolated, confirmCleanupFlag, suppressLiveHostMutations))
         {
             foreach (string dataDir in detected.StrandedDataDirs)
             {
@@ -251,14 +296,17 @@ internal static class ReStationLegacyMigrationHelper
         LegacyV011DetectionResult detected,
         bool silent,
         bool isolated,
-        bool confirmCleanupFlag)
+        bool confirmCleanupFlag,
+        bool suppressLiveHostMutations = false)
     {
-        if (!silent && !isolated && OperatingSystem.IsWindows())
+        bool suppressModals = suppressLiveHostMutations ||
+                              !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("FOUNDATION_SUPPRESS_MODALS"));
+        if (!silent && !isolated && !suppressModals && OperatingSystem.IsWindows())
         {
             DialogResult choice = MessageBox.Show(
                 $"Found {detected.StrandedFileCount} stranded v0.1.1 data file(s) and {detected.StrandedCrashFiles.Count} crash JSON(s).\n\n" +
                 $"Preserve your data\\rom\\ files into the v{ReStationInstallerTheme.Version} install and remove the stranded v0.1.1 artifacts?",
-                "reStation — Human-Gated Legacy v0.1.1 Cleanup",
+                "reSlate — Human-Gated Legacy v0.1.1 Cleanup",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
             return choice == DialogResult.Yes;
