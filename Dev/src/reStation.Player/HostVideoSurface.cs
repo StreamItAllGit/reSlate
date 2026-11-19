@@ -19,7 +19,7 @@ internal sealed unsafe partial class HostVideoSurface : IDisposable
     private IntPtr _texture;
     private IntPtr _uiTexture;
     private int _texW, _texH, _uiTexW, _uiTexH, _surfW, _surfH, _surfScale;
-    private string _title = "reStation";
+    private string _title = "reSlate";
     private bool _alwaysOnTop;
     private bool _disposed;
 

@@ -1,8 +1,7 @@
 // @module: reStation.Player.Program
-// @purpose: reStation.Player entry point: AttachConsole, CLI parse, fail-closed AppEnvironment, crash bundles, preload/disc verification, and host launch.
-// @depends-on: System.Runtime.InteropServices, Foundation.Core, Foundation.Retro, reStation.Contracts, reStation.Core, reStation.Core.Cpu, reStation.Core.DiscIngestion
+// @purpose: reSlate.Player entry point: AttachConsole, CLI parse, --require-backend/--doctor/--automation-port gates, AppEnvironment containment, and host launch.
+// @depends-on: System.Globalization, System.Runtime.CompilerServices, System.Runtime.InteropServices, Foundation.Core, Foundation.Retro, reEngine.Core.Manifests, reStation.Contracts, reStation.Core, reStation.Core.Cpu, reStation.Core.DiscIngestion
 // @exports: Program
-// @owner: devv-player-ui (T6)
 
 using System.Runtime.InteropServices;
 using Foundation.Core;
@@ -43,12 +42,37 @@ internal static partial class Program
 
     internal static int RunMain(string[] args)
     {
+        HostCliOverrides hostCli;
         CliOptions options;
-        try { options = CliOptions.Parse(args); }
+        try
+        {
+            string[] coreArgs = ExtractHostCliOverrides(args, out hostCli);
+            options = CliOptions.Parse(coreArgs);
+        }
         catch (ArgumentException ex) { Console.Error.WriteLine(ex.Message); return 2; }
 
         if (options.ShowHelp) { Console.WriteLine(CliOptions.HelpText); return 0; }
-        if (options.ShowVersion) { Console.WriteLine($"reStation v{ReStationEngineInfo.Version}"); return 0; }
+        if (options.ShowVersion) { Console.WriteLine($"reSlate v{ReStationEngineInfo.Version}"); return 0; }
+
+#if !DEBUG && !RESTATION_TEST_AUTOMATION
+        if (hostCli.AutomationPort.HasValue)
+        {
+            Console.Error.WriteLine("Automation loopback (--automation-port) is disabled in Release builds (ExitCode=2).");
+            return 2;
+        }
+#endif
+
+        if (hostCli.RequireBackendId is PsxRenderBackendIds.Vulkan or PsxRenderBackendIds.ParallelCpu)
+        {
+            Console.Error.WriteLine($"Required render backend '{hostCli.RequireBackendId}' is deferred to v0.3.1 pending shared reEngine.Host GPU abstraction (ExitCode=6).");
+            return 6;
+        }
+        if (hostCli.RequireBackendId is not null && options.BackendId is not null &&
+            !string.Equals(options.BackendId, hostCli.RequireBackendId, StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Error.WriteLine($"Requested --backend '{options.BackendId}' conflicts with --require-backend '{hostCli.RequireBackendId}' (ExitCode=6).");
+            return 6;
+        }
 
         AppEnvironment env;
         try { env = options.CreateEnvironment(); }
@@ -57,13 +81,17 @@ internal static partial class Program
         bool hadConfigFile = File.Exists(env.ConfigFilePath);
         RecompSettings settings = RecompSettings.Load(env.ConfigFilePath).Value;
         options.ApplyOverrides(settings);
+        if (hostCli.RequireBackendId is not null) settings.BackendId = hostCli.RequireBackendId;
+
         using var logger = new ReStationLogger(env.LogDirectory, settings.ShouldEnableRuntimeLogs);
         CrashBundleService.RegisterGlobalHandlers(env.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, logger.GetRecentLines);
-        logger.Info("BOOT", $"reStation v{ReStationEngineInfo.Version} mode={env.PresentationMode} tray={options.TrayOnly} dryRun={env.DryRun} wait={options.ShouldWait} backend={settings.BackendId} scale={settings.ResolutionScale}x");
+        logger.Info("BOOT", $"reSlate v{ReStationEngineInfo.Version} mode={env.PresentationMode} tray={options.TrayOnly} dryRun={env.DryRun} wait={options.ShouldWait} backend={settings.BackendId} scale={settings.ResolutionScale}x");
 
         try
         {
-            return RunApplication(options, env, settings, hadConfigFile, logger);
+            if (hostCli.RunDoctor)
+                return RunDoctor(hostCli, env, settings, logger);
+            return RunApplication(options, hostCli, env, settings, hadConfigFile, logger);
         }
         catch (InvalidOperationException ex) when (IsContainmentViolation(ex.Message))
         {
@@ -80,7 +108,8 @@ internal static partial class Program
         }
     }
 
-    private static int RunApplication(CliOptions options, AppEnvironment env, RecompSettings settings, bool hadConfigFile, ReStationLogger logger)
+    private static int RunApplication(
+        CliOptions options, HostCliOverrides hostCli, AppEnvironment env, RecompSettings settings, bool hadConfigFile, ReStationLogger logger)
     {
         ReStationModuleManifest? manifest = null;
         string? moduleDir = null;
@@ -102,12 +131,32 @@ internal static partial class Program
 
         bool isTray = env.PresentationMode == UiPresentationMode.TrayOrBackground || options.TrayOnly;
         bool needsGate = !isTray && (manifest is null || discManifest is null);
-        string winTitle = $"reStation v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD";
+        string winTitle = $"reSlate v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD";
         using HostVideoSurface video = isTray
             ? HostVideoSurface.CreateOffscreen(settings, logger, "tray-or-background")
             : HostVideoSurface.Create(winTitle, settings, foreground: true, logger);
 
-        if (needsGate && !RunFirstRunMediaGate(video, env, settings, logger, ref manifest, ref moduleDir, ref discManifest, options))
+        if (hostCli.RequireBackendId is not null &&
+            !string.Equals(video.Backend.BackendId, hostCli.RequireBackendId, StringComparison.OrdinalIgnoreCase))
+        {
+            string reqErr = $"Required render backend '{hostCli.RequireBackendId}' could not initialize; active fallback is '{video.Backend.BackendId}' ({video.FallbackReason ?? "unavailable"}).";
+            logger.Error("VIDEO", reqErr);
+            Console.Error.WriteLine(reqErr);
+            return 6;
+        }
+
+        var bridge = new HostContractBridge();
+#if DEBUG || RESTATION_TEST_AUTOMATION
+        using DebugAutomationHook? automation = hostCli.AutomationPort is { } autoPort
+            ? StartDebugAutomationHook(bridge, autoPort, hostCli.AutomationToken, logger)
+            : null;
+#endif
+
+        if (needsGate && !RunFirstRunMediaGate(video, env, settings, logger, ref manifest, ref moduleDir, ref discManifest, options, bridge
+#if DEBUG || RESTATION_TEST_AUTOMATION
+                , automation
+#endif
+                ))
             return 0;
 
         if (isTray && manifest is not null && discManifest is null)
@@ -120,7 +169,7 @@ internal static partial class Program
 
         ReStationModuleManifest effectiveManifest = manifest ?? new ReStationModuleManifest
         {
-            ModuleId = "restation-idle", Title = "reStation", DisplayName = "reStation"
+            ModuleId = "reslate-idle", Title = "reSlate", DisplayName = "reSlate"
         };
         var cpu = new PsxCpu(settings, env.DataDirectory, video.Backend, logger);
         if (discManifest is not null) cpu.AttachDisc(discManifest);
@@ -161,6 +210,7 @@ internal static partial class Program
             gameModule.InitializeAsync(host, CancellationToken.None).GetAwaiter().GetResult();
         }
 
+        string resolvedTier = moduleAlc?.ResolvedExecutionTierMode ?? settings.ExecutionTierMode;
         if (options.JitBringup)
         {
             string bringupPath = !string.IsNullOrWhiteSpace(options.ProfilePath)
@@ -175,10 +225,25 @@ internal static partial class Program
                 bringupProfilePath: bringupPath);
         }
 
-        int loopExit = RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, env, settings, pacer, logger);
+        int loopExit = RunHostLoop(video, host, cpu, gameModule, manifest, discManifest, options, env, settings, pacer, logger, resolvedTier, bridge
+#if DEBUG || RESTATION_TEST_AUTOMATION
+            , automation
+#endif
+            );
         GC.KeepAlive(moduleAlc);
         return loopExit;
     }
+
+#if DEBUG || RESTATION_TEST_AUTOMATION
+    private static DebugAutomationHook StartDebugAutomationHook(
+        HostContractBridge bridge, int port, string? token, ReStationLogger logger)
+    {
+        var hook = new DebugAutomationHook(bridge, port, token);
+        hook.Start();
+        logger.Info("AUTOMATION", $"Loopback server listening on 127.0.0.1:{hook.ListeningPort}");
+        return hook;
+    }
+#endif
 
     internal static void ApplyFirstLaunchTimingDefaults(
         RecompSettings settings, CliOptions options, ReStationModuleManifest? manifest, bool hadConfigFile)

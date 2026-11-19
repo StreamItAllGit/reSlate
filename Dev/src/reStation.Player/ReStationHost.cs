@@ -26,8 +26,8 @@ internal sealed record HostRuntimeContext(
     Func<bool>? IsEnhancedFrameRateEnabled = null);
 
 /// <summary>
-/// Runs lifted game code on a dedicated emulation thread that parks at every VBlank, so <see cref="RunFrame"/>
-/// advances exactly one emulated frame and returns control to the SDL host thread.
+/// Runs lifted game code on a dedicated execution thread that parks at every VBlank, so <see cref="RunFrame"/>
+/// advances exactly one hardware-timed frame and returns control to the SDL host thread.
 /// </summary>
 internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
 {
@@ -103,7 +103,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     public void RegisterModule(IRecompModule module) => _cpu.RegisterModule(module);
     public void SetFramePatch(IGameFramePatch? patch) { _cpu.FramePatch = patch; _subTickHook = patch as ISubTickFrameHook; }
 
-    /// <summary>Loads a PS-X EXE from gamedata into RAM, sets PC/GP/SP/RA, and arms the emulation thread for the next RunFrame.</summary>
+    /// <summary>Loads a PS-X EXE from gamedata into RAM, sets PC/GP/SP/RA, and arms the core thread for the next RunFrame.</summary>
     public bool LoadExecutable(string exeRelativePath, int exeId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(exeRelativePath);
@@ -161,7 +161,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         return null;
     }
 
-    /// <summary>Advances exactly one VBlank: resumes the parked emulation thread (or ticks idle hardware) and renders 735 SPU frames.</summary>
+    /// <summary>Advances exactly one VBlank: resumes the parked core execution thread (or ticks idle hardware) and renders 735 SPU frames.</summary>
     public void RunFrame()
     {
         if (_disposing) return;
@@ -169,7 +169,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         if (_bootPending && _emuThread is null)
         {
             _bootPending = false;
-            _emuThread = new Thread(EmulationThreadMain) { IsBackground = true, Name = "reStation.Emu" };
+            _emuThread = new Thread(CoreExecutionThreadMain) { IsBackground = true, Name = "reSlate.CoreLoop" };
             _emuThread.Start();
         }
 
@@ -178,7 +178,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         {
             _resumeEmu.Set();
             parked = WaitForFrameOrPumpHostActions();
-            if (!parked) _logger.Warn("EMU", $"No VBlank within 2s (pc=0x{_cpu.Pc:X8} cycles={_cpu.TotalCycles}); keeping host responsive.");
+            if (!parked) _logger.Warn("CORE", $"No VBlank within 2s (pc=0x{_cpu.Pc:X8} cycles={_cpu.TotalCycles}); keeping host responsive.");
         }
         else
         {
@@ -189,7 +189,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         if (_emuFault is { } fault)
         {
             _emuFault = null;
-            _logger.Error("EMU", $"Emulation thread faulted: {fault.GetType().Name}: {fault.Message}");
+            _logger.Error("CORE", $"Core execution thread faulted: {fault.GetType().Name}: {fault.Message}");
             CrashBundleService.TryWriteCrashBundle(_logger.LogDirectory, ReStationEngineInfo.AppId, ReStationEngineInfo.Version, fault, _logger.GetRecentLines());
             _cpu.RequestExit();
         }
@@ -203,8 +203,9 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
 
     private void ForwardSubTickHook(long frameStartTicks)
     {
-        if (_subTickHook is not { } hook || _disposing || _cpu.ExitRequested) return;
+        if (_subTickHook is not { } hook || _disposing || _cpu.ExitRequested || !IsEnhancedFrameRateEnabled) return;
         int fps = TargetFps;
+        if (fps > 0 && fps <= 60) return;
         uint total = fps <= 0 ? 2U : (uint)Math.Clamp((fps + 59) / 60, 1, 8);
         long subStepTicks = Math.Max(1L, (Stopwatch.Frequency / 60L) / total);
         for (uint sub = 0; sub < total && !_disposing && !_cpu.ExitRequested; sub++)
@@ -284,7 +285,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
         {
             if (!thread.Join(TimeSpan.FromSeconds(2)))
             {
-                _logger.Warn("EMU", "Emulation thread did not exit within 2s; abandoning background thread (semaphores left alive).");
+                _logger.Warn("CORE", "Core execution thread did not exit within 2s; abandoning background thread (semaphores left alive).");
                 return;
             }
         }

@@ -84,6 +84,8 @@ public sealed partial class PsxGpu
     public bool IrqPending { get; private set; }
     public long PrimitiveCount { get; private set; }
     public long FramesPresented { get; private set; }
+    /// <summary>Monotonic 60 Hz hardware VBlank edges observed by the GPU.</summary>
+    public long VBlankSequence { get; private set; }
     public bool SkipPolygonRasterization { get; set; }
     public long NextVBlankCycle => _lastVBlankCycle + CyclesPerVBlank;
     public int OutputWidth => Is24BitDisplay ? Math.Max(1, DisplayWidth) : Math.Max(1, DisplayWidth * Backend.ScaleFactor);
@@ -164,10 +166,13 @@ public sealed partial class PsxGpu
     /// <summary>Advances VBlank timing; <paramref name="vblankEdge"/> is true once per 564,480 cycles.</summary>
     public void TickTo(long totalCycles, out bool vblankEdge)
     {
-        vblankEdge = totalCycles - _lastVBlankCycle >= CyclesPerVBlank;
+        long delta = totalCycles - _lastVBlankCycle;
+        vblankEdge = delta >= CyclesPerVBlank;
         if (!vblankEdge) return;
-        _lastVBlankCycle = totalCycles;
-        _gpuStat ^= 0x80000000U;
+        long elapsedEdges = delta / CyclesPerVBlank;
+        _lastVBlankCycle += elapsedEdges * CyclesPerVBlank;
+        VBlankSequence += elapsedEdges;
+        if ((elapsedEdges & 1L) != 0) _gpuStat ^= 0x80000000U;
     }
 
     public void Reset()
@@ -205,6 +210,7 @@ public sealed partial class PsxGpu
         Is24BitDisplay = r.ReadBoolean(); DisplayDisabled = r.ReadBoolean(); TexPage = r.ReadUInt16();
         DrawAreaLeft = r.ReadInt32(); DrawAreaTop = r.ReadInt32(); DrawAreaRight = r.ReadInt32(); DrawAreaBottom = r.ReadInt32();
         DrawOffsetX = r.ReadInt32(); DrawOffsetY = r.ReadInt32(); _gpuStat = r.ReadUInt32(); _lastVBlankCycle = r.ReadInt64();
+        VBlankSequence = Math.Max(0L, _lastVBlankCycle / CyclesPerVBlank);
         for (int i = 0; i < Vram.Length; i++) Vram[i] = r.ReadUInt16();
         ResetCommandFifo();
         Backend.UploadVramRect(0, 0, VramWidth, VramHeight, Vram);
