@@ -227,7 +227,7 @@ public sealed class CompilerAndModuleLoaderTests : IDisposable
         Assert.True(ModuleAssemblyLoader.WaitForUnload(weakAlc), "Collectible ModuleAssemblyLoader should unload with zero leaks.");
 
         var cacheMgr = new reEngine.Core.Aot.AotCacheManager(dataDir);
-        var activeKey = new reEngine.Core.Aot.AotCacheKey("aotmod", first.RomSha256Hex, "reStation", reStation.Contracts.ReStationEngineInfo.Version, "0.2.2");
+        var activeKey = new reEngine.Core.Aot.AotCacheKey("aotmod", first.RomSha256Hex, ReStationEngineInfo.EngineId, ReStationEngineInfo.Version, "0.3.0");
         _ = await cacheMgr.StoreCompiledAssemblyAsync(activeKey, first.AssemblyPath);
         int evicted = await cacheMgr.EvictStaleEntriesAsync("aotmod", activeKey);
         Assert.Equal(1, evicted);
@@ -270,5 +270,62 @@ public sealed class CompilerAndModuleLoaderTests : IDisposable
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0x800, 4), 0x03E00008U); // jr ra
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(0x804, 4), 0x00000000U); // nop
         return bytes;
+    }
+
+    [Fact]
+    public void PlayerLocalAotCompiler_ResolveCompilerToolPath_PrefersReSlateWithReStationFallback()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string bothDir = Path.Combine(_tempRoot, "both");
+        string legacyOnlyDir = Path.Combine(_tempRoot, "legacy");
+        Directory.CreateDirectory(bothDir);
+        Directory.CreateDirectory(legacyOnlyDir);
+
+        File.WriteAllText(Path.Combine(bothDir, "reStation.Compiler.exe"), string.Empty);
+        File.WriteAllText(Path.Combine(bothDir, "reSlate.Compiler.exe"), string.Empty);
+        File.WriteAllText(Path.Combine(legacyOnlyDir, "reStation.Compiler.dll"), string.Empty);
+
+        string? preferred = reStation.Core.Aot.PlayerLocalAotCompiler.ResolveCompilerToolPathInDirs([bothDir]);
+        Assert.NotNull(preferred);
+        Assert.Equal("reSlate.Compiler.exe", Path.GetFileName(preferred));
+
+        string? fallback = reStation.Core.Aot.PlayerLocalAotCompiler.ResolveCompilerToolPathInDirs([legacyOnlyDir]);
+        Assert.NotNull(fallback);
+        Assert.Equal("reStation.Compiler.dll", Path.GetFileName(fallback));
+
+        string? live = reStation.Core.Aot.PlayerLocalAotCompiler.ResolveCompilerToolPath();
+        Assert.NotNull(live);
+        Assert.StartsWith("reSlate.Compiler", Path.GetFileName(live), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ModuleManifestEmitter_AndCompilerProgram_EmitReSlateTracksAndUsage()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string outDir = Path.Combine(_tempRoot, "emit");
+        Directory.CreateDirectory(outDir);
+
+        var opts = new RecompCompilerOptions(null, null, string.Empty, outDir, "meadow", "SLUS-01115", "Meadow Test")
+        {
+            Version = "0.3.0"
+        };
+        var specs = new[] { new GeneratedExeSpec(0, "BOOT.EXE", "BOOT.EXE", "BootExe", "BootModule", 0x80010000U, 0x8001000CU, []) };
+        ModuleManifestEmitter.EmitAll(outDir, opts, "Meadow.Recomp", "Meadow", specs, out string manifestPath, out string csprojPath);
+
+        ReStationModuleManifest loaded = ReStationModuleManifest.LoadFromFile(manifestPath);
+        Assert.Equal("reSlate", loaded.EngineId);
+        Assert.Equal("0.3.0", loaded.EngineVersion);
+        Assert.Equal("0.3.x", loaded.CompatibleEngineTrack);
+        Assert.Equal(["0.3.x", "0.2.x", "0.1.x"], loaded.SupportedEngineTracks);
+
+        string gcs = File.ReadAllText(Path.Combine(outDir, "MeadowGameModule.g.cs"));
+        Assert.Contains("EngineId = \"reSlate\"", gcs, StringComparison.Ordinal);
+        Assert.Contains("SupportedEngineTracks = [\"0.3.x\", \"0.2.x\", \"0.1.x\"]", gcs, StringComparison.Ordinal);
+
+        string csproj = File.ReadAllText(csprojPath);
+        Assert.Contains("RESLATE_LIB_DIR", csproj, StringComparison.Ordinal);
+
+        string usage = reStation.Compiler.Program.FormatUsageText(RecompCompilerPipeline.UsageText);
+        Assert.StartsWith("Usage: reSlate.Compiler", usage, StringComparison.Ordinal);
     }
 }

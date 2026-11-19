@@ -171,7 +171,7 @@ public static class MipsIrLowerer
             0x06u => new IrInsn(IrOp.Srlv, delayFlag, rd, rs, rt, shamt, pc, 0u),
             0x07u => new IrInsn(IrOp.Srav, delayFlag, rd, rs, rt, shamt, pc, 0u),
             0x08u => new IrInsn(IrOp.Jr, IrInsnFlags.IsBranch | IrInsnFlags.HasDelaySlot | IrInsnFlags.ModifiesPc | delayFlag, 0, rs, 0, 0, pc, 0u),
-            0x09u => new IrInsn(IrOp.Jalr, IrInsnFlags.IsBranch | IrInsnFlags.HasDelaySlot | IrInsnFlags.LinksRa | IrInsnFlags.ModifiesPc | delayFlag, rd == 0 ? (byte)31 : rd, rs, 0, 0, pc, 0u),
+            0x09u => new IrInsn(IrOp.Jalr, IrInsnFlags.IsBranch | IrInsnFlags.HasDelaySlot | (rd != 0 ? IrInsnFlags.LinksRa : IrInsnFlags.None) | IrInsnFlags.ModifiesPc | delayFlag, rd, rs, 0, 0, pc, 0u),
             0x0Cu => new IrInsn(IrOp.Syscall, IrInsnFlags.RequiresInterpreter | IrInsnFlags.ModifiesPc | delayFlag, 0, 0, 0, 0, pc, word),
             0x0Du => new IrInsn(IrOp.Break, IrInsnFlags.RequiresInterpreter | IrInsnFlags.ModifiesPc | delayFlag, 0, 0, 0, 0, pc, word),
             0x10u => new IrInsn(IrOp.Mfhi, delayFlag, rd, 0, 0, 0, pc, 0u),

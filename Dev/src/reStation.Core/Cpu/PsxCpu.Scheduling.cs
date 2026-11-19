@@ -173,10 +173,98 @@ public sealed partial class PsxCpu
 
     private void OnBusRamWriteRange(uint writeStart, uint writeLen)
     {
+        _ = Tier3Coordinator.TryInvalidateRamRange(writeStart, writeLen);
         ulong writeEnd = (ulong)writeStart + writeLen;
         foreach (OverlayEntry entry in Volatile.Read(ref _overlays))
             if (entry.PhysEnd > writeStart && writeEnd > entry.PhysStart)
                 Interlocked.Increment(ref entry.CurrentGeneration);
+    }
+
+    private string SyncTier3Mode()
+    {
+        string mode = ReStationExecutionTierModes.Normalize(Settings.ExecutionTierMode);
+        Tier3Coordinator.ExecutionTierMode = mode;
+        Tier3Coordinator.ForceZeroRwx = Settings.ForceZeroRwx;
+        return mode;
+    }
+
+    private bool TryInterceptFramePatch(uint canonPc) => InSubTickRender
+        ? FramePatch is ISubTickFrameHook subHook && subHook.TryInterceptSubTickCall(this, canonPc)
+        : FramePatch is not null && FramePatch.TryInterceptCall(this, canonPc);
+
+    private bool TryRunUnliftedBlock(uint canonPc, IRecompModule? module, ref uint targetPc, ref bool executedTier3Block)
+    {
+        string tierMode = SyncTier3Mode();
+        if (tierMode == ReStationExecutionTierModes.StaticAotOnly)
+            throw new InvalidOperationException($"Execution tier '{ReStationExecutionTierModes.StaticAotOnly}' failed closed on unlifted pc=0x{canonPc:X8} exe={ActiveExeId}.");
+
+        if (tierMode == ReStationExecutionTierModes.InterpreterOracle)
+        {
+            if (InterpreterFallbackCount < 5)
+                Logger?.Warn("CPU", $"Quarantined interpreterOracle fallback #{InterpreterFallbackCount + 1} pc=0x{canonPc:X8} exe={ActiveExeId}");
+            InterpreterFallbackCount++;
+            Tier3Coordinator.RecordInterpreterFallback();
+            RecordBringupCall(canonPc);
+            if (PsxInterpreter.ExecuteUntilReturnOrCompiled(this, canonPc, module, out uint interpTailPc))
+            {
+                targetPc = interpTailPc;
+                return true;
+            }
+            return false;
+        }
+
+        executedTier3Block = true;
+        targetPc = Tier3Coordinator.ExecuteBlock(this, canonPc, _readWordDelegate, ActiveExeId);
+        return !ShouldUnwind && !ExitRequested && PendingQuickLoadSlot < 0;
+    }
+
+    private void ResumeMidStack(uint startPc)
+    {
+        string tierMode = SyncTier3Mode();
+        if (tierMode == ReStationExecutionTierModes.InterpreterOracle)
+        {
+            if (InterpreterFallbackCount < 5)
+                Logger?.Warn("CPU", $"Quarantined interpreterOracle mid-stack resume #{InterpreterFallbackCount + 1} pc=0x{startPc:X8} exe={ActiveExeId}");
+            InterpreterFallbackCount++;
+            Tier3Coordinator.RecordInterpreterFallback();
+            PsxInterpreter.ResumeFromSnapshot(this);
+            return;
+        }
+
+        uint pc = startPc;
+        while (!ExitRequested && PendingQuickLoadSlot < 0)
+        {
+            if (pc == IReStationCpu.ReturnSentinelPc || pc == UnwindTargetPc || pc == 0U)
+            {
+                Pc = pc;
+                break;
+            }
+            uint masked = pc & 0x1FFFFFFFU;
+            if (masked is 0xA0U or 0xB0U or 0xC0U)
+            {
+                Bios.HandleVectorCall(masked);
+                if (ShouldUnwind || ExitRequested || PendingQuickLoadSlot >= 0) break;
+                pc = R[31];
+                continue;
+            }
+            uint canonPc = 0x80000000U | masked;
+            IRecompModule? mod = ResolveModule(canonPc);
+            if (mod is not null && TryExecuteCompiledModule(mod, canonPc, out bool hasTail, out uint tailPc))
+            {
+                RecordBringupCall(canonPc);
+                if (ExitRequested || PendingQuickLoadSlot >= 0 || (ShouldUnwind && (Pc == IReStationCpu.ReturnSentinelPc || Pc == UnwindTargetPc)))
+                    break;
+                ShouldUnwind = false;
+                pc = hasTail ? tailPc : R[31];
+                continue;
+            }
+            if (tierMode == ReStationExecutionTierModes.StaticAotOnly)
+                throw new InvalidOperationException($"Execution tier '{ReStationExecutionTierModes.StaticAotOnly}' failed closed on unlifted mid-stack pc=0x{canonPc:X8} exe={ActiveExeId}.");
+
+            pc = Tier3Coordinator.ExecuteBlock(this, canonPc, _readWordDelegate, ActiveExeId);
+            if (ShouldUnwind) break;
+            tierMode = SyncTier3Mode();
+        }
     }
 
     private bool IsOverlayRamMatch(OverlayEntry entry)

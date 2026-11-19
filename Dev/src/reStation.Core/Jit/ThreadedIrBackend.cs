@@ -59,7 +59,7 @@ public sealed class ThreadedIrBackend
                 return pendingNextPc;
             }
 
-            if (insn.HasFlag(IrInsnFlags.ModifiesPc))
+            if (insn.HasFlag(IrInsnFlags.ModifiesPc) && cpu.Pc != insn.Pc)
                 return cpu.Pc;
         }
 
@@ -166,11 +166,25 @@ public sealed class ThreadedIrBackend
             case IrOp.Break: cpu.Break((insn.ImmOrTarget >> 6) & 0xFFFFFu); break;
             case IrOp.Mfc0:
                 if (_copFallback is not null) _copFallback(cpu, insn);
-                else if (insn.Rd == 12) r[insn.Rt] = cpu.Cop0Sr;
+                else if (insn.Rt != 0)
+                {
+                    r[insn.Rt] = insn.Rd switch
+                    {
+                        8 => cpu is Cpu.PsxCpu psx8 ? psx8.Cop0BadVAddr : 0u,
+                        12 => cpu.Cop0Sr,
+                        13 => cpu is Cpu.PsxCpu psx13 ? psx13.Cop0Cause : 0u,
+                        14 => cpu is Cpu.PsxCpu psx14 ? psx14.Cop0Epc : 0u,
+                        _ => 0u
+                    };
+                }
                 break;
             case IrOp.Mtc0:
                 if (_copFallback is not null) _copFallback(cpu, insn);
                 else if (insn.Rd == 12) cpu.Cop0Sr = r[insn.Rt];
+                break;
+            case IrOp.Rfe:
+                if (_copFallback is not null) _copFallback(cpu, insn);
+                else cpu.Cop0Sr = (cpu.Cop0Sr & ~0xFu) | ((cpu.Cop0Sr >> 2) & 0xFu);
                 break;
             case IrOp.Mfc2: r[insn.Rt] = cpu.GteReadData(insn.Rd); break;
             case IrOp.Mtc2: cpu.GteWriteData(insn.Rd, r[insn.Rt]); break;

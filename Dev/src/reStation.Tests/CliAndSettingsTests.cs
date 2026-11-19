@@ -103,6 +103,10 @@ public sealed class CliAndSettingsTests : IDisposable
         consumerSettings.Clamp();
         Assert.Equal(2, consumerSettings.SchemaVersion);
         Assert.Equal("crowndepths-recomp", consumerSettings.AppId);
+
+        var legacyEngineSettings = new RecompSettings { AppId = "restation" };
+        legacyEngineSettings.Clamp();
+        Assert.Equal(ReStationEngineInfo.AppId, legacyEngineSettings.AppId);
     }
 
     [Fact]
@@ -222,7 +226,7 @@ public sealed class CliAndSettingsTests : IDisposable
     [Fact]
     public void PlayerProcess_RelativeIsolatedArgs_PreservesWorkingDirAndCapturesRedirectedStderr()
     {
-        string playerExe = Path.Combine(AppContext.BaseDirectory, "reStation.Player.exe");
+        string playerExe = Path.Combine(AppContext.BaseDirectory, "reSlate.Player.exe");
         Assert.True(File.Exists(playerExe), $"Missing test target: {playerExe}");
         Directory.CreateDirectory(_tempRoot);
 
@@ -268,11 +272,16 @@ public sealed class CliAndSettingsTests : IDisposable
     }
 
     [Fact]
-    public void CliOptions_HelpTextAndEngineInfo_Reflect020Track()
+    public void CliOptions_HelpTextAndEngineInfo_Reflect030Track()
     {
-        Assert.Equal("0.2.8", ReStationEngineInfo.Version);
-        Assert.Equal("0.2.x", ReStationEngineInfo.CompatibleEngineTrack);
-        Assert.Contains("reStation v0.2.8", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Equal("reslate", ReStationEngineInfo.AppId);
+        Assert.Equal("reSlate", ReStationEngineInfo.EngineId);
+        Assert.Equal("0.3.0", ReStationEngineInfo.Version);
+        Assert.Equal("0.3.x", ReStationEngineInfo.CompatibleEngineTrack);
+        Assert.Equal(["0.3.x", "0.2.x", "0.1.x"], ReStationEngineInfo.SupportedEngineTracks);
+        Assert.Contains("reSlate v0.3.0", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--require-backend", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Contains("--doctor", CliOptions.HelpText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -358,5 +367,85 @@ public sealed class CliAndSettingsTests : IDisposable
         reloaded.Clamp();
         Assert.Equal(NativeInputModeIds.ControllerDpadQuickActions, reloaded.ControllerDpadMode);
         Assert.Equal(NativeInputModeIds.IsometricMoveCropGrid, reloaded.IsometricMoveMode);
+    }
+
+    [Fact]
+    public void CliOptions_V030Flags_EnvironmentCanonicalConfigAndDeferredBackendWorkCleanly()
+    {
+        string isoRoot = Path.Combine(_tempRoot, "v030_iso");
+        string dataDir = Path.Combine(isoRoot, "data");
+        string saveDir = Path.Combine(dataDir, "saves");
+        string fixture = Path.Combine(dataDir, "fixture.json");
+        string dumpAudio = Path.Combine(dataDir, "audio.wav");
+
+        CliOptions parsed = CliOptions.Parse(
+        [
+            "--data-dir", dataDir,
+            "--require-backend", "vulkan",
+            "--execution-tier", "aotWithThreadedIr",
+            "--save-dir", saveDir,
+            "--fixture", fixture,
+            "--dump-audio", dumpAudio,
+            "--automation-port", "0",
+            "--automation-token=sec-tok",
+            "--reengine-dir", isoRoot,
+            "--suite-dir", isoRoot,
+            "--doctor",
+            "--force-zero-rwx"
+        ]);
+
+        Assert.Equal(PsxRenderBackendIds.Vulkan, parsed.RequireBackendId);
+        Assert.True(parsed.IsDeferredBackendRequired(out string? deferred));
+        Assert.Equal(PsxRenderBackendIds.Vulkan, deferred);
+        Assert.Equal(6, CliOptions.DeferredBackendExitCode);
+        Assert.Equal(ReStationExecutionTierModes.AotWithThreadedIr, parsed.ExecutionTierMode);
+        Assert.Equal(saveDir, parsed.SaveDir);
+        Assert.Equal(fixture, parsed.FixturePath);
+        Assert.Equal(dumpAudio, parsed.DumpAudioPath);
+        Assert.Equal(0, parsed.AutomationPort);
+        Assert.Equal("sec-tok", parsed.AutomationToken);
+        Assert.True(parsed.RunDoctor && parsed.ForceZeroRwx);
+
+        AppEnvironment env = parsed.CreateEnvironment();
+        Assert.Equal("reslate", env.AppId);
+        Assert.Equal(Path.GetFullPath(Path.Combine(dataDir, "config", "settings.json")), Path.GetFullPath(env.ConfigFilePath));
+
+        var settings = new RecompSettings();
+        parsed.ApplyOverrides(settings);
+        Assert.Equal(ReStationExecutionTierModes.AotWithThreadedIr, settings.ExecutionTierMode);
+        Assert.True(settings.ForceZeroRwx);
+
+        Assert.True(CliOptions.Parse(["--require-backend", "parallelCpu"]).IsDeferredBackendRequired(out _));
+        Assert.False(CliOptions.Parse(["--require-backend", "opengl"]).IsDeferredBackendRequired(out _));
+        Assert.Throws<ArgumentException>(() => CliOptions.Parse(["--require-backend", "bogus"]));
+        Assert.Throws<ArgumentException>(() => CliOptions.Parse(["--execution-tier", "bogus"]));
+        Assert.Throws<ArgumentException>(() => CliOptions.Parse(["--automation-port", "70000"]));
+    }
+
+    [Fact]
+    public void SettingsMigrationHelper_AtomicallyAndNonDestructivelyMigratesLegacySettingsAndBak()
+    {
+        string dataDir = Path.Combine(_tempRoot, "mig_data");
+        Directory.CreateDirectory(dataDir);
+        string legacyPath = Path.Combine(dataDir, "settings.json");
+        string legacyBak = legacyPath + ".bak";
+        string canonicalPath = Path.Combine(dataDir, "config", "settings.json");
+
+        File.WriteAllText(legacyPath, """{"schemaVersion":1,"appId":"restation","resolutionScale":2}""");
+        File.WriteAllText(legacyBak, """{"schemaVersion":1,"appId":"restation","resolutionScale":1}""");
+
+        SettingsLoadOutcome<RecompSettings> loaded = RecompSettings.Load(canonicalPath);
+        Assert.True(loaded.LoadedFromPrimary);
+        Assert.Equal(2, loaded.Value.ResolutionScale);
+        Assert.Equal("reslate", loaded.Value.AppId);
+        Assert.True(File.Exists(canonicalPath));
+        Assert.True(File.Exists(canonicalPath + ".bak"));
+        Assert.True(File.Exists(legacyPath)); // Non-destructive: legacy preserved
+
+        // Re-running migration must never overwrite existing canonical config/settings.json
+        File.WriteAllText(legacyPath, """{"schemaVersion":1,"appId":"restation","resolutionScale":8}""");
+        SettingsMigrationResult noop = SettingsMigrationHelper.MigrateLegacySettingsIfNeeded(dataDir);
+        Assert.False(noop.Migrated);
+        Assert.Equal(2, RecompSettings.Load(canonicalPath).Value.ResolutionScale);
     }
 }

@@ -1,5 +1,5 @@
 // @module: reStation.Core.Cpu.PsxInterpreter
-// @purpose: Fallback MIPS R3000A interpreter for unlifted stubs, dynamic RAM jumps, and mid-function snapshot resume.
+// @purpose: Quarantined MIPS R3000A differential-oracle interpreter, strictly gated to --execution-tier interpreterOracle.
 // @depends-on: reStation.Contracts, reStation.Core.Cpu.PsxCpu
 // @exports: PsxInterpreter
 // @owner: devv-cpu-cd (T2)
