@@ -1,3 +1,8 @@
+// @module: reStation.Installer
+// @purpose: Resolve initial reSlate and reEngine install paths from CLI overrides, HKCU history, or sandbox defaults.
+// @depends-on: Foundation.Core, reEngine.Core
+// @exports: ResolvedWizardInstallPaths, ReStationInstallPathResolver
+
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Foundation.Core;
@@ -270,7 +275,7 @@ internal static partial class ReStationInstallPathResolver
     private static string ResolveCanonicalReEngineDefault(SandboxResolution? activeSandbox)
     {
         string canonical = TrimDirectorySeparators(ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir());
-        return activeSandbox is not null
+        return activeSandbox is { IsSandboxActive: true }
             ? KnownFolderPaths.MapHostPathToSandbox(canonical, activeSandbox)
             : canonical;
     }
@@ -278,7 +283,7 @@ internal static partial class ReStationInstallPathResolver
     private static string ResolveCanonicalInstallDefault(string defaultInstallDir, SandboxResolution? activeSandbox)
     {
         string canonical = TrimDirectorySeparators(Path.GetFullPath(defaultInstallDir));
-        return activeSandbox is not null
+        return activeSandbox is { IsSandboxActive: true }
             ? KnownFolderPaths.MapHostPathToSandbox(canonical, activeSandbox)
             : canonical;
     }
@@ -310,7 +315,7 @@ internal static partial class ReStationInstallPathResolver
                 return null;
 
             string full = TrimDirectorySeparators(Path.GetFullPath(trimmed));
-            if (activeSandbox is not null && !SandboxEnvironmentSeam.IsPathWithinSandbox(full, activeSandbox))
+            if (activeSandbox is { IsSandboxActive: true } && !SandboxEnvironmentSeam.IsPathWithinSandbox(full, activeSandbox))
                 return null;
 
             return full;

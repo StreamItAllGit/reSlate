@@ -95,7 +95,7 @@ Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`,
    dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore
    dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true --no-restore
    ```
-   Verify all non-exempt production files follow `Standard 32` (`<= 250` code-only SLOC preferred, `400` soft review, `600` hard cap excluding comments/whitespace; tests exempt; `@loc-allow` justified) and **`265/265` passing (`0` warnings, `0` failures, `0` skipped)** in both configurations.
+   Verify all non-exempt production files follow `Standard 32` (`<= 250` code-only SLOC preferred, `400` soft review, `600` hard cap excluding comments/whitespace; tests exempt; `@loc-allow` justified) and **`266/266` passing (`0` warnings, `0` failures, `0` skipped)** in both configurations.
 2. **Visible Interactive 4-Step Debug/Test `Foundation.Automation` 4-Drive Sandbox E2E (`Standard 02 §4` — Required Before `v0.3.0` Launch):**
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.0 -EvidenceDir <temp_dir>

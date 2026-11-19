@@ -272,11 +272,14 @@ internal static class ReStationInstallerBootstrap
             if (isolatedTest && isolatedRoot is not null && !string.IsNullOrWhiteSpace(explicitReEngineDir))
                 explicitReEngineDir = AppEnvironment.AssertPathContained(explicitReEngineDir, isolatedRoot);
 
+            SandboxResolution? activeSandbox = sandbox is { IsSandboxActive: true } ? sandbox : null;
+            bool suppressHostMutations = isolatedTest || (!sandbox.IsSandboxActive && !string.IsNullOrWhiteSpace(ReadValue(args, "--data-dir")));
             string targetReEngineDir = !isolatedTest && string.IsNullOrWhiteSpace(explicitReEngineDir)
                 ? ReStationInstallPathResolver.ResolveSilentReEngineDir(
-                    PlatformRegistryFactory.CreateDefault(sandbox, false),
-                    sandbox,
-                    explicitReEngineDir)
+                    PlatformRegistryFactory.CreateDefault(sandbox, suppressHostMutations),
+                    activeSandbox,
+                    explicitReEngineDir,
+                    suppressHostMutations: suppressHostMutations)
                 : ReEngineBootstrapHelper.ResolveDefaultReEngineInstallDir(explicitReEngineDir, isolatedRoot, isolatedTest);
             string? siblingInstaller = FindSiblingExternalReEngineInstaller(isolatedTest, isolatedRoot, sandbox);
             if (!string.IsNullOrWhiteSpace(siblingInstaller))

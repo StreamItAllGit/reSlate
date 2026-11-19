@@ -341,6 +341,50 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.DoesNotContain("LiveHost", isolatedTest.InstallDir, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void ResolveInitialPaths_AndSilentDir_AcceptRegistryPaths_WhenSandboxIsInactive()
+    {
+        string baseDir = Path.Combine(_tempRoot, "inactive-sandbox-host", "StreamItAll");
+        string reEngineDir = Path.Combine(baseDir, "reEngine");
+        string oldStationDir = Path.Combine(reEngineDir, "engines", "reStation", "v0.2.8");
+        Directory.CreateDirectory(Path.Combine(oldStationDir, "data", "config"));
+        File.WriteAllText(
+            Path.Combine(oldStationDir, "data", "config", "settings.json"),
+            """{"installProfile":"full"}""");
+
+        var registry = new FakePlatformRegistry();
+        registry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reEngine", "InstallLocation", reEngineDir);
+        registry.SetString(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\reStation", "InstallLocation", oldStationDir);
+        registry.SetString(@"Software\StreamItAll", "LastInstallBaseDir", baseDir);
+
+        ResolvedWizardInstallPaths resolved = ReStationInstallPathResolver.ResolveInitialPaths(
+            registry,
+            activeSandbox: Foundation.Core.SandboxResolution.Inactive,
+            suppressHostMutations: false,
+            isIsolatedTestProcess: false,
+            isolatedDataDir: null,
+            defaultInstallDir: ReStationInstallerTheme.ResolveDefaultVersionInstallDir(),
+            defaultProfileId: ReStationInstallerTheme.DefaultInstallProfile);
+
+        Assert.Equal(Path.GetFullPath(reEngineDir), resolved.ReEngineInstallDir);
+        Assert.Equal(
+            Path.Combine(Path.GetFullPath(reEngineDir), "engines", "reSlate", $"v{ReStationInstallerTheme.Version}"),
+            resolved.InstallDir);
+        Assert.Equal("full", resolved.ProfileId);
+
+        Assert.Equal(
+            Path.GetFullPath(reEngineDir),
+            ReStationInstallPathResolver.ResolveSilentReEngineDir(
+                registry,
+                activeSandbox: Foundation.Core.SandboxResolution.Inactive));
+
+        string suppressedSilent = ReStationInstallPathResolver.ResolveSilentReEngineDir(
+            registry,
+            activeSandbox: Foundation.Core.SandboxResolution.Inactive,
+            suppressHostMutations: true);
+        Assert.DoesNotContain("inactive-sandbox-host", suppressedSilent, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class FakePlatformRegistry : Foundation.Core.IPlatformRegistry
     {
         private readonly Dictionary<string, Foundation.Core.PlatformRegistryValue> _values =
