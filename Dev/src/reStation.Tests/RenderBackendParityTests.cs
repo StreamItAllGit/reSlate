@@ -6,6 +6,7 @@
 
 using reStation.Contracts;
 using reStation.Core;
+using reStation.Core.Enhancement;
 using reStation.Core.Gpu;
 using reStation.Core.Gte;
 using Xunit;
@@ -125,5 +126,101 @@ public sealed class RenderBackendParityTests
         Assert.Equal(12.5f, verts[0].X);
         Assert.Equal(23.25f, verts[0].Y);
         Assert.Equal(64.0f, verts[0].W);
+    }
+
+    [Theory]
+    [InlineData(PsxRenderBackendIds.Software)]
+    [InlineData(PsxRenderBackendIds.ParallelCpu)]
+    [InlineData(PsxRenderBackendIds.Vulkan)]
+    public void PsxGpu_Gp0E6MaskBits_ForwardsToBackendAndProtectsMaskedPixels(string backendId)
+    {
+        using IPsxRenderBackend backend = backendId switch
+        {
+            PsxRenderBackendIds.ParallelCpu => new ParallelCpuRenderBackend(4),
+            PsxRenderBackendIds.Vulkan => new VulkanRenderBackend(),
+            _ => new SoftwareCpuRenderBackend()
+        };
+        backend.Initialize(320, 240, 1);
+        var gpu = new PsxGpu(new RecompSettings(), new PgxpTracker(), backend);
+
+        // Clear draw area and set GP0(E6h) setMaskBit=1, checkMaskBit=0
+        gpu.WriteGp0(0x02000000U); gpu.WriteGp0(0x00000000U); gpu.WriteGp0((64U << 16) | 64U);
+        gpu.WriteGp0(0xE6000001U);
+        Assert.True(gpu.MaskSetBit);
+        Assert.False(gpu.MaskCheckBit);
+        Assert.NotEqual(0U, gpu.ReadGpuStat() & (1U << 11));
+
+        // Draw red 8x8 rect at (16, 16) with mask bit set
+        gpu.WriteGp0(0x600000F8U);
+        gpu.WriteGp0((16U << 16) | 16U);
+        gpu.WriteGp0((8U << 16) | 8U);
+
+        // Enable checkMaskBit=1, setMaskBit=0, draw larger green 16x16 rect at (12, 12)
+        gpu.WriteGp0(0xE6000002U);
+        Assert.False(gpu.MaskSetBit);
+        Assert.True(gpu.MaskCheckBit);
+        Assert.NotEqual(0U, gpu.ReadGpuStat() & (1U << 12));
+
+        gpu.WriteGp0(0x6000F800U);
+        gpu.WriteGp0((12U << 16) | 12U);
+        gpu.WriteGp0((16U << 16) | 16U);
+
+        gpu.WriteGp1(0x03000000U);
+        gpu.PresentFrame();
+        byte[] rgba = backend.CaptureRgba(out int w, out int h);
+        Assert.Equal(320, w);
+        Assert.Equal(240, h);
+
+        // (14, 14) should be green (unmasked); (18, 18) must remain red (protected by mask bit)
+        int unmaskedOff = ((14 * w) + 14) * 4;
+        int protectedOff = ((18 * w) + 18) * 4;
+        Assert.True(rgba[unmaskedOff + 1] >= 240 && rgba[unmaskedOff] <= 8);
+        Assert.True(rgba[protectedOff] >= 240 && rgba[protectedOff + 1] <= 8);
+
+        Span<ushort> readback = stackalloc ushort[1];
+        Assert.True(((IPsxGpuBackendHooks)backend).TryReadVramRect(18, 18, 1, 1, readback));
+        Assert.NotEqual(0, readback[0] & 0x8000);
+        Assert.True(((IPsxGpuBackendHooks)backend).TryReadVramRect(14, 14, 1, 1, readback));
+        Assert.Equal(0, readback[0] & 0x8000);
+
+        // Disable mask check & overwrite (18, 18) with blue
+        gpu.WriteGp0(0xE6000000U);
+        gpu.WriteGp0(0x60F80000U);
+        gpu.WriteGp0((16U << 16) | 16U);
+        gpu.WriteGp0((8U << 16) | 8U);
+        Assert.True(((IPsxGpuBackendHooks)backend).TryReadVramRect(18, 18, 1, 1, readback));
+        Assert.Equal(0, readback[0] & 0x8000);
+        Assert.True((readback[0] >> 10) >= 28);
+    }
+
+    [Fact]
+    public void PsxGpu_SetBackend_PreservesMaskBitsAndHdTexturePack()
+    {
+        using var sw = new SoftwareCpuRenderBackend();
+        using var parallel = new ParallelCpuRenderBackend(2);
+        var gpu = new PsxGpu(new RecompSettings(), new PgxpTracker(), sw);
+        var pack = HdTexturePackStore.FromDataDirectory(Path.Combine(Path.GetTempPath(), $"restation-pack-nop-{Guid.NewGuid():N}"), isEnabled: false);
+
+        gpu.AttachHdTexturePack(pack);
+        gpu.WriteGp0(0xE6000003U);
+        gpu.SetBackend(parallel);
+
+        Assert.Same(pack, gpu.HdTexturePack);
+        Assert.True(gpu.MaskSetBit);
+        Assert.True(gpu.MaskCheckBit);
+
+        // Protected pixel from GP0(A0h) upload with 0x8000 bit must not be overwritten after SetBackend
+        gpu.WriteGp0(0xA0000000U);
+        gpu.WriteGp0((10U << 16) | 10U);
+        gpu.WriteGp0((2U << 16) | 2U);
+        gpu.WriteGp0(0x801F_801FU);
+        gpu.WriteGp0(0x801F_801FU);
+        gpu.WriteGp0(0x6000FF00U);
+        gpu.WriteGp0((10U << 16) | 10U);
+        gpu.WriteGp0((2U << 16) | 2U);
+
+        Span<ushort> px = stackalloc ushort[1];
+        Assert.True(parallel.TryReadVramRect(10, 10, 1, 1, px));
+        Assert.Equal((ushort)0x801F, px[0]);
     }
 }

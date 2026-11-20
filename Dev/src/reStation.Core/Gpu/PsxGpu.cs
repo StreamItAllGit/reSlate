@@ -5,6 +5,7 @@
 // @owner: devv-gpu-gl (T4) — preserves all T1 locked members and snapshot binary format.
 
 using reStation.Contracts;
+using reStation.Core.Enhancement;
 using reStation.Core.Gte;
 
 namespace reStation.Core.Gpu;
@@ -35,7 +36,7 @@ public sealed partial class PsxGpu
         Settings = settings ?? throw new ArgumentNullException(nameof(settings));
         Pgxp = pgxp ?? throw new ArgumentNullException(nameof(pgxp));
         Backend = backend ?? throw new ArgumentNullException(nameof(backend));
-        (backend as IPsxGpuBackendHooks)?.AttachPgxp(pgxp);
+        ForwardBackendHooks(backend, attach: true);
     }
 
     public RecompSettings Settings { get; }
@@ -50,13 +51,9 @@ public sealed partial class PsxGpu
     {
         ArgumentNullException.ThrowIfNull(backend);
         if (ReferenceEquals(Backend, backend)) return;
-        (Backend as IPsxGpuBackendHooks)?.AttachPgxp(null);
+        ForwardBackendHooks(Backend, attach: false);
         Backend = backend;
-        if (backend is IPsxGpuBackendHooks hooks)
-        {
-            hooks.AttachPgxp(Pgxp);
-            hooks.SetTextureWindow(TextureWindowMaskX, TextureWindowMaskY, TextureWindowOffsetX, TextureWindowOffsetY);
-        }
+        ForwardBackendHooks(backend, attach: true);
         backend.UploadVramRect(0, 0, VramWidth, VramHeight, Vram);
     }
 
@@ -188,6 +185,7 @@ public sealed partial class PsxGpu
         TextureWindowMaskX = TextureWindowMaskY = TextureWindowOffsetX = TextureWindowOffsetY = 0;
         (Backend as IPsxGpuBackendHooks)?.SetTextureWindow(0, 0, 0, 0);
         MaskSetBit = MaskCheckBit = false;
+        (Backend as IPsxGpuBackendHooks)?.SetMaskBits(false, false);
         DisplayX = DisplayY = 0; DisplayWidth = 320; DisplayHeight = 240;
         Is24BitDisplay = IsInterlaced = IsPalMode = IrqPending = false;
         DisplayDisabled = true;
@@ -215,8 +213,11 @@ public sealed partial class PsxGpu
         DrawAreaLeft = r.ReadInt32(); DrawAreaTop = r.ReadInt32(); DrawAreaRight = r.ReadInt32(); DrawAreaBottom = r.ReadInt32();
         DrawOffsetX = r.ReadInt32(); DrawOffsetY = r.ReadInt32(); _gpuStat = r.ReadUInt32(); _lastVBlankCycle = r.ReadInt64();
         VBlankSequence = Math.Max(0L, _lastVBlankCycle / CyclesPerVBlank);
+        MaskSetBit = (_gpuStat & (1U << 11)) != 0;
+        MaskCheckBit = (_gpuStat & (1U << 12)) != 0;
         for (int i = 0; i < Vram.Length; i++) Vram[i] = r.ReadUInt16();
         ResetCommandFifo();
+        ForwardBackendHooks(Backend, attach: true);
         Backend.UploadVramRect(0, 0, VramWidth, VramHeight, Vram);
     }
 
@@ -250,7 +251,12 @@ public sealed partial class PsxGpu
             case 0xE3: DrawAreaLeft = (int)(_cmdBuf[0] & 0x3FFU); DrawAreaTop = (int)((_cmdBuf[0] >> 10) & 0x3FFU); break;
             case 0xE4: DrawAreaRight = (int)(_cmdBuf[0] & 0x3FFU); DrawAreaBottom = (int)((_cmdBuf[0] >> 10) & 0x3FFU); break;
             case 0xE5: DrawOffsetX = PsxPrimitiveDecoder.SignExtend11(_cmdBuf[0]); DrawOffsetY = PsxPrimitiveDecoder.SignExtend11(_cmdBuf[0] >> 11); break;
-            case 0xE6: MaskSetBit = (_cmdBuf[0] & 1U) != 0; MaskCheckBit = (_cmdBuf[0] & 2U) != 0; RefreshGpuStatBits(); break;
+            case 0xE6:
+                MaskSetBit = (_cmdBuf[0] & 1U) != 0;
+                MaskCheckBit = (_cmdBuf[0] & 2U) != 0;
+                RefreshGpuStatBits();
+                (Backend as IPsxGpuBackendHooks)?.SetMaskBits(MaskSetBit, MaskCheckBit);
+                break;
         }
     }
 
