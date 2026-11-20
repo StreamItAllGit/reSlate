@@ -5,6 +5,7 @@
 // @owner: devv-gpu-gl (T4) — preserves all T1 locked members; pure net8.0, zero window-system dependencies.
 
 using reStation.Contracts;
+using reStation.Core.Enhancement;
 using reStation.Core.Gte;
 
 namespace reStation.Core.Gpu;
@@ -25,6 +26,8 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     private uint _vramTex, _vramFbo, _vramColorTex, _wideFbo, _wideColorTex, _displayFbo, _displayTex, _scratchFbo, _scratchTex, _presentTex, _overlayTex;
     private int _uDrawVramTex, _uDrawStpPass, _uDrawScale, _uBlitVramTex, _uBlitColorTex, _uBlitMode, _uBlitDstRect, _uBlitSrcRect, _uBlitDispInfo;
     private PgxpTracker? _pgxp;
+    private HdTexturePackStore? _hdPack;
+    private bool _maskSetBit, _maskCheckBit;
     private bool _glReady, _hasPresented, _hasCachedWideFrame, _lastFullWindow, _lastWidescreen, _disposed;
 
     /// <summary>Requires bindings already initialized against a current GL 3.3 Core context.</summary>
@@ -41,7 +44,19 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
     public int SurfaceHeight { get; private set; } = 240;
     public long PrimitivesSubmitted => Volatile.Read(ref _primitivesSubmitted);
 
+    internal bool MaskSetBit => _maskSetBit;
+    internal bool MaskCheckBit => _maskCheckBit;
+    internal HdTexturePackStore? HdTexturePack => _hdPack;
+
     public void AttachPgxp(PgxpTracker? tracker) => _pgxp = tracker;
+
+    public void SetMaskBits(bool setMaskBit, bool checkMaskBit)
+    {
+        _maskSetBit = setMaskBit;
+        _maskCheckBit = checkMaskBit;
+    }
+
+    public void AttachHdTexturePack(HdTexturePackStore? packStore) => _hdPack = packStore;
 
     public void SetTextureWindow(int maskX, int maskY, int offsetX, int offsetY)
     {

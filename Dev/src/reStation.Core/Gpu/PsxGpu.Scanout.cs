@@ -1,7 +1,10 @@
 // @module: reStation.Core.Gpu.PsxGpu.Scanout
-// @purpose: Backbuffer scanout origin tracking (LastDrawnX/Y), PGXP frame epoch reset, and sub-tick FillRect/pass bounds tracking for PsxGpu.
-// @depends-on: reStation.Contracts, reStation.Core.Gte
+// @purpose: Backbuffer scanout origin tracking (LastDrawnX/Y), PGXP frame epoch reset, HD pack / mask hook forwarding, and sub-tick bounds tracking for PsxGpu.
+// @depends-on: reStation.Contracts, reStation.Core.Enhancement, reStation.Core.Gte
 // @exports: PsxGpu (partial)
+
+using reStation.Contracts;
+using reStation.Core.Enhancement;
 
 namespace reStation.Core.Gpu;
 
@@ -10,6 +13,31 @@ public sealed partial class PsxGpu
     private bool _hasFrameBounds;
     private bool _setFromFillThisFrame;
     private int _frameMinX, _frameMinY, _frameMaxX, _frameMaxY;
+
+    /// <summary>Optional path-contained HD texture pack override store forwarded to active GPU backend hooks.</summary>
+    public HdTexturePackStore? HdTexturePack { get; private set; }
+
+    /// <summary>Binds or clears an HD texture pack override store on the GPU and active render backend.</summary>
+    public void AttachHdTexturePack(HdTexturePackStore? packStore)
+    {
+        HdTexturePack = packStore;
+        (Backend as IPsxGpuBackendHooks)?.AttachHdTexturePack(packStore);
+    }
+
+    private void ForwardBackendHooks(IPsxRenderBackend backend, bool attach)
+    {
+        if (backend is not IPsxGpuBackendHooks hooks) return;
+        if (!attach)
+        {
+            hooks.AttachPgxp(null);
+            hooks.AttachHdTexturePack(null);
+            return;
+        }
+        hooks.AttachPgxp(Pgxp);
+        hooks.SetTextureWindow(TextureWindowMaskX, TextureWindowMaskY, TextureWindowOffsetX, TextureWindowOffsetY);
+        hooks.SetMaskBits(MaskSetBit, MaskCheckBit);
+        hooks.AttachHdTexturePack(HdTexturePack);
+    }
 
     /// <summary>Total rasterized GP0/VRAM draw operations recorded since the previous <see cref="PresentFrame(bool)"/>.</summary>
     public int FrameDrawOps { get; private set; }
