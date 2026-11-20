@@ -9,6 +9,8 @@ using System.Runtime.CompilerServices;
 using Foundation.Core;
 using Foundation.Retro;
 using reEngine.Core.Manifests;
+using reEngine.Host.Contracts;
+using reEngine.Host.Core;
 using reStation.Contracts;
 using reStation.Core;
 using reStation.Core.Aot;
@@ -208,15 +210,27 @@ internal static unsafe partial class Program
 #else
             false;
 #endif
-        string[] lines =
-        [
+        var lines = new List<string>(12)
+        {
             $"reSlate Doctor v{ReStationEngineInfo.Version} (appId={ReStationEngineInfo.AppId}, track={ReStationEngineInfo.CompatibleEngineTrack})",
             $"Containment: isolatedTest={isolatedTest} sandboxActive={sandbox.IsSandboxActive} mode={env.PresentationMode}",
             $"Paths: dataDir={env.DataDirectory} config={env.ConfigFilePath} logDir={env.LogDirectory}",
             $"Execution: dynamicCode={RuntimeFeature.IsDynamicCodeSupported} tier={settings.ExecutionTierMode} compilerPresent={hasCompiler}",
-            $"Host: backend={settings.BackendId} required={options.RequireBackendId ?? "none"} sdl3={hasSdl} sevenZip={has7z} automationCompiled={automationCompiled}",
-            $"DeferredBackends (v0.3.1): {PsxRenderBackendIds.Vulkan}, {PsxRenderBackendIds.ParallelCpu}"
-        ];
+            $"Host: backend={settings.BackendId} required={options.RequireBackendId ?? "none"} sdl3={hasSdl} sevenZip={has7z} automationCompiled={automationCompiled}"
+        };
+        foreach (HostBackendCapability cap in HostBackendProbe.ProbeAll())
+        {
+            if (cap.Kind is not (HostRenderBackendKind.OpenGl or HostRenderBackendKind.Vulkan or HostRenderBackendKind.DirectX
+                or HostRenderBackendKind.ParallelCpu or HostRenderBackendKind.Software))
+                continue;
+            string kindLabel = cap.Kind switch
+            {
+                HostRenderBackendKind.OpenGl => "OpenGL",
+                HostRenderBackendKind.DirectX => "DirectX12",
+                _ => cap.Kind.ToString()
+            };
+            lines.Add($"BackendProbe [{kindLabel} ({cap.BackendId})]: available={cap.IsAvailable} diag=\"{cap.Diagnostic}\"");
+        }
         foreach (string line in lines)
         {
             Console.WriteLine(line);

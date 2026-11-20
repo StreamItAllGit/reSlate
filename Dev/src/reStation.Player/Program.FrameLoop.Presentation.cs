@@ -59,6 +59,7 @@ internal static unsafe partial class Program
         HostContractBridge bridge)
     {
         bool wantOver60 = !st.IsOffscreen
+            && !st.ActiveFastForwardThisFrame
             && settings.FrameRateMode == FrameRateMode.Enhanced
             && (settings.TargetFps > 60 || settings.TargetFps <= 0);
 

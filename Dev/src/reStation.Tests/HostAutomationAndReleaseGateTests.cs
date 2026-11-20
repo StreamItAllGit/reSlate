@@ -10,11 +10,14 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using Foundation.Core;
 using Foundation.Installer;
+using Foundation.Retro;
 using reEngine.Host.Contracts;
 using reEngine.Host.Input;
 using reStation.Contracts;
 using reStation.Core;
 using reStation.Core.Cpu;
+using reStation.Core.Gpu;
+using reStation.Core.Input;
 using reStation.Player;
 using Xunit;
 
@@ -25,7 +28,6 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Foundation.Automation;
-using Foundation.Retro;
 #endif
 
 namespace reStation.Tests;
@@ -89,16 +91,24 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
     }
 
     [Theory]
+    [InlineData("opengl")]
     [InlineData("vulkan")]
     [InlineData("parallelCpu")]
-    public void RunMain_RequireDeferredBackend_ExitsWithCode6(string backend)
+    public void RunMain_RequireTrayFallbackForWindowedBackends_ExitsWithCode6(string backend)
     {
-        int code = Program.RunMain(["--require-backend", backend, "--tray-only", "--frames", "1"]);
+        Directory.CreateDirectory(_tempRoot);
+        int code = Program.RunMain(
+        [
+            "--require-backend", backend, "--tray-only", "--frames", "1",
+            "--data-dir", Path.Combine(_tempRoot, "req-data"),
+            "--config", Path.Combine(_tempRoot, "req-settings.json"),
+            "--log-dir", Path.Combine(_tempRoot, "req-logs")
+        ]);
         Assert.Equal(6, code);
     }
 
     [Fact]
-    public void RunMain_RequireOpenGlWithTrayOnlyFallback_ExitsWithCode6_AndDoctorPassesWithCode0()
+    public void RunMain_RequireOpenGlWithTrayOnlyFallback_ExitsWithCode6_AndDoctorEmitsLiveBackendProbes()
     {
         Directory.CreateDirectory(_tempRoot);
         string dataDir = Path.Combine(_tempRoot, "cli-data");
@@ -131,8 +141,231 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
         string[] logFiles = Directory.GetFiles(logDir, "*.log");
         Assert.NotEmpty(logFiles);
         string logBody = string.Join('\n', logFiles.Select(File.ReadAllText));
-        Assert.Contains("reSlate Doctor v0.3.0-hf.3", logBody, StringComparison.Ordinal);
-        Assert.Contains("DeferredBackends (v0.3.1): vulkan, parallelCpu", logBody, StringComparison.Ordinal);
+        Assert.Contains($"reSlate Doctor v{ReStationEngineInfo.Version}", logBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("DeferredBackends (v0.3.1)", logBody, StringComparison.Ordinal);
+        Assert.Contains("BackendProbe [OpenGL (opengl)]", logBody, StringComparison.Ordinal);
+        Assert.Contains("BackendProbe [Vulkan (vulkan)]", logBody, StringComparison.Ordinal);
+        Assert.Contains("BackendProbe [DirectX12 (directx)]", logBody, StringComparison.Ordinal);
+        Assert.Contains("BackendProbe [ParallelCpu (parallelCpu)]", logBody, StringComparison.Ordinal);
+        Assert.Contains("BackendProbe [Software (software)]", logBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PsxDrawerDescriptorProvider_And_F1Drawer_ExposeAll4Backends_VideoEnhancements_AndSystemQoL()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string cfgPath = Path.Combine(_tempRoot, "drawer-settings.json");
+        var settings = new RecompSettings();
+        var manifest = new ReStationModuleManifest { ModuleId = "m-v031", DisplayName = "M031", SerialNumber = "SLUS-01115" };
+
+        HostDrawerDescriptor desc = PsxDrawerDescriptorProvider.BuildDescriptor(settings, manifest, null, "SLUS-01115");
+        Assert.Equal($"reSlate v{ReStationEngineInfo.Version}", desc.EngineDisplayName);
+        Assert.Equal("OpenGL 3.3", desc.BackendLabel);
+        Assert.NotNull(desc.ExtraRows);
+        Assert.Contains(desc.ExtraRows!, r => r.RowId == "Video_ToggleHdPacks");
+        Assert.Contains(desc.ExtraRows!, r => r.RowId == "Video_AspectRatio");
+        Assert.Contains(desc.ExtraRows!, r => r.RowId == "Video_ToggleOverscan");
+        Assert.Contains(desc.ExtraRows!, r => r.RowId == "System_ToggleFastForward");
+        Assert.Contains(desc.ExtraRows!, r => r.RowId == "System_SkipCutscene");
+
+        var drawer = new SlideOverSettingsDrawer { IsOpen = true, ActiveTab = 0 };
+        var canvas = new PixelOverlayCanvas(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight);
+        drawer.RenderOverlay(canvas, settings, manifest, "SLUS-01115", false);
+
+        foreach (string id in new[]
+        {
+            "Video_BackendOpenGl", "Video_BackendVulkan", "Video_BackendParallelCpu", "Video_BackendSoftware",
+            "Video_ToggleHdPacks", "Video_AspectRatio", "Video_ToggleOverscan"
+        })
+        {
+            Assert.Contains(drawer.HitBoxes, hb => hb.ControlId == id);
+        }
+
+        DrawerHitBox hdBox = drawer.HitBoxes.First(hb => hb.ControlId == "Video_ToggleHdPacks");
+        Assert.Equal(DrawerAction.ToggleHdPacks, drawer.HandleClick(hdBox.Rect.X + 4, hdBox.Rect.Y + 4, settings, cfgPath));
+        Assert.True(settings.IsHdTexturePackEnabled);
+
+        DrawerHitBox aspectBox = drawer.HitBoxes.First(hb => hb.ControlId == "Video_AspectRatio");
+        Assert.Equal(DrawerAction.ToggleAspectMode, drawer.HandleClick(aspectBox.Rect.X + 4, aspectBox.Rect.Y + 4, settings, cfgPath));
+        Assert.Equal("fourByThree", settings.AspectRatioMode);
+
+        DrawerHitBox overscanBox = drawer.HitBoxes.First(hb => hb.ControlId == "Video_ToggleOverscan");
+        Assert.Equal(DrawerAction.ToggleOverscanCrop, drawer.HandleClick(overscanBox.Rect.X + 4, overscanBox.Rect.Y + 4, settings, cfgPath));
+        Assert.Equal(new HostOverscanCrop(8, 8, 8, 8), settings.OverscanCropPx);
+
+        drawer.ActiveTab = 3;
+        drawer.RenderOverlay(canvas, settings, manifest, "SLUS-01115", false);
+        foreach (string id in new[]
+        {
+            "System_ToggleFastForward", "System_FastForward2x", "System_FastForward3x", "System_FastForward4x", "System_SkipCutscene"
+        })
+        {
+            Assert.Contains(drawer.HitBoxes, hb => hb.ControlId == id);
+        }
+
+        DrawerHitBox ff3x = drawer.HitBoxes.First(hb => hb.ControlId == "System_FastForward3x");
+        Assert.Equal(DrawerAction.ToggleFastForward, drawer.HandleClick(ff3x.Rect.X + 4, ff3x.Rect.Y + 4, settings, cfgPath));
+        Assert.Equal(3.0, settings.FastForwardMultiplier);
+
+        DrawerHitBox ffToggle = drawer.HitBoxes.First(hb => hb.ControlId == "System_ToggleFastForward");
+        Assert.Equal(DrawerAction.ToggleFastForward, drawer.HandleClick(ffToggle.Rect.X + 4, ffToggle.Rect.Y + 4, settings, cfgPath));
+        Assert.True(settings.IsFastForwardEnabled);
+
+        DrawerHitBox skipBox = drawer.HitBoxes.First(hb => hb.ControlId == "System_SkipCutscene");
+        Assert.Equal(DrawerAction.CutsceneSkip, drawer.HandleClick(skipBox.Rect.X + 4, skipBox.Rect.Y + 4, settings, cfgPath));
+    }
+
+    [Fact]
+    public void UiOverlayPresenter_EnsureRendered_ImmediatelyRepaintsOnAllV031Fields_AndCompositesViewportGeometry()
+    {
+        var drawer = new SlideOverSettingsDrawer { IsOpen = true, ActiveTab = 0 };
+        var overlay = new UiOverlayPresenter();
+        var settings = new RecompSettings { IsFpsOverlayEnabled = true };
+        var snap = PsxTelemetrySnapshot.Empty with { FrameNumber = 1, CurrentFps = 60.0 };
+
+        Assert.True(overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap));
+        Assert.False(overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap));
+
+        settings.IsHdTexturePackEnabled = true;
+        Assert.True(overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap));
+
+        settings.IsFastForwardEnabled = true;
+        Assert.True(overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap));
+
+        settings.FastForwardMultiplier = 3.0;
+        Assert.True(overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap));
+
+        settings.AspectRatioMode = "squareInteger";
+        Assert.True(overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap));
+
+        settings.OverscanCropPx = new HostOverscanCrop(8, 8, 8, 8);
+        Assert.True(overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap));
+
+        byte[] gameRgba = new byte[320 * 240 * 4];
+        for (int y = 0; y < 240; y++)
+        {
+            for (int x = 0; x < 320; x++)
+            {
+                int i = ((y * 320) + x) * 4;
+                bool border = x < 8 || x >= 312 || y < 8 || y >= 232;
+                gameRgba[i] = border ? (byte)255 : (byte)20;
+                gameRgba[i + 1] = border ? (byte)0 : (byte)180;
+                gameRgba[i + 2] = border ? (byte)0 : (byte)40;
+                gameRgba[i + 3] = 255;
+            }
+        }
+
+        drawer.IsOpen = false;
+        _ = overlay.EnsureRendered(drawer, settings, null, "SLUS-01115", false, snap);
+        overlay.Composite(gameRgba, 320, 240, settings, effectiveWidescreen: false);
+        ReadOnlySpan<byte> comp = overlay.CompositePixels;
+        Assert.Equal(UiOverlayPresenter.OverlayWidth * UiOverlayPresenter.OverlayHeight * 4, comp.Length);
+        // Center pixel of 1280x720 must contain inner green game color (border red pixels cropped out).
+        int centerIdx = ((360 * UiOverlayPresenter.OverlayWidth) + 640) * 4;
+        Assert.Equal(20, comp[centerIdx]);
+        Assert.Equal(180, comp[centerIdx + 1]);
+        // Far left pillarbox pixel must be Surface0 background (#0E0E10).
+        int pillarIdx = ((360 * UiOverlayPresenter.OverlayWidth) + 10) * 4;
+        Assert.Equal(UiPaint.Background.R, comp[pillarIdx]);
+        Assert.Equal(UiPaint.Background.G, comp[pillarIdx + 1]);
+        Assert.Equal(UiPaint.Background.B, comp[pillarIdx + 2]);
+    }
+
+    [Fact]
+    public void ReStationHost_And_QoL_SupportF6F7Scancodes_TabUnboundGuard_CutsceneSkip_AndAudioSafeFastForward()
+    {
+        Assert.True(HostContractBridge.TryResolveSdlScancode("F6", out int scF6));
+        Assert.Equal(Sdl3Native.ScF6, scF6);
+        Assert.True(HostContractBridge.TryResolveSdlScancode("F7", out int scF7));
+        Assert.Equal(Sdl3Native.ScF7, scF7);
+
+        var settings = new RecompSettings();
+        // Default 1:1 binds Select=Tab (43) -> auxiliary Tab Fast-Forward must be blocked.
+        Assert.False(Program.IsTabAuxiliaryFastForwardAllowed(settings, null, null));
+
+        settings.KeyBindings.SetScancode(BindableAction.Select, Sdl3Native.ScBackspace);
+        Assert.True(Program.IsTabAuxiliaryFastForwardAllowed(settings, null, null));
+
+        settings.ModernActionBindings = new Dictionary<string, int[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["inventory"] = [Sdl3Native.ScTab]
+        };
+        Assert.False(Program.IsTabAuxiliaryFastForwardAllowed(settings, null, null));
+
+        double budget = 0.0;
+        Assert.Equal(1, Program.ComputeFastForwardGuestSlices(false, 3.0, ref budget));
+        Assert.Equal(3, Program.ComputeFastForwardGuestSlices(true, 3.0, ref budget));
+        Assert.Equal(4, Program.ComputeFastForwardGuestSlices(true, 4.0, ref budget));
+
+        Directory.CreateDirectory(_tempRoot);
+        string dataDir = Path.Combine(_tempRoot, "qol-data");
+        Directory.CreateDirectory(dataDir);
+        using var logger = new ReStationLogger(Path.Combine(_tempRoot, "qol-logs"), false);
+        using var backend = new SoftwareCpuRenderBackend();
+        backend.Initialize(320, 240, 1);
+        using var cpu = new PsxCpu(settings, dataDir, backend, logger);
+        using var pacer = new HighResFramePacer(0);
+        var manifest = new ReStationModuleManifest { ModuleId = "qol-mod", DisplayName = "QoL" };
+        using var host = new ReStationHost(cpu, manifest, dataDir, new RecompHostOptions(), pacer, logger);
+        var skipHook = new StubCutsceneSkipHook();
+        host.SkipCutsceneHook = skipHook;
+
+        settings.IsFastForwardEnabled = true;
+        settings.FastForwardMultiplier = 3.0;
+        IReStationHostEx hostEx = host;
+        Assert.True(hostEx.IsFastForwardEnabled);
+        Assert.Equal(3.0, hostEx.FastForwardMultiplier);
+
+        hostEx.RequestCutsceneSkip();
+        Assert.Equal(0, skipHook.CallCount);
+        host.RunFrame();
+        Assert.Equal(1, skipHook.CallCount);
+
+        // 4x Fast-Forward audio decimation keeps SPU XaDrops == 0.
+        short[] audioScratch = new short[(44100 / 10) * 2];
+        for (int f = 0; f < 10; f++)
+        {
+            for (int s = 0; s < 4; s++) cpu.Spu.RenderFrames(ReStationHost.SamplesPerFrame);
+            int drained = Program.DrainAudioWithFastForwardDecimation(cpu.Spu.Output, IntPtr.Zero, audioScratch, 4);
+            Assert.True(drained > 0);
+        }
+        Assert.Equal(0, cpu.Spu.XaDrops);
+    }
+
+    [Fact]
+    public void RunMain_InvalidHdPacksTraversal_ExitsWithCode3_AndOffscreenParallelCpuSwitchWorks()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        string dataDir = Path.Combine(_tempRoot, "hd-data");
+        string hdDir = Path.Combine(dataDir, "hdpacks");
+        string logDir = Path.Combine(_tempRoot, "hd-logs");
+        string cfgPath = Path.Combine(_tempRoot, "hd-settings.json");
+        Directory.CreateDirectory(hdDir);
+        File.WriteAllText(cfgPath, """{"schemaVersion":1,"isHdTexturePackEnabled":true}""");
+        File.WriteAllText(Path.Combine(hdDir, "hdpack.manifest.json"),
+            """{"entries":[{"clutSha256Hex":"0123456789abcdef","rectSha256Hex":"fedcba9876543210","relativeFilePath":"../escape.png"}]}""");
+
+        int code = Program.RunMain(
+        [
+            "--tray-only", "--frames", "1",
+            "--data-dir", dataDir, "--config", cfgPath, "--log-dir", logDir
+        ]);
+        Assert.Equal(3, code);
+
+        using var logger = new ReStationLogger(logDir, false);
+        using var offscreen = HostVideoSurface.CreateOffscreen(new RecompSettings(), logger, "test-switch");
+        Assert.True(offscreen.TrySwitchBackend(PsxRenderBackendIds.ParallelCpu, new RecompSettings(), logger, out string? swErr), swErr);
+        Assert.Equal(PsxRenderBackendIds.ParallelCpu, offscreen.Backend.BackendId);
+    }
+
+    private sealed class StubCutsceneSkipHook : ISkipCutsceneHook
+    {
+        public int CallCount { get; private set; }
+        public bool TrySkipCutscene(IReStationCpu cpu, IReStationHost host)
+        {
+            CallCount++;
+            return true;
+        }
     }
 
 #if !DEBUG && !RESTATION_TEST_AUTOMATION
@@ -214,7 +447,7 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
         int inProcCode = reStation.Installer.Program.RunInstallerCore(["--automation-port", "5199"]);
         Assert.Equal(2, inProcCode);
 
-        string exePath = Path.Combine(Path.GetDirectoryName(installerPePath)!, "reSlate-Setup-v0.3.0-hf.3-win-x64.exe");
+        string exePath = Path.Combine(Path.GetDirectoryName(installerPePath)!, $"reSlate-Setup-v{ReStationEngineInfo.Version}-win-x64.exe");
         if (File.Exists(exePath))
         {
             using var proc = Process.Start(new ProcessStartInfo
@@ -325,6 +558,12 @@ public sealed class HostAutomationAndReleaseGateTests : IDisposable
             (ox, oy) => Program.HandleOverlayPointerDown(ox, oy, Sdl3Native.MouseBtnLeft, video, host, cpu, drawer, overlay, settings, env, pacer, logger, st),
             sc => Program.HandleKeyDownScancode(sc, video, host, drawer, overlay, settings, env, st));
         Assert.False(settings.IsFpsOverlayEnabled);
+
+        // Verify F6 and F7 diagnostics command + virtual key scancodes parse cleanly.
+        bridge.Diagnostics!.EnqueueRawCommands("key:F6:hold:2;key:F7:hold:2");
+        _ = bridge.Diagnostics.ProcessFrameCommands(drawer, overlay, settings, env.ConfigFilePath);
+        Assert.True(bridge.Diagnostics.IsVirtualKeyHeld(Sdl3Native.ScF6));
+        Assert.True(bridge.Diagnostics.IsVirtualKeyHeld(Sdl3Native.ScF7));
 
         // Snapshot writes real PNG inside allowed _tempRoot.
         string snapPath = Path.Combine(_tempRoot, "capture.png");

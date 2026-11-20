@@ -1,11 +1,12 @@
 // @module: reStation.Player.UiOverlayPresenter
-// @purpose: 1280x720 PixelOverlayCanvas UI layer (F1 drawer + F3 telemetry HUD), viewport mapping, and screenshot compositing.
-// @depends-on: Foundation.Core, reStation.Contracts, reStation.Core
+// @purpose: 1280x720 PixelOverlayCanvas UI layer (F1 drawer + F3 telemetry HUD), HostViewportGeometry mapping, and screenshot compositing.
+// @depends-on: Foundation.Core, reEngine.Host.Contracts, reEngine.Host.Core, reStation.Contracts, reStation.Core
 // @exports: UiOverlayPresenter
-// @owner: devv-player-ui (T6)
 
 using System.Diagnostics;
 using Foundation.Core;
+using reEngine.Host.Contracts;
+using reEngine.Host.Core;
 using reStation.Contracts;
 using reStation.Core;
 
@@ -27,16 +28,18 @@ internal sealed class UiOverlayPresenter
     private long _lastHudUpdateTicks;
 
     private bool _lastOpen, _lastLoggingActive, _lastFpsEnabled, _lastVsync, _lastWidescreen, _lastPgxp, _lastFullscreen, _lastGlobalRules, _lastFastLoad;
+    private bool _lastHdPacks, _lastFastForward;
     private int _lastTab = -1, _lastScale, _lastScrollOffset, _lastSlotIndex;
     private string _lastBackend = string.Empty, _lastDiscInfo = string.Empty, _lastHud = string.Empty;
-    private string _lastDpadMode = string.Empty, _lastIsoMode = string.Empty;
+    private string _lastDpadMode = string.Empty, _lastIsoMode = string.Empty, _lastAspectMode = string.Empty;
     private string? _lastVideoWarning;
     private FrameRateMode _lastMode;
     private int _lastTargetFps;
     private ControlMode _lastControlMode;
     private Core.Input.InputProfileMode _lastProfileMode;
+    private HostOverscanCrop _lastOverscan;
     private int _lastBindingsDigest;
-    private double _lastSens, _lastVolume;
+    private double _lastSens, _lastVolume, _lastFfMult;
     private Core.Input.BindableAction? _lastListening;
     private string? _lastListeningModern;
 
@@ -66,8 +69,11 @@ internal sealed class UiOverlayPresenter
         bool loggingActive,
         PsxTelemetrySnapshot telemetry)
     {
-        string hudText = settings.IsFpsOverlayEnabled ? FormatModeBadge(settings) + telemetry.ToHudLine() : string.Empty;
+        string ffBadge = settings.IsFastForwardEnabled ? $"[FF {PsxDrawerDescriptorProvider.NormalizeFastForwardMultiplier(settings.FastForwardMultiplier):0.#}x] " : string.Empty;
+        string hudText = settings.IsFpsOverlayEnabled ? ffBadge + FormatModeBadge(settings) + telemetry.ToHudLine() : string.Empty;
         int bindingsDigest = ComputeBindingsDigest(drawer, settings);
+        string activeBackend = drawer.ActiveBackendOverride ?? settings.BackendId;
+        string aspectMode = settings.AspectRatioMode ?? string.Empty;
         bool structuralChanged = _dirty
             || _lastOpen != drawer.IsOpen
             || _lastTab != drawer.ActiveTab
@@ -79,7 +85,7 @@ internal sealed class UiOverlayPresenter
             || !string.Equals(_lastDiscInfo, discInfo, StringComparison.Ordinal)
             || _lastLoggingActive != loggingActive
             || _lastFpsEnabled != settings.IsFpsOverlayEnabled
-            || !string.Equals(_lastBackend, settings.BackendId, StringComparison.Ordinal)
+            || !string.Equals(_lastBackend, activeBackend, StringComparison.Ordinal)
             || _lastMode != settings.FrameRateMode
             || _lastTargetFps != settings.TargetFps
             || _lastVsync != settings.IsVsyncEnabled
@@ -89,6 +95,11 @@ internal sealed class UiOverlayPresenter
             || _lastFullscreen != settings.IsFullscreen
             || _lastGlobalRules != settings.UseGlobalFormatRules
             || _lastFastLoad != settings.ShouldFastLoadData
+            || _lastHdPacks != settings.IsHdTexturePackEnabled
+            || _lastFastForward != settings.IsFastForwardEnabled
+            || Math.Abs(_lastFfMult - settings.FastForwardMultiplier) > 0.001
+            || !string.Equals(_lastAspectMode, aspectMode, StringComparison.Ordinal)
+            || _lastOverscan != settings.OverscanCropPx
             || _lastControlMode != settings.ControlMode
             || !string.Equals(_lastDpadMode, settings.ControllerDpadMode, StringComparison.Ordinal)
             || !string.Equals(_lastIsoMode, settings.IsometricMoveMode, StringComparison.Ordinal)
@@ -152,7 +163,7 @@ internal sealed class UiOverlayPresenter
         _lastLoggingActive = loggingActive;
         _lastFpsEnabled = settings.IsFpsOverlayEnabled;
         _lastHud = hudText;
-        _lastBackend = settings.BackendId;
+        _lastBackend = activeBackend;
         _lastMode = settings.FrameRateMode;
         _lastTargetFps = settings.TargetFps;
         _lastVsync = settings.IsVsyncEnabled;
@@ -162,6 +173,11 @@ internal sealed class UiOverlayPresenter
         _lastFullscreen = settings.IsFullscreen;
         _lastGlobalRules = settings.UseGlobalFormatRules;
         _lastFastLoad = settings.ShouldFastLoadData;
+        _lastHdPacks = settings.IsHdTexturePackEnabled;
+        _lastFastForward = settings.IsFastForwardEnabled;
+        _lastFfMult = settings.FastForwardMultiplier;
+        _lastAspectMode = aspectMode;
+        _lastOverscan = settings.OverscanCropPx;
         _lastControlMode = settings.ControlMode;
         _lastDpadMode = settings.ControllerDpadMode;
         _lastIsoMode = settings.IsometricMoveMode;
@@ -221,7 +237,17 @@ internal sealed class UiOverlayPresenter
         return hc.ToHashCode();
     }
 
-    /// <summary>Composites the game RGBA image (4:3 or 16:9) with the transparent UI canvas into <see cref="CompositePixels"/>.</summary>
+    internal static HostAspectRatioMode ResolveEffectiveAspectMode(RecompSettings settings, bool effectiveWidescreen)
+    {
+        if (string.IsNullOrWhiteSpace(settings.AspectRatioMode))
+            return effectiveWidescreen ? HostAspectRatioMode.HorPlus16By9 : HostAspectRatioMode.FourByThree;
+        HostAspectRatioMode parsed = HostAspectRatioModeCodec.Parse(settings.AspectRatioMode);
+        if (parsed == HostAspectRatioMode.HorPlus16By9 && !effectiveWidescreen)
+            return HostAspectRatioMode.FourByThree;
+        return parsed;
+    }
+
+    /// <summary>Composites the game RGBA image with the transparent UI canvas using <see cref="HostViewportGeometry"/>.</summary>
     public void Composite(ReadOnlySpan<byte> gameRgba, int gw, int gh, RecompSettings settings) =>
         Composite(gameRgba, gw, gh, settings, settings.IsWidescreen16By9);
 
@@ -235,28 +261,33 @@ internal sealed class UiOverlayPresenter
             _compositeBuf[i + 3] = 255;
         }
 
-        if (gw > 0 && gh > 0 && gameRgba.Length >= gw * gh * 4)
+        if (gw > 0 && gh > 0 && gameRgba.Length >= checked(gw * gh * 4))
         {
-            SdlFRect dst = ComputeGameDstRect(OverlayWidth, OverlayHeight, effectiveWidescreen);
-            int dx0 = Math.Clamp((int)MathF.Round(dst.X), 0, OverlayWidth);
-            int dy0 = Math.Clamp((int)MathF.Round(dst.Y), 0, OverlayHeight);
-            int dw = Math.Max(1, Math.Min(OverlayWidth - dx0, (int)MathF.Round(dst.W)));
-            int dh = Math.Max(1, Math.Min(OverlayHeight - dy0, (int)MathF.Round(dst.H)));
+            HostViewportRect srcCrop = HostViewportGeometry.ComputeSourceCropRect(gw, gh, settings.OverscanCropPx);
+            HostAspectRatioMode mode = ResolveEffectiveAspectMode(settings, effectiveWidescreen);
+            HostViewportRect dst = HostViewportGeometry.ComputeDestinationRect(srcCrop.Width, srcCrop.Height, OverlayWidth, OverlayHeight, mode);
+            int dx0 = Math.Clamp(dst.X, 0, OverlayWidth);
+            int dy0 = Math.Clamp(dst.Y, 0, OverlayHeight);
+            int dw = Math.Max(0, Math.Min(OverlayWidth - dx0, dst.Width));
+            int dh = Math.Max(0, Math.Min(OverlayHeight - dy0, dst.Height));
 
-            for (int y = 0; y < dh; y++)
+            if (dw > 0 && dh > 0 && srcCrop.Width > 0 && srcCrop.Height > 0)
             {
-                int sy = Math.Clamp(y * gh / dh, 0, gh - 1);
-                int dstRow = ((dy0 + y) * OverlayWidth + dx0) * 4;
-                int srcRow = sy * gw * 4;
-                for (int x = 0; x < dw; x++)
+                for (int y = 0; y < dh; y++)
                 {
-                    int sx = Math.Clamp(x * gw / dw, 0, gw - 1) * 4;
-                    int d = dstRow + (x * 4);
-                    int s = srcRow + sx;
-                    _compositeBuf[d] = gameRgba[s];
-                    _compositeBuf[d + 1] = gameRgba[s + 1];
-                    _compositeBuf[d + 2] = gameRgba[s + 2];
-                    _compositeBuf[d + 3] = 255;
+                    int sy = Math.Clamp(srcCrop.Y + (int)((long)y * srcCrop.Height / dh), 0, gh - 1);
+                    int dstRow = ((dy0 + y) * OverlayWidth + dx0) * 4;
+                    int srcRow = sy * gw * 4;
+                    for (int x = 0; x < dw; x++)
+                    {
+                        int sx = Math.Clamp(srcCrop.X + (int)((long)x * srcCrop.Width / dw), 0, gw - 1) * 4;
+                        int d = dstRow + (x * 4);
+                        int s = srcRow + sx;
+                        _compositeBuf[d] = gameRgba[s];
+                        _compositeBuf[d + 1] = gameRgba[s + 1];
+                        _compositeBuf[d + 2] = gameRgba[s + 2];
+                        _compositeBuf[d + 3] = 255;
+                    }
                 }
             }
         }
@@ -287,7 +318,9 @@ internal sealed class UiOverlayPresenter
     {
         ArgumentNullException.ThrowIfNull(settings);
         bool wide = settings.IsWidescreen16By9 && (widescreenProvider is null || cpu is null || widescreenProvider.IsActiveTrueWidescreenSupported(cpu));
-        return ComputeGameDstRect(winW, winH, wide);
+        HostAspectRatioMode mode = ResolveEffectiveAspectMode(settings, wide);
+        HostViewportRect rect = HostViewportGeometry.ComputeDestinationRect(320, 240, Math.Max(1, winW), Math.Max(1, winH), mode);
+        return new SdlFRect { X = rect.X, Y = rect.Y, W = rect.Width, H = rect.Height };
     }
 
     public static SdlFRect ComputeGameDstRect(int winW, int winH, bool widescreen16By9)
@@ -303,4 +336,19 @@ internal sealed class UiOverlayPresenter
     public static (int X, int Y) WindowToOverlayCoords(float mx, float my, int winW, int winH) =>
         (Math.Clamp((int)(mx * OverlayWidth / Math.Max(1, winW)), 0, OverlayWidth - 1),
          Math.Clamp((int)(my * OverlayHeight / Math.Max(1, winH)), 0, OverlayHeight - 1));
+
+    internal static (int X, int Y) MapWindowToOverlayCoords(HostVideoSurface video, float mx, float my)
+    {
+        (int winW, int winH) = video.GetWindowSize();
+        if (video.UsesPresenter)
+        {
+            HostViewportRect fit = HostViewportGeometry.ComputeDestinationRect(OverlayWidth, OverlayHeight, winW, winH, HostAspectRatioMode.NativeFit);
+            if (HostViewportGeometry.TryMapWindowToContentNormalized((int)MathF.Round(mx), (int)MathF.Round(my), fit, out float nx, out float ny))
+            {
+                return (Math.Clamp((int)MathF.Round(nx * OverlayWidth), 0, OverlayWidth - 1),
+                        Math.Clamp((int)MathF.Round(ny * OverlayHeight), 0, OverlayHeight - 1));
+            }
+        }
+        return WindowToOverlayCoords(mx, my, winW, winH);
+    }
 }

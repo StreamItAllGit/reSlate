@@ -28,7 +28,9 @@ internal static unsafe partial class Program
         public bool SuppressNextIdleSubTickVBlank;
         public uint PrevCaptureTriggerMask, LatchedMouseMask;
         public long HostFrame;
-        public double InterVBlankSwapBudget;
+        public double InterVBlankSwapBudget, FastForwardTickBudget;
+        public int LastGuestSlices = 1;
+        public bool ActiveFastForwardThisFrame;
         public string DiscInfo = string.Empty;
         public string? PendingBackendSwitch;
         public readonly byte[] LatchedKeys = new byte[KeyBindingsConfig.MaxScancode + 1];
@@ -63,7 +65,7 @@ internal static unsafe partial class Program
         GlobalControllerProfile globalProfile = GlobalControllerProfile.LoadOrDefault(globalProfilePath);
         IModuleInputProfileProvider? profileProvider = gameModule as IModuleInputProfileProvider;
 
-        var drawer = new SlideOverSettingsDrawer { IsOpen = options.OpenSettings };
+        var drawer = new SlideOverSettingsDrawer { IsOpen = options.OpenSettings, ActiveBackendOverride = video.Backend.BackendId };
         drawer.AttachInputProfiles(globalProfile, globalProfilePath, profileProvider);
         var overlay = new UiOverlayPresenter();
         var st = new LoopState
@@ -99,7 +101,9 @@ internal static unsafe partial class Program
             MouseSensitivity: () => (float)settings.MouseSensitivity,
             PollSubTickLook: () => PollLiveSubTickLook(video, drawer, st, isOffscreen),
             PresentSubTickFrame: () => PresentSubTickLoopFrame(video, host, cpu, drawer, overlay, manifest, settings, pacer, st.DiscInfo, logger.IsEnabled, isOffscreen),
-            IsEnhancedFrameRateEnabled: () => settings.FrameRateMode == FrameRateMode.Enhanced));
+            IsEnhancedFrameRateEnabled: () => settings.FrameRateMode == FrameRateMode.Enhanced,
+            IsFastForwardActive: () => st.ActiveFastForwardThisFrame,
+            FastForwardMultiplier: () => settings.FastForwardMultiplier));
 
         try
         {
@@ -132,6 +136,7 @@ internal static unsafe partial class Program
                     , bridge.Diagnostics
 #endif
                     );
+                st.ActiveFastForwardThisFrame = ResolveEffectiveFastForward(video, drawer, settings, globalProfile.KeyBindings, profileProvider, st, bridge);
                 st.WheelUp = false; st.WheelDown = false;
                 Array.Clear(st.LatchedKeys);
                 st.LatchedMouseMask = 0u;
@@ -145,8 +150,7 @@ internal static unsafe partial class Program
                 if (saveEdge) host.RequestQuickSave(0);
                 if (loadEdge) host.RequestQuickLoad(0);
 
-                if (gameModule is not null) host.StepModuleFrameAsync(gameModule, CancellationToken.None).GetAwaiter().GetResult();
-                else host.RunFrame();
+                StepGuestSlicesWithQoL(host, cpu, gameModule, st, st.ActiveFastForwardThisFrame, settings.FastForwardMultiplier, audioBuf);
 
                 bool ranSubTickPresents = host.SubTickPresentsInStep > 0;
                 bool skipIdleSecondVBlank = !ranSubTickPresents && st.SuppressNextIdleSubTickVBlank && cpu.Gpu.FrameDrawOps == 0 && !st.UiDirty;
@@ -154,10 +158,10 @@ internal static unsafe partial class Program
                 string? frameShot = wantAutoShot ? autoShotPath : null;
 
 #if DEBUG || RESTATION_TEST_AUTOMATION
-                int drainedAudio = DrainSpuAudioToStream(cpu.Spu.Output, audioStream, audioBuf, bridge.Diagnostics);
+                int drainedAudio = DrainAudioWithFastForwardDecimation(cpu.Spu.Output, audioStream, audioBuf, st.LastGuestSlices, bridge.Diagnostics);
                 if (drainedAudio == 0) bridge.Diagnostics?.RecordAudioSamples(ReadOnlySpan<short>.Empty, 0);
 #else
-                _ = DrainSpuAudioToStream(cpu.Spu.Output, audioStream, audioBuf);
+                _ = DrainAudioWithFastForwardDecimation(cpu.Spu.Output, audioStream, audioBuf, st.LastGuestSlices);
 #endif
 
                 long tCpu = Stopwatch.GetTimestamp();
@@ -249,13 +253,16 @@ internal static unsafe partial class Program
         if (video.TrySwitchBackend(nextBackend, settings, logger, out string? switchError))
         {
             cpu.Gpu.SetBackend(video.Backend);
+            SyncBackendHdTexturePack(cpu, env, drawer, settings, logger);
             drawer.VideoWarningBanner = null;
+            drawer.ActiveBackendOverride = video.Backend.BackendId;
             settings.BackendId = video.Backend.BackendId;
         }
         else
         {
+            drawer.ActiveBackendOverride = video.Backend.BackendId;
             settings.BackendId = video.Backend.BackendId;
-            drawer.VideoWarningBanner = switchError ?? "OpenGL 3.3 unavailable; kept Software CPU.";
+            drawer.VideoWarningBanner = switchError ?? $"{nextBackend} unavailable; kept {video.Backend.BackendId}.";
             logger.Warn("VIDEO", $"Live backend hot-swap rejected: {drawer.VideoWarningBanner}");
         }
         settings.Save(env.ConfigFilePath);
@@ -312,12 +319,29 @@ internal static unsafe partial class Program
             return;
         }
 
+        if (!isOffscreen && video.UsesPresenter)
+        {
+            if (reblitGlDisplay && !overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry())
+                && string.IsNullOrWhiteSpace(shotPath) && !captureCompositeForBridge)
+            {
+                video.PresentRgba(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, overlay.CompositePixels);
+                return;
+            }
+            byte[] presRgba = video.Backend.CaptureRgba(out int pw, out int ph);
+            _ = overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry());
+            overlay.Composite(presRgba, pw, ph, settings, effectiveWidescreen);
+            bridge?.PublishFramebufferRgba(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, overlay.CompositePixels);
+            video.PresentRgba(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, overlay.CompositePixels);
+            if (!string.IsNullOrWhiteSpace(shotPath)) overlay.SaveCompositePng(shotPath);
+            return;
+        }
+
         byte[] gameRgba = video.Backend.CaptureRgba(out int gw, out int gh);
         bool uiChanged = overlayActive && overlay.EnsureRendered(drawer, settings, manifest, discInfo, loggingActive, host.GetTelemetry());
         if (!isOffscreen && video.Renderer != IntPtr.Zero && string.IsNullOrWhiteSpace(shotPath) && !captureCompositeForBridge)
         {
             video.PresentLayeredSoftware(
-                gw, gh, gameRgba, effectiveWidescreen,
+                gw, gh, gameRgba, settings, effectiveWidescreen,
                 overlayActive, overlay.ActiveOverlayWidth, overlay.ActiveOverlayHeight,
                 overlay.ActiveOverlayPixels, overlay.ActiveOverlayDstX, overlay.ActiveOverlayDstY, uiChanged);
             return;
@@ -330,53 +354,6 @@ internal static unsafe partial class Program
             video.PresentRgba(UiOverlayPresenter.OverlayWidth, UiOverlayPresenter.OverlayHeight, overlay.CompositePixels);
         if (!string.IsNullOrWhiteSpace(shotPath))
             overlay.SaveCompositePng(shotPath);
-    }
-
-    internal static int DrainSpuAudioToStream(
-        AudioRingBuffer output,
-        IntPtr audioStream,
-        short[] chunkBuf
-#if DEBUG || RESTATION_TEST_AUTOMATION
-        , DebugAutomationDiagnostics? diagnostics = null
-#endif
-        )
-    {
-        const int maxQueueBytes = (PsxSpu.SampleRate * 2 * sizeof(short)) / 10;
-        int totalSamples = 0;
-        if (audioStream != IntPtr.Zero && Sdl3Native.SDL_GetAudioStreamQueued(audioStream) > maxQueueBytes * 2)
-            _ = Sdl3Native.SDL_ClearAudioStream(audioStream);
-
-        int maxRingSamples = (PsxSpu.SampleRate * 2) / 10;
-        if (output.BufferedSamples > maxRingSamples * 2)
-        {
-            int trim = (output.BufferedSamples - maxRingSamples) & ~1;
-            while (trim > 0)
-            {
-                int step = Math.Min(chunkBuf.Length & ~1, trim);
-                int dropped = output.Read(chunkBuf.AsSpan(0, step));
-                if (dropped <= 0) break;
-                trim -= dropped;
-            }
-        }
-
-        while (true)
-        {
-            int availEven = output.BufferedSamples & ~1;
-            if (availEven <= 0) break;
-            int toRead = Math.Min(chunkBuf.Length & ~1, availEven);
-            if (toRead <= 0) break;
-            int got = output.Read(chunkBuf.AsSpan(0, toRead));
-            if (got <= 0) break;
-            totalSamples += got;
-#if DEBUG || RESTATION_TEST_AUTOMATION
-            diagnostics?.RecordAudioSamples(chunkBuf.AsSpan(0, got), got);
-#endif
-            if (audioStream != IntPtr.Zero)
-            {
-                fixed (short* ap = chunkBuf) _ = Sdl3Native.SDL_PutAudioStreamData(audioStream, ap, got * sizeof(short));
-            }
-        }
-        return totalSamples;
     }
 
     private static void SyncMouseCaptureState(HostVideoSurface video, SlideOverSettingsDrawer drawer, RecompSettings settings, LoopState st)

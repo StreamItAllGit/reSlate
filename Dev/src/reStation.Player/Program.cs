@@ -13,6 +13,8 @@ using reStation.Core.Aot;
 using reStation.Core.Bringup;
 using reStation.Core.Cpu;
 using reStation.Core.DiscIngestion;
+using reStation.Core.Enhancement;
+using reStation.Core.Gpu;
 
 namespace reStation.Player;
 
@@ -60,11 +62,6 @@ internal static partial class Program
         }
 #endif
 
-        if (options.IsDeferredBackendRequired(out string? deferredBackend))
-        {
-            Console.Error.WriteLine($"Required render backend '{deferredBackend}' is deferred to v0.3.1 pending shared reEngine.Host GPU abstraction (ExitCode={CliOptions.DeferredBackendExitCode}).");
-            return CliOptions.DeferredBackendExitCode;
-        }
         if (options.RequireBackendId is not null && options.BackendId is not null &&
             !string.Equals(options.BackendId, options.RequireBackendId, StringComparison.OrdinalIgnoreCase))
         {
@@ -129,12 +126,17 @@ internal static partial class Program
         int mediaExit = TryResolveAndIngestMedia(options, env, settings, manifest, moduleDir, logger, ref discManifest);
         if (mediaExit != 0) return mediaExit;
 
+        bool hdPacksEnabled = options.HdPacks ?? settings.IsHdTexturePackEnabled;
+        if (hdPacksEnabled) settings.IsHdTexturePackEnabled = true;
+        HdTexturePackStore hdPackStore = HdTexturePackStore.FromDataDirectory(env.DataDirectory, isEnabled: hdPacksEnabled);
+
         bool isTray = env.PresentationMode == UiPresentationMode.TrayOrBackground || options.TrayOnly;
         bool needsGate = !isTray && (manifest is null || discManifest is null);
         string winTitle = $"reSlate v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD";
+        string? requestedBackend = options.BackendId ?? options.RequireBackendId;
         using HostVideoSurface video = isTray
             ? HostVideoSurface.CreateOffscreen(settings, logger, "tray-or-background")
-            : HostVideoSurface.Create(winTitle, settings, foreground: true, logger);
+            : HostVideoSurface.Create(winTitle, settings, foreground: true, logger, backendOverride: requestedBackend);
 
         if (options.RequireBackendId is not null &&
             !string.Equals(video.Backend.BackendId, options.RequireBackendId, StringComparison.OrdinalIgnoreCase))
@@ -172,6 +174,11 @@ internal static partial class Program
             ModuleId = "reslate-idle", Title = "reSlate", DisplayName = "reSlate"
         };
         var cpu = new PsxCpu(settings, env.DataDirectory, video.Backend, logger);
+        if (hdPackStore.IsEnabled)
+        {
+            (cpu.Gpu.Backend as IPsxGpuBackendHooks)?.AttachHdTexturePack(hdPackStore);
+            logger.Info("VIDEO", $"HD texture packs active (entries={hdPackStore.IndexedCount}).");
+        }
         if (discManifest is not null) cpu.AttachDisc(discManifest);
 
         bool isOffscreen = !video.HasWindow;
@@ -207,6 +214,7 @@ internal static partial class Program
                 logger.Warn("AOT", moduleAlc.AotFallbackWarning);
             cpu.WidescreenProvider = gameModule as IRecompWidescreenProvider;
             host.QuickSaveProvider = gameModule as IRecompQuickSaveProvider;
+            host.SkipCutsceneHook = gameModule as ISkipCutsceneHook ?? cpu.FramePatch as ISkipCutsceneHook;
             logger.Info("MODULE", $"Loaded '{manifest.ModuleId}' tier={moduleAlc!.ResolvedExecutionTierMode} localAot={moduleAlc.LoadedFromLocalAotCache} cacheHit={moduleAlc.AotCacheHit} zeroRwx={moduleAlc.ForceZeroRwx} bringup={moduleAlc.JitBringupEnabled}.");
             gameModule.InitializeAsync(host, CancellationToken.None).GetAwaiter().GetResult();
         }
@@ -295,7 +303,10 @@ internal static partial class Program
     private static bool IsContainmentViolation(string? message) =>
         !string.IsNullOrWhiteSpace(message) &&
         (message.Contains("Containment Violation", StringComparison.OrdinalIgnoreCase) ||
-         message.Contains("Path traversal blocked", StringComparison.OrdinalIgnoreCase));
+         message.Contains("Path traversal blocked", StringComparison.OrdinalIgnoreCase) ||
+         message.Contains("cannot be a reparse point", StringComparison.OrdinalIgnoreCase) ||
+         message.Contains("must be relative to", StringComparison.OrdinalIgnoreCase) ||
+         message.Contains("forbidden '..' traversal", StringComparison.OrdinalIgnoreCase));
 
     private static int TryResolveAndIngestMedia(CliOptions options, AppEnvironment env, RecompSettings settings,
         ReStationModuleManifest? manifest, string? moduleDir, ReStationLogger logger, ref DiscManifest? discManifest)
