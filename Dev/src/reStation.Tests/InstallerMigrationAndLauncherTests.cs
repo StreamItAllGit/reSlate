@@ -30,7 +30,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.False(ReStationInstallerTheme.AllowAutoStart);
         Assert.False(reStation.Installer.Program.AllowAutoStart);
         Assert.Equal("lightweight", ReStationInstallerTheme.DefaultInstallProfile);
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.3", ReStationInstallerTheme.UmbrellaSubpath);
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.1", ReStationInstallerTheme.UmbrellaSubpath);
 
         InstallerThemeOptions theme = ReStationInstallerTheme.CreateThemeOptions();
         Assert.False(theme.AllowAutoStart);
@@ -116,13 +116,13 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
     public void LauncherArgsHelper_ResolvesPeerReEngineAndSuiteDirs_AndZeroPiiDefaultPath()
     {
         string canonical = LauncherArgsHelper.ResolveCanonicalDefaultEngineDir();
-        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reSlate", "v0.3.0-hf.3"), canonical, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith(Path.Combine("Programs", "StreamItAll", "reEngine", "engines", "reSlate", "v0.3.1"), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.StartsWith(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), canonical, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(@"D:\Programs", canonical, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("%LOCALAPPDATA%", ReStationInstallerTheme.CreateSecondaryPathPicker().Placeholder, StringComparison.Ordinal);
 
         string peerRouter = Path.Combine(_tempRoot, "suiteA", "reEngine");
-        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reSlate", "v0.3.0-hf.3", "app", "reSlate.Player.exe");
+        string peerPlayer = Path.Combine(_tempRoot, "suiteA", "engines", "reSlate", "v0.3.1", "app", "reSlate.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(peerPlayer)!);
         File.WriteAllText(peerPlayer, string.Empty);
 
@@ -135,7 +135,7 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.Equal(Path.GetFullPath(peerPlayer), Path.GetFullPath(resolvedPeer));
 
         string portableSuite = Path.Combine(_tempRoot, "portable");
-        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.3.0-hf.3", "app", "reStation.Player.exe");
+        string portablePlayer = Path.Combine(portableSuite, "engines", "reStation", "v0.3.1", "app", "reStation.Player.exe");
         Directory.CreateDirectory(Path.GetDirectoryName(portablePlayer)!);
         File.WriteAllText(portablePlayer, string.Empty);
 
@@ -439,6 +439,36 @@ public sealed class InstallerMigrationAndLauncherTests : IDisposable
         Assert.Equal(Path.GetFullPath(reEngineDir), fromLastBase.ReEngineInstallDir);
         Assert.Equal(expectedInstallDir, fromLastBase.InstallDir);
         Assert.Equal(ReStationInstallerTheme.DefaultInstallProfile, fromLastBase.ProfileId);
+    }
+
+    [Fact]
+    public void LauncherArgsHelper_V031Flags_ForwardWithoutSwallowingSubsequentOptions()
+    {
+        string baseDir = Path.Combine(_tempRoot, "caller");
+        string[] raw =
+        [
+            "--fast-forward", "--disc", "mods\\game.cue",
+            "--hd-packs=on", "--aspect-mode", "horPlus16By9",
+            "--hd-packs", "off", "--preload-media", "rom.bin",
+            "--fast-forward=off"
+        ];
+        string[] resolved = LauncherArgsHelper.ResolveRelativePathArgs(raw, baseDir);
+
+        Assert.Equal("--fast-forward", resolved[0]);
+        Assert.Equal("--disc", resolved[1]);
+        Assert.Equal(Path.GetFullPath(Path.Combine(baseDir, "mods", "game.cue")), resolved[2]);
+        Assert.Equal("--hd-packs=on", resolved[3]);
+        Assert.Equal("--aspect-mode", resolved[4]);
+        Assert.Equal("horPlus16By9", resolved[5]);
+        Assert.Equal("--hd-packs", resolved[6]);
+        Assert.Equal("off", resolved[7]);
+        Assert.Equal("--preload-media", resolved[8]);
+        Assert.Equal(Path.GetFullPath(Path.Combine(baseDir, "rom.bin")), resolved[9]);
+        Assert.Equal("--fast-forward=off", resolved[10]);
+
+        Assert.True(LauncherArgsHelper.RequiresSyncWait(["--fast-forward", "--doctor"]));
+        Assert.True(LauncherArgsHelper.RequiresSyncWait(["--hd-packs=off", "--wait"]));
+        Assert.False(LauncherArgsHelper.RequiresSyncWait(["--hd-packs", "on", "--aspect-mode", "fourByThree", "--disc", "a.cue"]));
     }
 
     private sealed class FakePlatformRegistry : Foundation.Core.IPlatformRegistry

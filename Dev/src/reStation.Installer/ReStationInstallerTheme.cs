@@ -1,5 +1,5 @@
 // @module: reStation.Installer.ReStationInstallerTheme
-// @purpose: Canonical v0.3.0 reSlate installer metadata loaded via InstallerManifestStore, Suite path options, Lightweight/Full profiles, and zero-daemon AllowAutoStart = false descriptor.
+// @purpose: Canonical v0.3.1 reSlate installer metadata loaded via InstallerManifestStore (Foundation v0.5.2 suiteId), Lightweight/Full profiles, and zero-daemon AllowAutoStart = false descriptor.
 // @depends-on: System, System.Collections.Generic, System.IO, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerTheme
 
@@ -14,11 +14,12 @@ internal static class ReStationInstallerTheme
     public const string EngineId = "reSlate";
     public const string LegacyEngineId = "reStation";
     public const string AppId = "reslate";
-    public const string Version = "0.3.0-hf.3";
+    public const string Version = "0.3.1";
     public const string Publisher = "StreamItAll";
     public const string StudioName = "StreamItAll";
-    public const string SuiteName = "reEngine";
-    public const string UmbrellaSubpath = "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.3";
+    public const string SuiteId = "reEngine";
+    public const string SuiteName = SuiteId;
+    public const string UmbrellaSubpath = "StreamItAll\\reEngine\\engines\\reSlate\\v" + Version;
     public const string DefaultInstallProfile = "lightweight";
     public const string Subtitle = "SlateOne Static Recompilation Engine & .decomp Provider for reEngine";
     public const string BrandAccentHex = "#38BDF8";

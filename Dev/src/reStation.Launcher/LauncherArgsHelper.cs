@@ -33,7 +33,8 @@ internal static class LauncherArgsHelper
     internal static readonly HashSet<string> NonPathValueFlags = new(StringComparer.OrdinalIgnoreCase)
     {
         "--backend", "--require-backend", "--scale", "--fps-mode", "--target-fps",
-        "--frames", "--execution-tier", "--port", "--automation-port", "--automation-token", "--vsync"
+        "--frames", "--execution-tier", "--port", "--automation-port", "--automation-token",
+        "--vsync", "--aspect-mode", "--hd-packs", "--fast-forward"
     };
 
     internal static bool RequiresSyncWait(string[]? args)
@@ -203,7 +204,7 @@ internal static class LauncherArgsHelper
     private static bool ConsumesNextToken(string key, int index, string[] args)
     {
         if (index + 1 >= args.Length) return false;
-        if (!string.Equals(key, "--vsync", StringComparison.OrdinalIgnoreCase)) return true;
+        if (!IsOptionalBoolValueFlag(key)) return true;
         string next = (args[index + 1] ?? string.Empty).Trim();
         return next.Equals("on", StringComparison.OrdinalIgnoreCase) ||
                next.Equals("off", StringComparison.OrdinalIgnoreCase) ||
@@ -212,6 +213,11 @@ internal static class LauncherArgsHelper
                next.Equals("1", StringComparison.Ordinal) ||
                next.Equals("0", StringComparison.Ordinal);
     }
+
+    private static bool IsOptionalBoolValueFlag(string key) =>
+        string.Equals(key, "--vsync", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(key, "--hd-packs", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(key, "--fast-forward", StringComparison.OrdinalIgnoreCase);
 
     internal static JobObjectGuard? AttachJobGuard(Process? proc)
     {

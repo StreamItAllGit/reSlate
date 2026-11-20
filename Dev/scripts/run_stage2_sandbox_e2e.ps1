@@ -58,7 +58,7 @@ function Invoke-WizardGuiSandboxStep([string]$ToolsDir, [string]$BuildsDir, [str
     if ($LASTEXITCODE -ne 0) { throw "Failed capturing pre-wizard host snapshot ($LASTEXITCODE)" }
 
     $wizStage = Join-Path $sandboxWork "wizard_auto_stage"
-    & dotnet publish (Join-Path $devDir "src\reStation.Installer\reStation.Installer.csproj") -c Release -r win-x64 --self-contained false -p:ReStationTestAutomation=true -p:Version="$Version" -o $wizStage /warnaserror --disable-build-servers -p:UseSharedCompilation=false | Out-Null
+    & dotnet publish (Join-Path $devDir "src\reStation.Installer\reStation.Installer.csproj") -c Release -r win-x64 --self-contained false "-t:Rebuild,Publish" -p:ReStationTestAutomation=true -p:Version="$Version" -o $wizStage /warnaserror --disable-build-servers -p:UseSharedCompilation=false | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Failed building ReStationTestAutomation=true Installer ($LASTEXITCODE)" }
     $wizExe = Join-Path $wizStage "reSlate-Setup-v$Version-win-x64.exe"
     $wizWorkDrive = Join-Path $dRoot "Stage2GuiE2E"; $wizInstallDir = Join-Path $dRoot "Programs\reEngine\engines\reSlate\v$Version"
@@ -127,7 +127,7 @@ function Invoke-PlayerVisibleGuiSteps([string]$OutLogs) {
     $autoExe = $TestAutomationExe
     if ([string]::IsNullOrWhiteSpace($autoExe)) {
         $autoStage = Join-Path $sandboxWork "player_auto_stage"
-        & dotnet publish (Join-Path $devDir "src\reStation.Player\reStation.Player.csproj") -c Release -r win-x64 --self-contained false -p:ReStationTestAutomation=true -o $autoStage /warnaserror --disable-build-servers -p:UseSharedCompilation=false | Out-Null
+        & dotnet publish (Join-Path $devDir "src\reStation.Player\reStation.Player.csproj") -c Release -r win-x64 --self-contained false "-t:Rebuild,Publish" -p:ReStationTestAutomation=true -o $autoStage /warnaserror --disable-build-servers -p:UseSharedCompilation=false | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "Failed building ReStationTestAutomation=true Player ($LASTEXITCODE)" }
         $autoExe = Join-Path $autoStage "reSlate.Player.exe"
     }
@@ -177,26 +177,56 @@ function Invoke-PlayerVisibleGuiSteps([string]$OutLogs) {
         $null = Invoke-LoopbackJson -Port $pLive -Token $tLive -Method "POST" -Route "/v1/keyboard" -Body @{ action = "press"; key = "F3" }
         $null = Wait-TreeControl -Port $pLive -Token $tLive -ControlId "F3Hud"
         Start-Sleep -Milliseconds 650
-        foreach ($step in @(@{ Click = "Video_Scale2x"; Wait = "Video_TogglePgxp" }, @{ Click = "Video_TogglePgxp"; Wait = "Tab_Controls" }, @{ Click = "Tab_Controls"; Wait = "Controls_SensPlus" }, @{ Click = "Controls_SensPlus"; Wait = "Tab_Keybinds" }, @{ Click = "Tab_Keybinds"; Wait = "Tab_System" }, @{ Click = "Tab_System"; Wait = "System_ToggleGlobalRules" }, @{ Click = "Tab_DiscMedia"; Wait = "Disc_ChangeDisc" }, @{ Click = "Tab_Video"; Wait = "Video_Scale2x" })) {
+        foreach ($vidCtrl in @("Video_BackendOpenGl", "Video_BackendVulkan", "Video_BackendParallelCpu", "Video_BackendSoftware", "Video_ToggleHdPacks", "Video_AspectRatio", "Video_ToggleOverscan")) {
+            $null = Wait-TreeControl -Port $pLive -Token $tLive -ControlId $vidCtrl
+        }
+        $steps = @(
+            @{ Click = "Video_Scale2x"; Wait = "Video_TogglePgxp" },
+            @{ Click = "Video_TogglePgxp"; Wait = "Video_ToggleHdPacks" },
+            @{ Click = "Video_ToggleHdPacks"; Wait = "Video_AspectRatio" },
+            @{ Click = "Video_AspectRatio"; Wait = "Video_BackendParallelCpu" },
+            @{ Click = "Video_BackendParallelCpu"; Wait = "Video_BackendOpenGl" },
+            @{ Click = "Video_BackendOpenGl"; Wait = "Tab_Controls" },
+            @{ Click = "Tab_Controls"; Wait = "Controls_SensPlus" },
+            @{ Click = "Controls_SensPlus"; Wait = "Tab_Keybinds" },
+            @{ Click = "Tab_Keybinds"; Wait = "Tab_System" },
+            @{ Click = "Tab_System"; Wait = "System_ToggleFastForward" },
+            @{ Click = "System_ToggleFastForward"; Wait = "System_FastForward3x" },
+            @{ Click = "System_FastForward3x"; Wait = "System_SkipCutscene" },
+            @{ Click = "System_SkipCutscene"; Wait = "Tab_DiscMedia" },
+            @{ Click = "Tab_DiscMedia"; Wait = "Disc_ChangeDisc" },
+            @{ Click = "Tab_Video"; Wait = "Video_Scale2x" }
+        )
+        foreach ($step in $steps) {
             $null = Invoke-LoopbackJson -Port $pLive -Token $tLive -Method "POST" -Route "/v1/pointer" -Body @{ action = "click"; targetId = $step.Click }
             $null = Wait-TreeControl -Port $pLive -Token $tLive -ControlId $step.Wait
             Start-Sleep -Milliseconds 650
         }
         $livePng = Join-Path $liveLogs "stage2_player_live.png"
+        $liveHwnd = Show-VisibleWindowOnTop -Proc $liveProc -MinWidth 800 -MinHeight 500
         $null = Invoke-LoopbackJson -Port $pLive -Token $tLive -Method "POST" -Route "/v1/snapshot" -Body @{ filePath = $livePng }
         Assert-ValidPng -Path $livePng; $evidencePngs.Add($livePng)
         $null = Invoke-LoopbackJson -Port $pLive -Token $tLive -Method "POST" -Route "/v1/pointer" -Body @{ action = "click"; targetId = "Drawer_CloseButton" }
         Wait-TreeControlAbsent -Port $pLive -Token $tLive -ControlId "Tab_Video"
         Start-Sleep -Milliseconds 500
+        $liveHwnd = Show-VisibleWindowOnTop -Proc $liveProc -MinWidth 800 -MinHeight 500
         Send-WindowClose -Hwnd $liveHwnd
         if (-not $liveProc.WaitForExit(10000) -or $liveProc.ExitCode -ne 0) { throw "Live Player window did not exit cleanly ($($liveProc.ExitCode))" }
     } finally { if ($liveProc -and (-not $liveProc.HasExited)) { $liveProc.Kill() } }
 
     $saved = Get-Content -LiteralPath $liveCfg -Raw | ConvertFrom-Json
-    if ($saved.resolutionScale -ne 2 -or $saved.isPgxpEnabled -ne $false -or $saved.isFpsOverlayEnabled -ne $true -or [Math]::Abs([double]$saved.mouseSensitivity - 1.2) -ge 0.05) {
-        throw "UI interactions did not persist cleanly to settings.json: scale=$($saved.resolutionScale) pgxp=$($saved.isPgxpEnabled) hud=$($saved.isFpsOverlayEnabled) sens=$($saved.mouseSensitivity)"
+    if ($saved.resolutionScale -ne 2 -or $saved.isPgxpEnabled -ne $false -or $saved.isFpsOverlayEnabled -ne $true -or [Math]::Abs([double]$saved.mouseSensitivity - 1.2) -ge 0.05 -or
+        $saved.isHdTexturePackEnabled -ne $true -or $saved.isFastForwardEnabled -ne $true -or [Math]::Abs([double]$saved.fastForwardMultiplier - 3.0) -ge 0.05 -or
+        $saved.backendId -ne "opengl" -or [string]::IsNullOrWhiteSpace($saved.aspectRatioMode) -or $saved.aspectRatioMode -eq "nativePar") {
+        throw "UI interactions did not persist cleanly to settings.json: scale=$($saved.resolutionScale) pgxp=$($saved.isPgxpEnabled) hud=$($saved.isFpsOverlayEnabled) sens=$($saved.mouseSensitivity) hd=$($saved.isHdTexturePackEnabled) ff=$($saved.isFastForwardEnabled) ffMult=$($saved.fastForwardMultiplier) backend=$($saved.backendId) aspect=$($saved.aspectRatioMode)"
     }
-    Write-Host "[3/4] Visible MediaGate + Live SDL3 F1 Drawer & F3 HUD + settings.json persistence PASSED."
+    $sharedSdkDir = Resolve-SharedLibsSdkDir -RepoRoot $root -Version $Version
+    if ($sharedSdkDir) {
+        Test-Stage2SharedLibsCompilerSmoke -SdkDir $sharedSdkDir
+    } elseif (-not $SkipInstallerSandbox) {
+        throw "SharedLibs SDK directory missing for v$Version compiler smoke."
+    }
+    Write-Host "[3/4] Visible MediaGate + Live SDL3 F1 Drawer (4-backend swap, HD Packs, Aspect, Fast-Forward, Cutscene Skip) & F3 HUD + SharedLibs Compiler smoke PASSED."
 }
 
 try {

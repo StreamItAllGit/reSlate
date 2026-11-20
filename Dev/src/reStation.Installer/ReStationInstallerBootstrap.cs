@@ -1,5 +1,5 @@
 // @module: reStation.Installer.ReStationInstallerBootstrap
-// @purpose: Side-by-side engines\reSlate\v0.3.0 target resolution (with reStation fallback), --reengine-dir/--suite-dir support, and fail-closed 3-mode sandbox/APP_ISOLATED_TEST=1 containment.
+// @purpose: Side-by-side engines\reSlate\v0.3.1 target resolution (with reStation fallback & Foundation v0.5.2 suiteId parity), --reengine-dir/--suite-dir support, and fail-closed 3-mode sandbox/APP_ISOLATED_TEST=1 containment.
 // @depends-on: System, System.Collections.Generic, System.IO, System.Linq, System.Reflection, Foundation.Core, Foundation.Installer, reEngine.Core.Bootstrap
 // @exports: ReStationInstallerBootstrap
 
@@ -112,10 +112,10 @@ internal static class ReStationInstallerBootstrap
         {
             Path.Combine(fullBase, "engines", ReStationInstallerTheme.EngineId, verFolder),
             ComputeSideBySideDir(fullBase),
-            ComputeSideBySideDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteName)),
+            ComputeSideBySideDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteId)),
             Path.Combine(fullBase, "engines", ReStationInstallerTheme.LegacyEngineId, verFolder),
             ReEngineBootstrapHelper.BuildEngineVersionInstallDir(fullBase, ReStationInstallerTheme.LegacyEngineId, ReStationInstallerTheme.Version),
-            ReEngineBootstrapHelper.BuildEngineVersionInstallDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteName), ReStationInstallerTheme.LegacyEngineId, ReStationInstallerTheme.Version)
+            ReEngineBootstrapHelper.BuildEngineVersionInstallDir(Path.Combine(fullBase, ReStationInstallerTheme.SuiteId), ReStationInstallerTheme.LegacyEngineId, ReStationInstallerTheme.Version)
         };
         return candidates.FirstOrDefault(HasDirectInstallation);
     }
@@ -247,7 +247,7 @@ internal static class ReStationInstallerBootstrap
         string fullSuite = Path.GetFullPath(suiteDir);
         return File.Exists(Path.Combine(fullSuite, "reEngine.exe"))
             ? fullSuite
-            : Path.Combine(fullSuite, ReStationInstallerTheme.SuiteName);
+            : Path.Combine(fullSuite, ReStationInstallerTheme.SuiteId);
     }
 
     private static string? FindSiblingExternalReEngineInstaller(bool isolatedTest, string? isolatedRoot, SandboxResolution? sandbox = null)
