@@ -90,6 +90,55 @@ public sealed partial class PsxCpu
         return true;
     }
 
+    /// <summary>
+    /// Bounded guest VBlank-counter wait helper preventing tight-loop PsyQ <c>VSync(n)</c> spin timeouts.
+    /// Returns <see langword="true"/> once <paramref name="counterAddr"/> reaches <paramref name="targetValue"/> within <paramref name="maxVBlanks"/> VBlanks.
+    /// </summary>
+    public bool TryWaitForVBlankCounter(uint counterAddr, int targetValue, uint waitEntryPc = 0U, int maxVBlanks = 16)
+    {
+        if (InSubTickRender || ExitRequested || ShouldUnwind || PendingQuickLoadSlot >= 0 || maxVBlanks <= 0)
+            return false;
+
+        if (waitEntryPc != 0U)
+            Pc = 0x80000000U | (waitEntryPc & 0x1FFFFFFFU);
+
+        if (unchecked((int)Read32(counterAddr)) >= targetValue)
+            return true;
+
+        for (int i = 0; i < maxVBlanks; i++)
+        {
+            if (InSubTickRender || ExitRequested || ShouldUnwind || PendingQuickLoadSlot >= 0 || (TimersAndDma.InterruptMask & 1) == 0)
+                return false;
+
+            long vblankBefore = VBlankSequence;
+            if ((Gpu.NextVBlankCycle - TotalCycles) < 64L)
+            {
+                TotalCycles = Math.Max(TotalCycles + 1L, Gpu.NextVBlankCycle);
+                PollEvents();
+            }
+            else if (!TryAdvanceToNextVBlank())
+            {
+                return false;
+            }
+
+            if (ShouldUnwind || ExitRequested || PendingQuickLoadSlot >= 0)
+                return false;
+
+            if (VBlankSequence == vblankBefore)
+            {
+                TotalCycles = Math.Max(TotalCycles + 1L, Gpu.NextVBlankCycle);
+                PollEvents();
+                if (ShouldUnwind || ExitRequested || PendingQuickLoadSlot >= 0 || VBlankSequence == vblankBefore)
+                    return false;
+            }
+
+            if (unchecked((int)Read32(counterAddr)) >= targetValue)
+                return true;
+        }
+
+        return false;
+    }
+
     public bool HasCompiledEntry(uint pc)
     {
         uint canonPc = 0x80000000U | (pc & 0x1FFFFFFFU);

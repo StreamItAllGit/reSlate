@@ -3,6 +3,7 @@
 // @depends-on: Foundation.Retro.AotCacheLayoutHelper, reStation.Contracts.ReStationEngineInfo, reStation.Core.Jit.Tier3ExecutionCoordinator
 // @exports: JitBringupRecorder, BringupProfileDocument, BringupFunctionRecord, BringupIndirectJumpRecord
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -332,8 +333,10 @@ public sealed class JitBringupRecorder
             if (File.Exists(tmpPath))
             {
                 try { File.Delete(tmpPath); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Trace.WriteLine($"[JitBringupRecorder] Failed to clean temp bringup profile '{tmpPath}': {ex.Message}");
+                }
             }
         }
     }

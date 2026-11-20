@@ -66,6 +66,8 @@ public static class ExeScanHelpers
         return targets;
     }
 
+    private static readonly string[] FunctionTagKeys = ["kind", "category", "type", "segment"];
+
     /// <summary>Produces a sorted, gap-closed list of functions for <paramref name="exe"/>.</summary>
     internal static (List<GeneratedFnSpec> Functions, HashSet<uint> RdataTargets) DiscoverFunctions(
         DiscoveredExe exe,
@@ -77,7 +79,7 @@ public static class ExeScanHelpers
         uint textEnd = exe.Header.TextEnd;
         HashSet<uint> rdataTargets = ScanJumpTargets(exe.Bytes, textAddr, textEnd, exe.IsOverlay ? 0 : 0x800);
         List<(uint Addr, uint Size)> rawList = functionsJsonPath is not null
-            ? LoadFunctionsJson(functionsJsonPath, textAddr, textEnd)
+            ? LoadFunctionsJson(functionsJsonPath, exe)
             : new List<(uint Addr, uint Size)>();
 
         bool autoDiscovered = rawList.Count == 0;
@@ -107,7 +109,7 @@ public static class ExeScanHelpers
         return (funcs, rdataTargets);
     }
 
-    private static List<(uint Addr, uint Size)> LoadFunctionsJson(string jsonPath, uint textAddr, uint textEnd)
+    internal static List<(uint Addr, uint Size)> LoadFunctionsJson(string jsonPath, DiscoveredExe exe)
     {
         using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(jsonPath));
         JsonElement arr = doc.RootElement.ValueKind == JsonValueKind.Array
@@ -116,16 +118,86 @@ public static class ExeScanHelpers
         if (arr.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException($"Invalid functions manifest '{jsonPath}': expected array or 'functions' property.");
 
-        var list = new List<(uint Addr, uint Size)>();
+        var entries = new List<(uint Addr, uint Size, string? Program, string? Tag)>();
+        bool hasProgramField = false, hasDocProgramTag = false;
         foreach (JsonElement item in arr.EnumerateArray())
         {
             if (!TryGetAddress(item, out uint addr)) continue;
             addr = 0x80000000U | (addr & 0x1FFFFFFFU);
-            if (addr < textAddr || addr >= textEnd) continue;
             uint size = item.TryGetProperty("size", out JsonElement sz) && sz.TryGetUInt32(out uint s) ? s : 4U;
-            list.Add((addr, Math.Max(4U, (size + 3U) & ~3U)));
+            string? prog = TryGetStringProp(item, "program");
+            string? tag = TryGetFirstStringProp(item, FunctionTagKeys);
+            hasProgramField |= prog is not null;
+            hasDocProgramTag |= string.Equals(tag, "program", StringComparison.OrdinalIgnoreCase);
+            entries.Add((addr, Math.Max(4U, (size + 3U) & ~3U), prog, tag));
+        }
+
+        HashSet<string>? aliases = hasProgramField ? BuildExeAliases(exe) : null;
+        var matched = new List<(uint Addr, uint Size, string? Tag)>();
+        bool hasMatchedProgramTag = false;
+        foreach (var e in entries)
+        {
+            if (e.Addr < exe.Header.TextAddr || e.Addr >= exe.Header.TextEnd) continue;
+            if (aliases is not null && !MatchesExeProgram(e.Program, aliases)) continue;
+            hasMatchedProgramTag |= string.Equals(e.Tag, "program", StringComparison.OrdinalIgnoreCase);
+            matched.Add((e.Addr, e.Size, e.Tag));
+        }
+
+        var list = new List<(uint Addr, uint Size)>(matched.Count);
+        foreach (var m in matched)
+        {
+            if (hasMatchedProgramTag && !string.Equals(m.Tag, "program", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!hasMatchedProgramTag && hasDocProgramTag &&
+                (string.Equals(m.Tag, "bios", StringComparison.OrdinalIgnoreCase) || string.Equals(m.Tag, "thunk", StringComparison.OrdinalIgnoreCase))) continue;
+            list.Add((m.Addr, m.Size));
         }
         return list.OrderBy(x => x.Addr).DistinctBy(x => x.Addr).ToList();
+    }
+
+    private static string? TryGetStringProp(JsonElement item, string key) =>
+        item.TryGetProperty(key, out JsonElement p) && p.ValueKind == JsonValueKind.String && p.GetString() is { Length: > 0 } s ? s.Trim() : null;
+
+    private static string? TryGetFirstStringProp(JsonElement item, string[] keys)
+    {
+        foreach (string key in keys) if (TryGetStringProp(item, key) is { } val) return val;
+        return null;
+    }
+
+    private static HashSet<string> BuildExeAliases(DiscoveredExe exe)
+    {
+        var aliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Add(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return;
+            string norm = raw.Trim().Replace('\\', '/').TrimStart('/');
+            aliases.Add(norm);
+            string leaf = Path.GetFileName(norm);
+            if (leaf.Length > 0) aliases.Add(leaf);
+            if (leaf.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) aliases.Add(leaf[..^4]);
+            int hash = norm.IndexOf('#');
+            if (hash >= 0 && hash + 1 < norm.Length)
+            {
+                string slice = norm[(hash + 1)..];
+                aliases.Add(slice);
+                if (slice.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) aliases.Add(slice[..^4]);
+            }
+        }
+        Add(exe.ExeName);
+        Add(exe.RelativePath);
+        return aliases;
+    }
+
+    private static bool MatchesExeProgram(string? prog, HashSet<string> aliases)
+    {
+        if (string.IsNullOrWhiteSpace(prog)) return false;
+        string norm = prog.Trim().Replace('\\', '/').TrimStart('/');
+        if (aliases.Contains(norm)) return true;
+        string leaf = Path.GetFileName(norm);
+        if (aliases.Contains(leaf) || (leaf.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && aliases.Contains(leaf[..^4]))) return true;
+        int hash = norm.IndexOf('#');
+        if (hash < 0 || hash + 1 >= norm.Length) return false;
+        string slice = norm[(hash + 1)..];
+        return aliases.Contains(slice) || (slice.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && aliases.Contains(slice[..^4]));
     }
 
     private static bool TryGetAddress(JsonElement item, out uint addr)

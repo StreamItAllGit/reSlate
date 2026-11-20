@@ -4,6 +4,7 @@
 // @exports: PsxD4TellFamilies, PsxD4TellViolation, PsxCompilerDiagnosticsSummary, PsxD4BuildVerificationReport, PsxD4CraftsmanshipValidationResult, PsxD4CraftsmanshipValidator
 // SPDX-License-Identifier: MPL-2.0
 
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -216,7 +217,14 @@ public static partial class PsxD4CraftsmanshipValidator
                     if (pass == "host-parity" && (passErrs > 0 || diag.WarningCount > 0 || !File.Exists(objPath))) hostOk = false;
                 }
         }
-        finally { try { Directory.Delete(objDir, recursive: true); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+        finally
+        {
+            try { Directory.Delete(objDir, recursive: true); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Trace.WriteLine($"[PsxD4CraftsmanshipValidator] Failed to clean temp objDir '{objDir}': {ex.Message}");
+            }
+        }
         bool ok = errs == 0 && warns == 0 && violations.Count == 0 && mipsOk && hostOk;
         var report = new PsxD4BuildVerificationReport(2, "d4-build-report", moduleName, "D4", CanonicalD4Tier, "D4a", [CanonicalD4Tier],
             sources.Length, errs, warns, RequiredWarningFlags, 0, errs == 0 && warns == 0, true, ok, mipsOk, hostOk, ok ? 1 : 0, 1, violations,

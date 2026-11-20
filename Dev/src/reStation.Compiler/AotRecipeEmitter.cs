@@ -3,6 +3,7 @@
 // @depends-on: reEngine.Core.Aot.AotCacheManager, reStation.Contracts.AotRecipeSpec, reStation.Compiler.DiscExeLoader
 // @exports: AotRecipeEmitter
 
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -48,6 +49,13 @@ public static class AotRecipeEmitter
         foreach (DiscoveredExe exe in exes)
         {
             string sha = Convert.ToHexString(SHA256.HashData(exe.Bytes)).ToLowerInvariant();
+            GeneratedExeSpec? matchedSpec = specs.FirstOrDefault(s => s.ExeId == exe.ExeId)
+                ?? specs.FirstOrDefault(s => string.Equals(s.RelativePath, exe.RelativePath, StringComparison.OrdinalIgnoreCase));
+            uint[]? exeEntryAddresses = matchedSpec is { Functions.Count: > 0 }
+                ? matchedSpec.Functions.Select(f => f.Addr).Distinct().OrderBy(a => a).ToArray()
+                : (exe.SeedEntryAddresses is { Count: > 0 }
+                    ? exe.SeedEntryAddresses.Distinct().OrderBy(a => a).ToArray()
+                    : null);
             exeSpecs.Add(new AotRecipeExecutableSpec
             {
                 BootExePath = exe.RelativePath,
@@ -56,7 +64,9 @@ public static class AotRecipeEmitter
                 EntryAddress = exe.Header.Pc0,
                 GlobalPointer = exe.Header.Gp0,
                 TextSizeBytes = checked((int)exe.Header.TextSize),
-                SleighLanguageId = "psx_r3000a"
+                SleighLanguageId = "psx_r3000a",
+                ContainerOffsetBytes = exe.ContainerOffsetBytes,
+                EntryAddresses = exeEntryAddresses
             });
         }
 
@@ -159,8 +169,10 @@ public static class AotRecipeEmitter
             if (File.Exists(tmpArchive))
             {
                 try { File.Delete(tmpArchive); }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Trace.WriteLine($"[AotRecipeEmitter] Failed to delete temp archive '{tmpArchive}': {ex.Message}");
+                }
             }
         }
     }
