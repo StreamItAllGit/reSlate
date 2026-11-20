@@ -33,6 +33,10 @@ public sealed class PsxSpu
     private uint _endx;
     private long _xaDrops, _outputOverflows, _xaFramesDecoded;
     private int _mainVolL = 0x3FFF, _mainVolR = 0x3FFF;
+    private bool? _fastForwardOverride;
+    private double _fastForwardMultiplierOverride = 2.0;
+    private double _ffSampleAccum;
+    private float[]? _ffScratch;
 
     public PsxSpu(RecompSettings settings)
     {
@@ -128,7 +132,15 @@ public sealed class PsxSpu
 
         int frames = _xaDecoder.DecodeSector(soundGroups, codingInfo, _xaScratch);
         Interlocked.Add(ref _xaFramesDecoded, frames);
-        int accepted = Math.Min(frames, XaQueueCapacityFrames - _xaCount);
+        int free = XaQueueCapacityFrames - _xaCount;
+        if (frames > free && IsFastForwardDecimationActive)
+        {
+            int discardOldest = Math.Min(_xaCount, frames - free);
+            _xaHead = (_xaHead + discardOldest) % XaQueueCapacityFrames;
+            _xaCount -= discardOldest;
+            free = XaQueueCapacityFrames - _xaCount;
+        }
+        int accepted = Math.Min(frames, free);
         int tail = (_xaHead + _xaCount) % XaQueueCapacityFrames;
         for (int i = 0; i < accepted; i++)
         {
@@ -147,6 +159,84 @@ public sealed class PsxSpu
         _xaHead = _xaCount = 0;
         _xaRampLeft = 0;
         _lastXaL = _lastXaR = 0;
+        _ffSampleAccum = 0.0;
+    }
+
+    /// <summary>True when SPU Fast-Forward audio decimation and queue-overflow protection are active.</summary>
+    public bool IsFastForwardDecimationActive => _fastForwardOverride ?? Settings.IsFastForwardEnabled;
+
+    /// <summary>Overrides runtime Fast-Forward audio decimation (<c>2x..4x</c>) independently of persisted settings.</summary>
+    public void SetFastForwardDecimation(bool enabled, double multiplier = 2.0)
+    {
+        _fastForwardOverride = enabled;
+        _fastForwardMultiplierOverride = NormalizeFastForwardMultiplier(multiplier, 2.0);
+        if (!enabled) _ffSampleAccum = 0.0;
+    }
+
+    /// <summary>Clears any transient Fast-Forward decimation override, reverting to <see cref="RecompSettings.IsFastForwardEnabled"/>.</summary>
+    public void ClearFastForwardDecimationOverride()
+    {
+        _fastForwardOverride = null;
+        _ffSampleAccum = 0.0;
+    }
+
+    /// <summary>
+    /// Discards excess queued XA frames during Fast-Forward without incrementing <see cref="XaDrops"/>.
+    /// Returns the number of stereo frames discarded.
+    /// </summary>
+    public int DiscardExcessXaFramesForFastForward(int maxRetainedFrames = 1470)
+    {
+        int limit = Math.Clamp(maxRetainedFrames, 0, XaQueueCapacityFrames);
+        if (_xaCount <= limit) return 0;
+        int discard = _xaCount - limit;
+        _xaHead = (_xaHead + discard) % XaQueueCapacityFrames;
+        _xaCount = limit;
+        if (_xaCount == 0)
+        {
+            _xaRampLeft = 0;
+            _lastXaL = _lastXaR = 0;
+        }
+        return discard;
+    }
+
+    /// <summary>
+    /// Decimates buffered <see cref="Output"/> audio and trims excess pending XA frames after a <paramref name="multiplier"/>
+    /// Fast-Forward burst (<c>2x..4x</c>) so host playback stays near real-time with <c>XaDrops == 0</c>.
+    /// </summary>
+    public int ResampleOrTrimFastForwardAudio(double multiplier)
+    {
+        double mult = double.IsFinite(multiplier) ? Math.Clamp(multiplier, 1.0, 4.0) : 2.0;
+        _ = DiscardExcessXaFramesForFastForward(Math.Max(9408, XaQueueCapacityFrames / 2));
+        if (mult <= 1.0) return 0;
+
+        int evenSamples = Output.BufferedSamples & ~1;
+        int totalFrames = evenSamples / 2;
+        if (totalFrames <= 1) return 0;
+
+        _ffScratch ??= new float[RingCapacitySamples];
+        int readCount = Math.Min(evenSamples, _ffScratch.Length) & ~1;
+        int got = Output.Read(_ffScratch.AsSpan(0, readCount));
+        int readFrames = got / 2;
+        if (readFrames <= 0) return 0;
+
+        int targetFrames = IsFastForwardDecimationActive
+            ? Math.Min(readFrames, 1470)
+            : Math.Clamp((int)Math.Round(readFrames / mult), 1, 1470);
+        if (targetFrames >= readFrames)
+        {
+            _ = Output.Write(_ffScratch.AsSpan(0, readFrames * 2));
+            return 0;
+        }
+
+        double step = readFrames / (double)targetFrames;
+        for (int i = 0; i < targetFrames; i++)
+        {
+            int srcIdx = Math.Min(readFrames - 1, (int)(i * step)) * 2;
+            _ffScratch[i * 2] = _ffScratch[srcIdx];
+            _ffScratch[i * 2 + 1] = _ffScratch[srcIdx + 1];
+        }
+        _ = Output.Write(_ffScratch.AsSpan(0, targetFrames * 2));
+        return readFrames - targetFrames;
     }
 
     /// <summary>Advances one 44.1 kHz sample tick: steps envelopes, mixes voices + XA, and writes one stereo frame.</summary>
@@ -225,6 +315,16 @@ public sealed class PsxSpu
         double vol = Settings.MasterVolume;
         _frame[0] = (short)Math.Clamp((int)(mixL * vol), short.MinValue, short.MaxValue);
         _frame[1] = (short)Math.Clamp((int)(mixR * vol), short.MinValue, short.MaxValue);
+        if (IsFastForwardDecimationActive)
+        {
+            double mult = _fastForwardOverride.HasValue
+                ? _fastForwardMultiplierOverride
+                : NormalizeFastForwardMultiplier(Settings.FastForwardMultiplier, 2.0);
+            _ffSampleAccum += 1.0;
+            if (_ffSampleAccum + 1e-9 < mult) return;
+            _ffSampleAccum -= mult;
+            EnsureFastForwardOutputRoom();
+        }
         if (Output.Write(_frame) < 2)
         {
             Interlocked.Increment(ref _outputOverflows);
@@ -268,11 +368,23 @@ public sealed class PsxSpu
         _xaHead = _xaCount = 0;
         _xaRampLeft = 0;
         _lastXaL = _lastXaR = 0;
+        _ffSampleAccum = 0.0;
         if ((_regs[0x180 >> 1] & 0x8000) == 0) _mainVolL = DecodeSigned15(_regs[0x180 >> 1]);
         if ((_regs[0x182 >> 1] & 0x8000) == 0) _mainVolR = DecodeSigned15(_regs[0x182 >> 1]);
         ActiveVoiceCount = active;
         Output.Clear();
     }
+
+    private void EnsureFastForwardOutputRoom()
+    {
+        if (Output.AvailableWriteSamples >= 2) return;
+        Span<float> discard = stackalloc float[Math.Min(512, RingCapacitySamples)];
+        int readCount = Math.Min(discard.Length, Output.BufferedSamples) & ~1;
+        if (readCount > 0) _ = Output.Read(discard[..readCount]);
+    }
+
+    private static double NormalizeFastForwardMultiplier(double multiplier, double minValue) =>
+        double.IsFinite(multiplier) ? Math.Clamp(multiplier, minValue, 4.0) : 2.0;
 
     private static int DecodeSigned15(ushort v) => (v & 0x4000) != 0 ? (int)(v | 0xFFFFC000U) : (int)(v & 0x3FFF);
     private static double ScaleMainVol(int v) => v == 0x3FFF ? 1.0 : Math.Clamp(v / 16384.0, -1.0, 1.0);

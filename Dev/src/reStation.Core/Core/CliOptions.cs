@@ -1,10 +1,11 @@
 // @module: reStation.Core.CliOptions
 // @purpose: Fail-closed reSlate CLI flag parser delegating root resolution/containment to Foundation.Core.AppEnvironment.
-// @depends-on: System.Globalization, Foundation.Core, reStation.Contracts
+// @depends-on: System.Globalization, Foundation.Core, reEngine.Host.Contracts, reStation.Contracts
 // @exports: CliOptions
 
 using System.Globalization;
 using Foundation.Core;
+using reEngine.Host.Contracts;
 using reStation.Contracts;
 
 namespace reStation.Core;
@@ -19,7 +20,9 @@ public sealed class CliOptions
         "Usage: reSlate.exe [--module <module.recomp.json>] [--disc <image> | --preload-media <path>] [options]\n" +
         "  --preload-media <path>      Preload optical image/archive fallback when --disc is omitted\n" +
         "  --wait                      Wait for engine completion when launched synchronously\n" +
-        "  --backend opengl|software   --require-backend <id>  --scale 1|2|4|8\n" +
+        "  --backend opengl|vulkan|parallelCpu|software  --require-backend <id>  --scale 1|2|4|8\n" +
+        "  --aspect-mode <nativePar|fourByThree|squareInteger|nativeFit|horPlus16By9>\n" +
+        "  --hd-packs [on|off]  --fast-forward [on|off]\n" +
         "  --fps-mode original|enhanced  --target-fps <n|unlocked>  --vsync [on|off]  --no-vsync\n" +
         "  --frames <n>  --execution-tier <mode>  --dump-screenshot <png>  --dump-audio <wav>\n" +
         "  --data-dir <dir>  --config <path>  --log-dir <dir>  --save-dir <dir>  --fixture <path>\n" +
@@ -68,14 +71,9 @@ public sealed class CliOptions
     public bool ShowVersion { get; private init; }
     public bool ShowHelp { get; private init; }
 
-    /// <summary>Returns true when <see cref="RequireBackendId"/> targets a v0.3.1-deferred backend (<c>vulkan</c> or <c>parallelCpu</c>).</summary>
+    /// <summary>Returns false in v0.3.1+ now that all 4 backends (<c>opengl</c>, <c>vulkan</c>, <c>parallelCpu</c>, <c>software</c>) are live.</summary>
     public bool IsDeferredBackendRequired(out string? deferredBackendId)
     {
-        if (RequireBackendId is PsxRenderBackendIds.Vulkan or PsxRenderBackendIds.ParallelCpu)
-        {
-            deferredBackendId = RequireBackendId;
-            return true;
-        }
         deferredBackendId = null;
         return false;
     }
@@ -84,13 +82,13 @@ public sealed class CliOptions
     public static CliOptions Parse(IReadOnlyList<string> args)
     {
         ArgumentNullException.ThrowIfNull(args);
-        string? module = null, disc = null, preloadMedia = null, backend = null, requireBackend = null;
+        string? module = null, disc = null, preloadMedia = null, aspectMode = null, backend = null, requireBackend = null;
         string? dump = null, dumpAudio = null, data = null, config = null, log = null, saveDir = null;
         string? fixture = null, profilePath = null, reEngineDir = null, suiteDir = null;
         string? executionTier = null, automationToken = null;
         int? scale = null, targetFps = null, frames = null, port = null, automationPort = null;
         FrameRateMode? fpsMode = null;
-        bool? vsync = null;
+        bool? vsync = null, hdPacks = null, fastForward = null;
         bool trayOnly = false, dryRun = false, verify = false, openSettings = false, enableLogs = false;
         bool showFps = false, jitBringup = false, forceZeroRwx = false, shouldWait = false;
         bool runDoctor = false, showVersion = false, help = false;
@@ -104,15 +102,16 @@ public sealed class CliOptions
                 case "--module": module = NextValue(args, ref i, key, inline); break;
                 case "--disc": disc = NextValue(args, ref i, key, inline); break;
                 case "--preload-media": preloadMedia = NextValidatedPath(args, ref i, key, inline); break;
-                case "--backend":
-                    string rawBackend = NextValue(args, ref i, key, inline).ToLowerInvariant();
-                    backend = rawBackend == "gl" ? PsxRenderBackendIds.OpenGl : rawBackend;
-                    if (backend is not (PsxRenderBackendIds.OpenGl or PsxRenderBackendIds.Software))
-                        throw new ArgumentException($"--backend must be '{PsxRenderBackendIds.OpenGl}' or '{PsxRenderBackendIds.Software}'.");
+                case "--backend": backend = NormalizeBackend(NextValue(args, ref i, key, inline), key); break;
+                case "--require-backend": requireBackend = NormalizeBackend(NextValue(args, ref i, key, inline), key); break;
+                case "--aspect-mode":
+                    string rawAspect = NextValue(args, ref i, key, inline);
+                    if (!HostAspectRatioModeCodec.TryParseStrict(rawAspect, out HostAspectRatioMode parsedAspect))
+                        throw new ArgumentException($"Unknown --aspect-mode '{rawAspect}'; expected nativePar, fourByThree, squareInteger, nativeFit, or horPlus16By9.");
+                    aspectMode = HostAspectRatioModeCodec.ToCanonicalId(parsedAspect);
                     break;
-                case "--require-backend":
-                    requireBackend = NormalizeRequireBackend(NextValue(args, ref i, key, inline));
-                    break;
+                case "--hd-packs": hdPacks = ParseOptionalBoolFlag(args, ref i, key, inline); break;
+                case "--fast-forward": fastForward = ParseOptionalBoolFlag(args, ref i, key, inline); break;
                 case "--scale":
                     scale = ParseInt(NextValue(args, ref i, key, inline), key);
                     if (scale is not (1 or 2 or 4 or 8)) throw new ArgumentException("--scale must be 1, 2, 4, or 8.");
@@ -137,20 +136,7 @@ public sealed class CliOptions
                         targetFps = parsedFps;
                     }
                     break;
-                case "--vsync":
-                    if (inline is not null)
-                    {
-                        if (!TryParseOnOff(inline, out bool inlineVsync))
-                            throw new ArgumentException($"Option '--vsync' expects on/off, got '{inline}'.");
-                        vsync = inlineVsync;
-                    }
-                    else if (i + 1 < args.Count && TryParseOnOff(args[i + 1], out bool parsedVsync))
-                    {
-                        vsync = parsedVsync;
-                        i++;
-                    }
-                    else vsync = true;
-                    break;
+                case "--vsync": vsync = ParseOptionalBoolFlag(args, ref i, key, inline); break;
                 case "--no-vsync": vsync = false; break;
                 case "--frames": frames = Math.Max(1, ParseInt(NextValue(args, ref i, key, inline), key)); break;
                 case "--execution-tier":
@@ -199,6 +185,7 @@ public sealed class CliOptions
         return new CliOptions
         {
             RawArgs = args.ToArray(), ModulePath = module, DiscPath = disc, PreloadMediaPath = preloadMedia,
+            AspectMode = aspectMode, HdPacks = hdPacks, FastForward = fastForward,
             ShouldWait = shouldWait, BackendId = backend, RequireBackendId = requireBackend,
             ResolutionScale = scale, FpsMode = fpsMode, TargetFps = targetFps, Vsync = vsync, MaxFrames = frames,
             ExecutionTierMode = executionTier, DumpScreenshotPath = dump, DumpAudioPath = dumpAudio,
@@ -220,12 +207,14 @@ public sealed class CliOptions
     {
         ArgumentNullException.ThrowIfNull(settings);
         if (BackendId is not null) settings.BackendId = BackendId;
-        else if (RequireBackendId is PsxRenderBackendIds.OpenGl or PsxRenderBackendIds.Software)
-            settings.BackendId = RequireBackendId;
+        else if (!string.IsNullOrWhiteSpace(RequireBackendId)) settings.BackendId = RequireBackendId;
         if (ResolutionScale is { } scale) settings.ResolutionScale = scale;
         if (FpsMode is { } mode) settings.FrameRateMode = mode;
         if (TargetFps is { } fps) settings.TargetFps = fps;
         if (Vsync is { } vs) settings.IsVsyncEnabled = vs;
+        if (AspectMode is not null) settings.AspectRatioMode = AspectMode;
+        if (HdPacks is { } hd) settings.IsHdTexturePackEnabled = hd;
+        if (FastForward is { } ff) settings.IsFastForwardEnabled = ff;
         if (ExecutionTierMode is not null) settings.ExecutionTierMode = ExecutionTierMode;
         else if (JitBringup) settings.ExecutionTierMode = ReStationExecutionTierModes.JitBringup;
         if (ForceZeroRwx) settings.ForceZeroRwx = true;
@@ -234,14 +223,30 @@ public sealed class CliOptions
         settings.Clamp();
     }
 
-    private static string NormalizeRequireBackend(string raw) => raw.Trim().ToLowerInvariant() switch
+    private static string NormalizeBackend(string raw, string flagName) => raw.Trim().ToLowerInvariant() switch
     {
         "gl" or PsxRenderBackendIds.OpenGl => PsxRenderBackendIds.OpenGl,
         PsxRenderBackendIds.Software => PsxRenderBackendIds.Software,
         PsxRenderBackendIds.Vulkan => PsxRenderBackendIds.Vulkan,
         "parallelcpu" or "parallel-cpu" or "parallel_cpu" => PsxRenderBackendIds.ParallelCpu,
-        _ => throw new ArgumentException($"Unknown --require-backend '{raw}'; expected opengl, software, vulkan, or parallelCpu.")
+        _ => throw new ArgumentException($"Unknown {flagName} '{raw}'; expected opengl, vulkan, parallelCpu, or software.")
     };
+
+    private static bool ParseOptionalBoolFlag(IReadOnlyList<string> args, ref int i, string flag, string? inline)
+    {
+        if (inline is not null)
+        {
+            if (!TryParseOnOff(inline, out bool inlineVal))
+                throw new ArgumentException($"Option '{flag}' expects on/off, got '{inline}'.");
+            return inlineVal;
+        }
+        if (i + 1 < args.Count && TryParseOnOff(args[i + 1], out bool nextVal))
+        {
+            i++;
+            return nextVal;
+        }
+        return true;
+    }
 
     private static (string Key, string? InlineValue) SplitOption(string raw)
     {
