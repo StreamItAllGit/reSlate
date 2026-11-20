@@ -28,6 +28,9 @@ public sealed record GeneratedExeSpec(
     public uint LoadRamAddress { get; init; }
     public int ContentSizeBytes { get; init; }
     public string ContentSha256Hex { get; init; } = string.Empty;
+    public uint VerifiedTextStart { get; init; }
+    public int VerifiedTextSizeBytes { get; init; }
+    public string TextSha256Hex { get; init; } = string.Empty;
 }
 
 /// <summary>Discovers function boundaries from functions.json or automatic PS-X instruction scanning.</summary>

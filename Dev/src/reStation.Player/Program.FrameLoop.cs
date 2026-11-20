@@ -245,6 +245,7 @@ internal static unsafe partial class Program
         HostVideoSurface video, PsxCpu cpu, SlideOverSettingsDrawer drawer, UiOverlayPresenter overlay,
         RecompSettings settings, AppEnvironment env, ReStationLogger logger, LoopState st, string nextBackend)
     {
+        _ = cpu.Gpu.SyncBackendToVramMirror();
         if (video.TrySwitchBackend(nextBackend, settings, logger, out string? switchError))
         {
             cpu.Gpu.SetBackend(video.Backend);

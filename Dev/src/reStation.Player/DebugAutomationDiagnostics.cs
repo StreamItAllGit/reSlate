@@ -188,7 +188,7 @@ internal sealed class DebugAutomationDiagnostics
         PsxTelemetrySnapshot pres = host.GetTelemetry();
         (double vblankFps, _) = host.VBlankTelemetry;
         var sb = new StringBuilder(256);
-        sb.Append(CultureInfo.InvariantCulture, $"presFps={pres.CurrentFps:F2}|vbFps={vblankFps:F2}|p99={pres.P99FrameMs:F2}|hf={hostFrames}|cf={cpu.FrameCount}");
+        sb.Append(CultureInfo.InvariantCulture, $"presFps={pres.CurrentFps:F2}|vbFps={vblankFps:F2}|p99={pres.P99FrameMs:F2}|cpuMs={pres.CpuMs:F2}|ovHash={cpu.OverlayHashComputations}|hf={hostFrames}|cf={cpu.FrameCount}");
         sb.Append(CultureInfo.InvariantCulture, $"|pad=0x{cpu.GetControllerButtons(0):X4}|gp=0x{lastInput.GamepadButtonsMask:X6}");
         sb.Append(CultureInfo.InvariantCulture, $"|rms={_lastAudioRms:F1}|peak={_lastAudioPeak}|asmp={_totalAudioSamples}|lastAsm={_lastDrainSamples}|xaDrops={cpu.Spu.XaDrops}|wav={_wavStatus}");
 

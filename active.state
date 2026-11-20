@@ -7,7 +7,7 @@
   "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.3.0-hf.2",
+  "version": "0.3.0-hf.3",
   "activeMilestone": "0.3.1",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-19",
@@ -27,7 +27,7 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "reSlate v0.3.0-hf.2 Public Beta Hotfix (https://github.com/StreamItAllGit/reSlate | 277/277 Release+Debug /warnaserror tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 verified; fixes TryAdvanceToNextVBlank() <64-cycle Math.Clamp ArgumentException, Original 30 FPS decimation + inter-VBlank 60-240+/Max OpenGL presentation with PresentationFpsTracker & 60 Hz VBlank/SPU lock, all-tier controller + LT/RT trigger rebinding & 0 clearability across Global 1:1/Game 1:1/Modern PC, SetModernControllerSlot single-slot cleanup, NativeGameActionContext masks, libmcrd async DeliverCardIoEnd & ToT[10] DCB 0x80000150->0x80000600 snapshot parity, DebugAutomationDiagnostics, and 'VSync (Caps to Monitor Hz)'). Next milestone v0.3.1 adds shared reEngine.Host Vulkan, ParallelCpu, Enhancement SDK, Fast-Forward, and Cutscene Skip.",
+  "notes": "reSlate v0.3.0-hf.3 Public Beta Hotfix (https://github.com/StreamItAllGit/reSlate | 281/281 Release+Debug /warnaserror tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 verified; splits CdlGetlocL 0x10 vs CdlGetlocP 0x11 layout to fix XA minute-rollover loops, adds owner-thread OpenGl33RenderBackend.Readback.cs + PsxGpu.SyncBackendToVramMirror() before QuickSave and backend hot-swaps, aligns Call()/ResumeMidStack() Pc before frame patches, adds ITextScopedOverlayRecompModule immutable .text SHA verification + MipsLifter loop/call MidEntries, and appends cpuMs/ovHash to Diag_Telemetry). Next milestone v0.3.1 adds shared reEngine.Host Vulkan, ParallelCpu, Enhancement SDK, Fast-Forward, and Cutscene Skip.",
   "discordPost": {
     "isEnabled": true,
     "serverName": null,
@@ -38,5 +38,5 @@
     "secretEnvKey": "DISCORD_WEBHOOK_FOUNDATION",
     "autoPostOnRelease": true
   },
-  "updatedAtUtc": "2026-11-19T15:08:00.000Z"
+  "updatedAtUtc": "2026-11-19T19:25:00.000Z"
 }

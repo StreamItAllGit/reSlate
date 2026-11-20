@@ -67,6 +67,7 @@ internal sealed partial class ReStationHost
     /// <summary>Saves a quick-save slot atomically using <see cref="QuickSaveManager.SaveToFileWithTrailer"/>.</summary>
     public void SaveQuickSlot(int slot)
     {
+        _ = MarshalToHostThread(() => _cpu.Gpu.SyncBackendToVramMirror());
         var chunks = new Dictionary<string, byte[]>(QuickSaveTrailer.CaptureDefaultChunks(_cpu), StringComparer.Ordinal);
         QuickSaveProvider?.CaptureQuickSaveChunks(chunks);
         QuickSaveManager.SaveToFileWithTrailer(

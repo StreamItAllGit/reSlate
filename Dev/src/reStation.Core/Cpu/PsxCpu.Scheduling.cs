@@ -146,14 +146,21 @@ public sealed partial class PsxCpu
     private void RegisterOverlayModule(IOverlayRecompModule overlay)
     {
         if (!_ramWriteHooked) { Bus.OnRamWriteRange += OnBusRamWriteRange; _ramWriteHooked = true; }
-        string normHex = (overlay.ContentSha256Hex ?? string.Empty).Trim().ToLowerInvariant();
+        bool hasTextScope = overlay is ITextScopedOverlayRecompModule ts
+            && ts.VerifiedTextSizeBytes > 0
+            && !string.IsNullOrWhiteSpace(ts.TextSha256Hex);
+        uint verifyAddr = hasTextScope ? ((ITextScopedOverlayRecompModule)overlay).VerifiedTextStart : overlay.LoadRamAddress;
+        int verifySize = hasTextScope ? ((ITextScopedOverlayRecompModule)overlay).VerifiedTextSizeBytes : overlay.ContentSizeBytes;
+        string rawHex = hasTextScope ? ((ITextScopedOverlayRecompModule)overlay).TextSha256Hex : overlay.ContentSha256Hex;
+
+        string normHex = (rawHex ?? string.Empty).Trim().ToLowerInvariant();
         byte[]? expectedBytes = normHex.Length == 64 && TryParseHex32(normHex, out byte[] decoded) ? decoded : null;
-        uint physStart = overlay.LoadRamAddress & 0x1FFFFFFFU & (PsxMemoryBus.RamSize - 1U);
-        ulong physEnd = (ulong)physStart + (uint)Math.Max(0, overlay.ContentSizeBytes);
+        uint physStart = verifyAddr & 0x1FFFFFFFU & (PsxMemoryBus.RamSize - 1U);
+        ulong physEnd = (ulong)physStart + (uint)Math.Max(0, verifySize);
         OverlayEntry[] existing = Volatile.Read(ref _overlays);
         int dupOverlayIdx = Array.FindIndex(existing, e =>
-            e.Mod.ExeId == overlay.ExeId && e.PhysStart == physStart && string.Equals(e.NormHex, normHex, StringComparison.Ordinal));
-        var entry = new OverlayEntry(overlay, physStart, physEnd, normHex, expectedBytes);
+            e.Mod.ExeId == overlay.ExeId && e.PhysStart == physStart && e.VerifySizeBytes == verifySize && string.Equals(e.NormHex, normHex, StringComparison.Ordinal));
+        var entry = new OverlayEntry(overlay, verifyAddr, verifySize, physStart, physEnd, normHex, expectedBytes);
         if (dupOverlayIdx >= 0)
         {
             var next = (OverlayEntry[])existing.Clone();
@@ -249,6 +256,14 @@ public sealed partial class PsxCpu
                 continue;
             }
             uint canonPc = 0x80000000U | masked;
+            Pc = canonPc;
+            if (TryInterceptFramePatch(canonPc))
+            {
+                if (ExitRequested || PendingQuickLoadSlot >= 0) break;
+                ShouldUnwind = false;
+                pc = R[31];
+                continue;
+            }
             IRecompModule? mod = ResolveModule(canonPc);
             if (mod is not null && TryExecuteCompiledModule(mod, canonPc, out bool hasTail, out uint tailPc))
             {
@@ -270,8 +285,8 @@ public sealed partial class PsxCpu
 
     private bool IsOverlayRamMatch(OverlayEntry entry)
     {
-        int size = entry.Mod.ContentSizeBytes;
-        if (size <= 0 || !Bus.TryGetRamSpan(entry.Mod.LoadRamAddress, (uint)size, out Span<byte> ramSpan)) return false;
+        int size = entry.VerifySizeBytes;
+        if (size <= 0 || !Bus.TryGetRamSpan(entry.VerifyRamAddress, (uint)size, out Span<byte> ramSpan)) return false;
         long gen = Interlocked.Read(ref entry.CurrentGeneration);
         if (entry.CachedGeneration == gen) return entry.CachedMatched;
         Span<byte> digest = stackalloc byte[32];
@@ -303,9 +318,11 @@ public sealed partial class PsxCpu
         return true;
     }
 
-    private sealed class OverlayEntry(IOverlayRecompModule mod, uint physStart, ulong physEnd, string normHex, byte[]? expectedHashBytes)
+    private sealed class OverlayEntry(IOverlayRecompModule mod, uint verifyRamAddress, int verifySizeBytes, uint physStart, ulong physEnd, string normHex, byte[]? expectedHashBytes)
     {
         public IOverlayRecompModule Mod { get; } = mod;
+        public uint VerifyRamAddress { get; } = verifyRamAddress;
+        public int VerifySizeBytes { get; } = verifySizeBytes;
         public uint PhysStart { get; } = physStart;
         public ulong PhysEnd { get; } = physEnd;
         public string NormHex { get; } = normHex;

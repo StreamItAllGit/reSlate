@@ -161,12 +161,34 @@ public sealed class RecompCompilerPipeline
                 string? jsonPath = ExeScanHelpers.ResolveFunctionsJson(Options, exe);
                 IReadOnlyCollection<uint>? extraSeeds = SelectUniqueSeedsForExe(exe, exes, globalSeeds);
                 (List<GeneratedFnSpec> funcs, HashSet<uint> rdataTargets) = ExeScanHelpers.DiscoverFunctions(exe, ReadWord, jsonPath, extraSeeds);
+                uint verifiedTextStart = exe.Header.TextAddr;
+                int verifiedTextSize = 0;
+                string verifiedTextSha = string.Empty;
+                if (exe.IsOverlay && funcs.Count > 0)
+                {
+                    uint vStart = Math.Max(exe.Header.TextAddr, funcs.Min(f => f.Addr));
+                    uint vEnd = Math.Min(exe.Header.TextEnd, funcs.Max(f => f.EndAddr));
+                    if (vEnd > vStart)
+                    {
+                        int off = checked((int)(vStart - exe.Header.TextAddr));
+                        int len = checked((int)(vEnd - vStart));
+                        if (off >= 0 && off + len <= exe.Bytes.Length)
+                        {
+                            verifiedTextStart = vStart;
+                            verifiedTextSize = len;
+                            verifiedTextSha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(exe.Bytes.AsSpan(off, len))).ToLowerInvariant();
+                        }
+                    }
+                }
                 var spec = new GeneratedExeSpec(exe.ExeId, exe.ExeName, exe.RelativePath, exe.FolderName, exe.ClassName, exe.Header.TextAddr, exe.Header.TextEnd, funcs)
                 {
                     IsOverlay = exe.IsOverlay,
                     LoadRamAddress = exe.Header.TextAddr,
                     ContentSizeBytes = exe.Bytes.Length,
-                    ContentSha256Hex = exe.ContentSha256Hex
+                    ContentSha256Hex = exe.ContentSha256Hex,
+                    VerifiedTextStart = verifiedTextStart,
+                    VerifiedTextSizeBytes = verifiedTextSize,
+                    TextSha256Hex = verifiedTextSha
                 };
                 if (!Options.EmitCleanRoomOnly)
                     emittedFiles.AddRange(FunctionChunkEmitter.EmitModule(outDir, rootNamespace, spec, ReadWord, rdataTargets));

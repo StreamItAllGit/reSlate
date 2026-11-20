@@ -60,6 +60,10 @@ public sealed partial class PsxGpu
         backend.UploadVramRect(0, 0, VramWidth, VramHeight, Vram);
     }
 
+    /// <summary>Synchronizes rendered 15-bit framebuffer pixels from the active backend back into <see cref="Vram"/>.</summary>
+    public bool SyncBackendToVramMirror() =>
+        Backend is IPsxGpuBackendHooks hooks && hooks.TryReadVramRect(0, 0, VramWidth, VramHeight, Vram);
+
     public int DisplayX { get; private set; }
     public int DisplayY { get; private set; }
     public int DisplayWidth { get; private set; } = 320;

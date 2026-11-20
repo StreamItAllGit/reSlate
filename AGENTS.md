@@ -1,6 +1,6 @@
 # Project Context: reSlate (`Personal/reStation`)
 
-- **Role:** SlateOne (R3000A) Static Recompilation Engine & `.decomp` Lifter (`v0.3.0-hf.2` Public Beta -> Next: `v0.3.1` `Vulkan`/`ParallelCpu`/Enhancement SDK/Fast-Forward/Cutscene Skip; `277/277` Release & Debug tests; outputs `reSlate.*`, `engines\reSlate\v0.3.0-hf.2\`, `SharedLibs\reSlate\v0.3.0-hf.2\`, preserving `reStation.{Contracts,Core}` ABI & `reStation.*` namespaces).
+- **Role:** SlateOne (R3000A) Static Recompilation Engine & `.decomp` Lifter (`v0.3.0-hf.3` Public Beta -> Next: `v0.3.1` `Vulkan`/`ParallelCpu`/Enhancement SDK/Fast-Forward/Cutscene Skip; `281/281` Release & Debug tests; outputs `reSlate.*`, `engines\reSlate\v0.3.0-hf.3\`, `SharedLibs\reSlate\v0.3.0-hf.3\`, preserving `reStation.{Contracts,Core}` ABI & `reStation.*` namespaces).
 - **Boundaries:** `Foundation\`, `reEngine\`, `_DevBible\` & `Research\*` (zero `Corpus\`) RO; `.recomp` supplies `data\rom\`; `APP_ISOLATED_TEST=1`; Debug/Test-only `Foundation.Automation` (`ExitCode=2` in `Release`); user `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v<Ver>\` (+ `.ready`, `data\config\settings.json`, `data\memcards\`).
 
 ## 1. Quartet, Security & State

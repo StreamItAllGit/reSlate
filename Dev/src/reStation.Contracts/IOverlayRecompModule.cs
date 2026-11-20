@@ -15,3 +15,17 @@ public interface IOverlayRecompModule : IRecompModule
     /// <summary>Lowercase SHA-256 hex digest of the overlay payload bytes.</summary>
     string ContentSha256Hex { get; }
 }
+
+/// <summary>
+/// Optional overlay extension scoping RAM integrity verification strictly to immutable <c>.text</c>
+/// so mutable trailing <c>.data</c>/<c>.bss</c> writes never evict compiled overlay modules.
+/// </summary>
+public interface ITextScopedOverlayRecompModule : IOverlayRecompModule
+{
+    /// <summary>Canonical RAM start address of the immutable verified <c>.text</c> region.</summary>
+    uint VerifiedTextStart { get; }
+    /// <summary>Byte length of the immutable verified <c>.text</c> region in guest RAM.</summary>
+    int VerifiedTextSizeBytes { get; }
+    /// <summary>Lowercase SHA-256 hex digest computed strictly over <c>[VerifiedTextStart, VerifiedTextStart + VerifiedTextSizeBytes)</c>.</summary>
+    string TextSha256Hex { get; }
+}

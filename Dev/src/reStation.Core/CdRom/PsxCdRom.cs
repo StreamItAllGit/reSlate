@@ -193,9 +193,13 @@ public sealed partial class PsxCdRom : IDisposable
             case 0x0D: _filterFile = p0; _filterChannel = p1; QueueIrq(0x03, new[] { BuildStat() }); break;
             case 0x0E: _mode = p0; QueueIrq(0x03, new[] { BuildStat() }); break;
             case 0x0F: QueueIrq(0x03, new byte[] { BuildStat(), _mode, 0x00, _filterFile, _filterChannel }); break;
-            case 0x10 or 0x11:
-                LbaToBcd(_seekLba, out byte m, out byte s, out byte f);
-                QueueIrq(0x03, new[] { m, s, f, (byte)0x01, m, s, f, (byte)0x02 });
+            case 0x10:
+                LbaToBcd(_seekLba, out byte lm, out byte ls, out byte lf);
+                QueueIrq(0x03, new[] { lm, ls, lf, _mode, _filterFile, _filterChannel, _driveSectorBuf[6], _driveSectorBuf[7] });
+                break;
+            case 0x11:
+                LbaToBcd(_seekLba, out byte pm, out byte ps, out byte pf);
+                QueueIrq(0x03, new byte[] { 0x01, 0x01, pm, ps, pf, pm, ps, pf });
                 break;
             case 0x15 or 0x16: QueueIrq(0x03, new[] { BuildStat() }); QueueIrq(0x02, new[] { BuildStat() }); break;
             case 0x19:

@@ -124,12 +124,14 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         backend.ScaleFactor = 3;
         Assert.Equal(4, backend.ScaleFactor);
         backend.ScaleFactor = 2;
-        Assert.False(backend.TryReadVramRect(0, 0, 4, 4, new ushort[16]));
+        Assert.True(backend.TryReadVramRect(0, 0, 4, 4, new ushort[16]));
         backend.AttachPgxp(null);
         backend.EndFrameAndPresent(0, 0, 320, 240, is24Bit: false, widescreen16By9: false);
 
-        await Task.Run(() =>
+        bool offThreadReadOk = true;
+        var worker = new System.Threading.Thread(() =>
         {
+            offThreadReadOk = backend.TryReadVramRect(0, 0, 4, 4, new ushort[16]);
             backend.SetTextureWindow(0x1F, 0x1F, 0x04, 0x08);
             ushort[] tex = { 0x7FFF, 0x03E0, 0x001F, 0x7C00 };
             backend.UploadVramRect(0, 0, 2, 2, tex);
@@ -138,6 +140,10 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
             uint[] tri = { 0x20FF0000U, 10U | (10U << 16), 60U | (10U << 16), 10U | (60U << 16) };
             backend.SubmitPrimitive(0x20U, tri, 0, 0, 0, 0, 0, 319, 239);
         });
+        worker.Start();
+        worker.Join();
+        Assert.False(offThreadReadOk);
+        await Task.CompletedTask;
 
         backend.EndFrameAndPresent(0, 0, 320, 240, is24Bit: false, widescreen16By9: false);
         byte[] rgba = backend.CaptureRgba(out int w, out int h);
@@ -231,14 +237,14 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("Prune-MinorVersionArchives", sanitizeScript, StringComparison.Ordinal);
         Assert.Contains("RequireAllFourDrives", e2eScript, StringComparison.Ordinal);
 
-        Assert.Equal("0.3.0-hf.2", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.Equal("0.3.0-hf.3", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.3.0-hf.2", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.0-hf.3", appManifest.RootElement.GetProperty("version").GetString());
         Assert.Equal("reslate", appManifest.RootElement.GetProperty("appId").GetString());
 
         using JsonDocument settingsExample = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "data", "settings.example.json")));
         Assert.Equal("reslate", settingsExample.RootElement.GetProperty("appId").GetString());
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.2", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.3", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
     }
 
     [Fact]
@@ -305,7 +311,7 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
 
         using JsonDocument doc = JsonDocument.Parse(stdout);
         Assert.True(doc.RootElement.GetProperty("dryRun").GetBoolean());
-        Assert.Equal("0.3.0-hf.2", doc.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.0-hf.3", doc.RootElement.GetProperty("version").GetString());
         Assert.Contains("run_sandbox_e2e.py", doc.RootElement.GetProperty("sandboxRunner").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 

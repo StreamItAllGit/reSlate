@@ -306,16 +306,14 @@ public sealed class Wave2CoreSeamTests
         cpu.RegisterModule(new StubModule(0, "M.EXE", 0x80010000U, 0x80011000U, c =>
         {
             calls++;
-            if (c.Pc == 0xFFFFFFFFU) throw new InvalidOperationException("unwind");
+            if (c.Pc == 0x800100F0U) throw new InvalidOperationException("unwind");
         }));
         var hook = new SeamSubTickHook();
         cpu.FramePatch = hook;
 
         cpu.Call(0x80010040U); // normal main call -> module + OnAfterCall
         cpu.Call(0x800100C0U); // main intercepted -> neither module nor OnAfterCall
-        cpu.Pc = 0xFFFFFFFFU;
         Assert.Throws<InvalidOperationException>(() => cpu.Call(0x800100F0U)); // throws -> finally still calls OnAfterCall
-        cpu.Pc = 0;
 
         cpu.InSubTickRender = true;
         cpu.Call(0x80010080U); // sub-tick intercepted -> module skipped, OnAfterCall skipped

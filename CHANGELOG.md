@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-hf.3] - 2026-11-19
+### Fixed
+- **CD-ROM `CdlGetlocP` (`0x11`) Minute-Rollover Layout (`PsxCdRom.cs`):** Split `0x10` (`CdlGetlocL`) and `0x11` (`CdlGetlocP`) so `CdlGetlocP` returns standard 8-byte `{ track=0x01, index=0x01, pm, ps, pf, am, as, af }` BCD subchannel coordinates instead of `CdlGetlocL` header/subheader bytes, preventing `cd_tick_xa_stream` seek-retry loops when streaming XA audio across minute boundaries.
+- **OpenGL VRAM Readback & QuickSave / Live-Switch Sync (`OpenGl33RenderBackend.Readback.cs`, `PsxGpu.cs`):** Implemented owner-thread OpenGL `_vramFbo` readback (`glBlitFramebuffer` downsample via `_scratchFbo` when upscaled + bottom-up `glReadPixels` into `_vramMirror`, failing closed off-thread) and invoked `SyncBackendToVramMirror()` before `SaveQuickSlot` capture and `ApplyLiveBackendSwitch`, eliminating black screens after `F5`/`F9` QuickSave/QuickLoad and GPU/Software switches.
+- **Frame-Patch `Pc` Alignment & Fast Overlay/Loop AOT Re-Entry (`PsxCpu.cs`, `PsxCpu.Scheduling.cs`, `MipsLifter.cs`, `RecompCompilerPipeline.cs`):** Synchronized `Pc = canonPc` prior to frame-patch interception in `Call()` and `ResumeMidStack()`, added `ITextScopedOverlayRecompModule` to verify immutable overlay `.text` bounds rather than mutable `.bss`/`.data` on overlay calls, and emitted loop back-edge + call-return `MidEntries` (`Fn_At` / `MidDispatchNN`) so interrupted loops resume cleanly in AOT without stalling frame times.
+### Added
+- **Diagnostic Telemetry Metrics & Regression Suite (`DebugAutomationDiagnostics.cs`, `Hotfix030Hf3RegressionTests.cs`):** Appended `cpuMs` and `ovHash` counters to `#if DEBUG || RESTATION_TEST_AUTOMATION` `Diag_Telemetry` and added 4 regression tests covering `CdlGetlocP` rollover, `Call`/`ResumeMidStack` `Pc` parity, GL VRAM readback round-trips, and `ITextScopedOverlayRecompModule` / loop `MidEntries` (`281/281` dual Release + Debug `/warnaserror` tests, `0` warnings).
+
 ## [0.3.0-hf.2] - 2026-11-19
 ### Added
 - **All-Tier Controller Rebinding & `KeyBindingsConfig.ControllerBindings` (`Global 1:1`, `Game 1:1`, `Modern PC`):** Added `[Label | KBM | Gamepad]` slots (`KeybindsDrawerTab.ClassicGrid.cs`) to both `Global 1:1` and `Game 1:1`, `LT`/`RT` trigger capture (`PollControllerTriggerCapture`), Right-Click and `Del`/`Bksp` clearability (`0` preserved across `Clamp()`), live `UiOverlayPresenter.ComputeBindingsDigest` invalidation, and additive `NativeGameActionContext` masks (`GamepadButtonsMask`, `KbmMoveMask`, `ControllerDpadClaimedByNonMoveMask`).

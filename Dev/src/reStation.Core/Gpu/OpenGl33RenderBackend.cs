@@ -55,8 +55,6 @@ public sealed unsafe partial class OpenGl33RenderBackend : IPsxRenderBackend, IP
         _wideFrameOps.Add(new WideFrameOp { Kind = WideFrameOpKind.SetTextureWindow, RawU32 = _texWindowPacked });
     }
 
-    public bool TryReadVramRect(int x, int y, int w, int h, Span<ushort> destination) => false; // Lazy glReadPixels ONLY in CaptureRgba.
-
     private void InitGlIfNeeded()
     {
         if (_ownerThreadId == 0) _ownerThreadId = Environment.CurrentManagedThreadId;

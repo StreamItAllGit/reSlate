@@ -276,10 +276,10 @@ public sealed class CliAndSettingsTests : IDisposable
     {
         Assert.Equal("reslate", ReStationEngineInfo.AppId);
         Assert.Equal("reSlate", ReStationEngineInfo.EngineId);
-        Assert.Equal("0.3.0-hf.2", ReStationEngineInfo.Version);
+        Assert.Equal("0.3.0-hf.3", ReStationEngineInfo.Version);
         Assert.Equal("0.3.x", ReStationEngineInfo.CompatibleEngineTrack);
         Assert.Equal(["0.3.x", "0.2.x", "0.1.x"], ReStationEngineInfo.SupportedEngineTracks);
-        Assert.Contains("reSlate v0.3.0-hf.2", CliOptions.HelpText, StringComparison.Ordinal);
+        Assert.Contains("reSlate v0.3.0-hf.3", CliOptions.HelpText, StringComparison.Ordinal);
         Assert.Contains("--require-backend", CliOptions.HelpText, StringComparison.Ordinal);
         Assert.Contains("--doctor", CliOptions.HelpText, StringComparison.Ordinal);
     }

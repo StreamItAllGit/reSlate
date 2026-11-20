@@ -140,11 +140,19 @@ public static partial class MipsLifter
         var targets = new HashSet<uint>();
         var backEdges = new HashSet<uint>();
         var delayTargets = new HashSet<uint>();
-        var mids = new List<uint>();
+        var midSet = new HashSet<uint>();
+        var callReturns = new List<uint>();
+        bool hasCall = false;
         bool dynSwitch = false;
         for (int i = 0; i < insns.Length; i++)
         {
             MipsInsn ins = insns[i];
+            if (ins.Op == 3 || ins.IsLinkBranch || (ins.Op == 0 && ins.Funct == 9))
+            {
+                hasCall = true;
+                uint retPc = ins.Addr + 8U;
+                if (retPc > fnStart && retPc < fnEnd) callReturns.Add(retPc);
+            }
             if (ins.Op is 1 or 2 or 4 or 5 or 6 or 7 && !ins.IsLinkBranch)
             {
                 uint tgt = ins.BranchTarget;
@@ -166,7 +174,7 @@ public static partial class MipsLifter
                 if (t < fnStart || t >= fnEnd || (t - fnStart) % 4U != 0U) continue;
                 targets.Add(t);
                 if (IsDelaySlot(insns, fnStart, t)) delayTargets.Add(t);
-                if (t > fnStart) mids.Add(t);
+                if (t > fnStart) midSet.Add(t);
             }
         }
 
@@ -183,6 +191,25 @@ public static partial class MipsLifter
                 if (insns[i].IsBranchOrJump) i++;
             }
         }
+
+        if (backEdges.Count > 0 && hasCall)
+        {
+            foreach (uint be in backEdges)
+            {
+                if (be > fnStart && !delayTargets.Contains(be))
+                    midSet.Add(be);
+            }
+            foreach (uint retPc in callReturns)
+            {
+                if (!IsDelaySlot(insns, fnStart, retPc))
+                {
+                    targets.Add(retPc);
+                    midSet.Add(retPc);
+                }
+            }
+        }
+
+        var mids = midSet.ToList();
         mids.Sort();
         return new FnAnalysis(targets, backEdges, delayTargets, dynSwitch, mids);
     }

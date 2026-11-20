@@ -232,6 +232,7 @@ public sealed partial class PsxCpu : IReStationCpuEx, IDisposable
                     continue;
                 }
                 uint canonPc = 0x80000000U | masked;
+                Pc = canonPc;
                 if (TryInterceptFramePatch(canonPc))
                 {
                     if (!executedTier3Block || ShouldUnwind || ExitRequested || PendingQuickLoadSlot >= 0) return;
