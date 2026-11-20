@@ -195,7 +195,7 @@ public static class PlayerMediaResolver
                     containerBytes = File.ReadAllBytes(containerPath);
                     containerCache[containerPath] = containerBytes;
                 }
-                if (exe.TextSizeBytes <= 0 || !TryFindContainerSliceOffset(containerBytes, exe.TextSizeBytes, exe.Sha256, out _))
+                if (exe.TextSizeBytes <= 0 || !TryFindContainerSliceOffset(containerBytes, exe.TextSizeBytes, exe.Sha256, exe.ContainerOffsetBytes, out _))
                 {
                     throw new InvalidDataException(
                         $"ROM container slice checksum mismatch for '{exe.BootExePath}' in '{containerPath}': expected {exe.Sha256} ({exe.TextSizeBytes} bytes).");
@@ -236,6 +236,18 @@ public static class PlayerMediaResolver
         int sliceLength,
         string expectedSha256Hex,
         out int sliceOffset)
+        => TryFindContainerSliceOffset(containerBytes, sliceLength, expectedSha256Hex, preferredOffsetBytes: null, out sliceOffset);
+
+    /// <summary>
+    /// Locates a <paramref name="sliceLength"/>-byte segment in <paramref name="containerBytes"/> whose SHA-256 matches <paramref name="expectedSha256Hex"/>,
+    /// verifying <paramref name="preferredOffsetBytes"/> in O(1) before falling back to 2048-byte sector and 4-byte scans.
+    /// </summary>
+    public static bool TryFindContainerSliceOffset(
+        ReadOnlySpan<byte> containerBytes,
+        int sliceLength,
+        string expectedSha256Hex,
+        long? preferredOffsetBytes,
+        out int sliceOffset)
     {
         sliceOffset = -1;
         if (sliceLength <= 0 || sliceLength > containerBytes.Length) return false;
@@ -245,6 +257,13 @@ public static class PlayerMediaResolver
         byte[] expectedDigest = Convert.FromHexString(expectedSha256Hex);
         Span<byte> actualDigest = stackalloc byte[32];
         int limit = containerBytes.Length - sliceLength;
+
+        if (preferredOffsetBytes is long hint && hint >= 0L && hint <= limit)
+        {
+            int hintOff = (int)hint;
+            SHA256.HashData(containerBytes.Slice(hintOff, sliceLength), actualDigest);
+            if (actualDigest.SequenceEqual(expectedDigest)) { sliceOffset = hintOff; return true; }
+        }
 
         for (int off = 0; off <= limit; off += 2048)
         {

@@ -159,7 +159,7 @@ public sealed class RecompCompilerPipeline
                 }
 
                 string? jsonPath = ExeScanHelpers.ResolveFunctionsJson(Options, exe);
-                IReadOnlyCollection<uint>? extraSeeds = SelectUniqueSeedsForExe(exe, exes, globalSeeds);
+                IReadOnlyCollection<uint>? extraSeeds = exe.SeedEntryAddresses ?? SelectUniqueSeedsForExe(exe, exes, globalSeeds);
                 (List<GeneratedFnSpec> funcs, HashSet<uint> rdataTargets) = ExeScanHelpers.DiscoverFunctions(exe, ReadWord, jsonPath, extraSeeds);
                 uint verifiedTextStart = exe.Header.TextAddr;
                 int verifiedTextSize = 0;

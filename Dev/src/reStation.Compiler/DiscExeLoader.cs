@@ -36,6 +36,8 @@ public sealed record DiscoveredExe(
 {
     public bool IsOverlay { get; init; }
     public string ContentSha256Hex { get; init; } = string.Empty;
+    public long? ContainerOffsetBytes { get; init; }
+    public IReadOnlyList<uint>? SeedEntryAddresses { get; init; }
 }
 
 /// <summary>Discovers and validates PS-X executables from single EXE files, gamedata folders, or optical disc containers.</summary>
@@ -82,12 +84,15 @@ public static class DiscExeLoader
                 : Path.GetFileName(exePath);
             string stem = ToPascalIdentifier(Path.GetFileNameWithoutExtension(exePath));
             string sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            AotRecipeExecutableSpec? matchedRecipeExe = MatchRecipeExe(inputRecipe, rel, Path.GetFileName(exePath), sha);
             return new List<DiscoveredExe>
             {
                 new(0, Path.GetFileName(exePath), rel, $"{stem}Exe", $"{stem}Module", bytes, hdr)
                 {
                     IsOverlay = false,
-                    ContentSha256Hex = sha
+                    ContentSha256Hex = sha,
+                    ContainerOffsetBytes = matchedRecipeExe?.ContainerOffsetBytes,
+                    SeedEntryAddresses = matchedRecipeExe?.EntryAddresses
                 }
             };
         }
@@ -348,6 +353,22 @@ public static class DiscExeLoader
         Span<byte> head = stackalloc byte[8];
         using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         return fs.Read(head) == 8 && head.SequenceEqual(PsxMagic);
+    }
+
+    private static AotRecipeExecutableSpec? MatchRecipeExe(AotRecipeSpec? recipe, string rel, string fileName, string sha)
+    {
+        if (recipe?.Executables is not { Count: > 0 }) return null;
+        foreach (AotRecipeExecutableSpec spec in recipe.Executables)
+            if (!string.IsNullOrWhiteSpace(spec.Sha256) && string.Equals(spec.Sha256, sha, StringComparison.OrdinalIgnoreCase))
+                return spec;
+        string normRel = rel.Replace('\\', '/').TrimStart('/');
+        foreach (AotRecipeExecutableSpec spec in recipe.Executables)
+            if (string.Equals(spec.BootExePath.Replace('\\', '/').TrimStart('/'), normRel, StringComparison.OrdinalIgnoreCase))
+                return spec;
+        foreach (AotRecipeExecutableSpec spec in recipe.Executables)
+            if (string.Equals(Path.GetFileName(spec.BootExePath), fileName, StringComparison.OrdinalIgnoreCase))
+                return spec;
+        return null;
     }
 
     internal static uint CanonicalRam(uint addr) => 0x80000000U | (addr & 0x1FFFFFFFU);

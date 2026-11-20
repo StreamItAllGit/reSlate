@@ -48,7 +48,9 @@ internal static class DiscOverlaySliceResolver
                 result.Add(new DiscoveredExe(i, name, rawExes[matchIdx].Rel, folder, cls, rawExes[matchIdx].Bytes, rawExes[matchIdx].Header)
                 {
                     IsOverlay = false,
-                    ContentSha256Hex = rawShas[matchIdx]
+                    ContentSha256Hex = rawShas[matchIdx],
+                    ContainerOffsetBytes = spec.ContainerOffsetBytes,
+                    SeedEntryAddresses = spec.EntryAddresses
                 });
                 continue;
             }
@@ -133,7 +135,7 @@ internal static class DiscOverlaySliceResolver
             throw new InvalidDataException($"Overlay recipe entry '{spec.BootExePath}' requires positive textSizeBytes ({spec.TextSizeBytes}).");
         if (string.IsNullOrWhiteSpace(spec.Sha256) || spec.Sha256.Length != 64 || !spec.Sha256.All(Uri.IsHexDigit))
             throw new InvalidDataException($"Overlay recipe entry '{spec.BootExePath}' requires a valid 64-character SHA-256 digest.");
-        if (!PlayerMediaResolver.TryFindContainerSliceOffset(containerBytes, spec.TextSizeBytes, spec.Sha256, out int offset))
+        if (!PlayerMediaResolver.TryFindContainerSliceOffset(containerBytes, spec.TextSizeBytes, spec.Sha256, spec.ContainerOffsetBytes, out int offset))
             throw new InvalidDataException($"Overlay slice '{spec.BootExePath}' ({spec.TextSizeBytes} bytes, sha256={spec.Sha256}) not found in '{containerRel}'.");
 
         byte[] slice = containerBytes.AsSpan(offset, spec.TextSizeBytes).ToArray();
@@ -145,7 +147,9 @@ internal static class DiscOverlaySliceResolver
         return new DiscoveredExe(exeId, spec.BootExePath, spec.BootExePath, folder, cls, slice, hdr)
         {
             IsOverlay = true,
-            ContentSha256Hex = spec.Sha256.ToLowerInvariant()
+            ContentSha256Hex = spec.Sha256.ToLowerInvariant(),
+            ContainerOffsetBytes = offset,
+            SeedEntryAddresses = spec.EntryAddresses
         };
     }
 
