@@ -77,6 +77,7 @@ internal static unsafe partial class Sdl3Native
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowPosition(IntPtr window, int x, int y);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_SetWindowSize(IntPtr window, int w, int h);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_GetWindowSize(IntPtr window, out int w, out int h);
+    [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern byte SDL_GetWindowSizeInPixels(IntPtr window, out int w, out int h);
     [DllImport("user32.dll", ExactSpelling = true)] private static extern int SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
     [DllImport("user32.dll", ExactSpelling = true)] private static extern int SetForegroundWindow(IntPtr hWnd);
     [DllImport(Lib, CallingConvention = CallingConvention.Cdecl)] public static extern IntPtr SDL_CreateRenderer(IntPtr window, byte* name);

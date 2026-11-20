@@ -23,7 +23,10 @@ internal sealed record HostRuntimeContext(
     Func<float>? MouseSensitivity = null,
     Func<(float MouseDx, float MouseDy, float StickX, float StickY)>? PollSubTickLook = null,
     Action? PresentSubTickFrame = null,
-    Func<bool>? IsEnhancedFrameRateEnabled = null);
+    Func<bool>? IsEnhancedFrameRateEnabled = null,
+    Func<bool>? IsFastForwardActive = null,
+    Func<double>? FastForwardMultiplier = null,
+    Action? OnCutsceneSkipRequested = null);
 
 /// <summary>
 /// Runs lifted game code on a dedicated execution thread that parks at every VBlank, so <see cref="RunFrame"/>
@@ -47,6 +50,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     private volatile bool _disposing;
     private Exception? _emuFault;
     private ISubTickFrameHook? _subTickHook;
+    private volatile int _pendingCutsceneSkip;
     private HostRuntimeContext _ctx = new(false);
     private long _lastMdecBlocks;
     private long _lastMdecTicks = Stopwatch.GetTimestamp();
@@ -91,6 +95,27 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     public bool IsEnhancedFrameRateEnabled => _ctx.IsEnhancedFrameRateEnabled?.Invoke() ?? (_cpu.Settings.FrameRateMode == FrameRateMode.Enhanced);
     public bool IsModernMouseLookActive => _ctx.IsModernMouseLookActive?.Invoke() ?? false;
     public float MouseSensitivity => _ctx.MouseSensitivity?.Invoke() ?? 1.0f;
+    public bool IsFastForwardEnabled => _ctx.IsFastForwardActive?.Invoke() ?? _cpu.Settings.IsFastForwardEnabled;
+    public double FastForwardMultiplier => IsFastForwardEnabled
+        ? Math.Clamp(_ctx.FastForwardMultiplier?.Invoke() ?? _cpu.Settings.FastForwardMultiplier, 1.0, 4.0)
+        : 1.0;
+    public ISkipCutsceneHook? SkipCutsceneHook { get; set; }
+
+    public void RequestCutsceneSkip()
+    {
+        Interlocked.Exchange(ref _pendingCutsceneSkip, 1);
+        _ctx.OnCutsceneSkipRequested?.Invoke();
+    }
+
+    public bool TryExecutePendingCutsceneSkip()
+    {
+        if (Interlocked.Exchange(ref _pendingCutsceneSkip, 0) == 0) return false;
+        ISkipCutsceneHook? hook = SkipCutsceneHook ?? _cpu.FramePatch as ISkipCutsceneHook;
+        if (hook is null) return false;
+        bool skipped = hook.TrySkipCutscene(_cpu, this);
+        _logger.Info("QOL", skipped ? "Cutscene skip hook executed." : "Cutscene skip requested outside skippable scene.");
+        return skipped;
+    }
 
     internal void AttachRuntimeContext(HostRuntimeContext context) => _ctx = context ?? throw new ArgumentNullException(nameof(context));
     public void WaitUntilTimestamp(long targetStopwatchTicks)
@@ -107,7 +132,12 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     public RecompFrameStats GetFrameStats() => GetTelemetry().ToFrameStats();
 
     public void RegisterModule(IRecompModule module) => _cpu.RegisterModule(module);
-    public void SetFramePatch(IGameFramePatch? patch) { _cpu.FramePatch = patch; _subTickHook = patch as ISubTickFrameHook; }
+    public void SetFramePatch(IGameFramePatch? patch)
+    {
+        _cpu.FramePatch = patch;
+        _subTickHook = patch as ISubTickFrameHook;
+        if (patch is ISkipCutsceneHook skipHook) SkipCutsceneHook = skipHook;
+    }
 
     /// <summary>Loads a PS-X EXE from gamedata into RAM, sets PC/GP/SP/RA, and arms the core thread for the next RunFrame.</summary>
     public bool LoadExecutable(string exeRelativePath, int exeId)
@@ -171,6 +201,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     public void RunFrame()
     {
         if (_disposing) return;
+        TryExecutePendingCutsceneSkip();
         BeginRunFrameHostPump();
         if (_bootPending && _emuThread is null)
         {
@@ -209,7 +240,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
 
     private void ForwardSubTickHook(long frameStartTicks)
     {
-        if (_subTickHook is not { } hook || _disposing || _cpu.ExitRequested || !IsEnhancedFrameRateEnabled) return;
+        if (_subTickHook is not { } hook || _disposing || _cpu.ExitRequested || !IsEnhancedFrameRateEnabled || IsFastForwardEnabled) return;
         int fps = TargetFps;
         if (fps > 0 && fps <= 60) return;
         uint total = fps <= 0 ? 2U : (uint)Math.Clamp((fps + 59) / 60, 1, 8);
@@ -239,6 +270,7 @@ internal sealed partial class ReStationHost : IReStationHostEx, IDisposable
     /// <summary>Steps the module one frame; if the module did not advance the machine itself, the host does.</summary>
     public async Task StepModuleFrameAsync(IRecompGameModule module, CancellationToken ct)
     {
+        TryExecutePendingCutsceneSkip();
         long before = FramesRun;
         await module.StepFrameAsync(ct).ConfigureAwait(false);
         if (FramesRun == before) RunFrame();

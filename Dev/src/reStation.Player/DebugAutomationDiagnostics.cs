@@ -99,6 +99,11 @@ internal sealed class DebugAutomationDiagnostics
 
     public delegate void LoopStateStateUpdater();
 
+    public bool IsVirtualKeyHeld(int scancode)
+    {
+        lock (_stateLock) return _heldKeys.TryGetValue(scancode, out int rem) && rem > 0;
+    }
+
     public void ApplyVirtualOverrides(Span<byte> mergedKeys, ref HostInputState st)
     {
         lock (_stateLock)
@@ -362,7 +367,7 @@ internal sealed class DebugAutomationDiagnostics
             "W" => 26, "A" => 4, "S" => 22, "D" => 7, "E" => 8, "Q" => 20, "F" => 9, "R" => 21, "C" => 6, "Z" => 29,
             "SPACE" => 44, "ENTER" => 40, "ESC" => 41, "BACKSPACE" => 42, "TAB" => 43, "DELETE" => 76,
             "RIGHT" => 79, "LEFT" => 80, "DOWN" => 81, "UP" => 82,
-            "F1" => 58, "F3" => 60, "F5" => 62, "F9" => 66,
+            "F1" => 58, "F3" => 60, "F5" => 62, "F6" => 63, "F7" => 64, "F9" => 66,
             _ => 0
         };
     }

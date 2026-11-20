@@ -265,7 +265,10 @@ internal sealed class HostContractBridge : IHostAutomationTarget
         scancode = keyName.Trim().ToUpperInvariant() switch
         {
             "F5" => Sdl3Native.ScF5,
+            "F6" => Sdl3Native.ScF6,
+            "F7" => Sdl3Native.ScF7,
             "F9" => Sdl3Native.ScF9,
+            "GRAVE" => 53,
             "PGUP" or "PAGEUP" => Sdl3Native.ScPgUp,
             "PGDN" or "PAGEDOWN" => Sdl3Native.ScPgDn,
             "DELETE" or "DEL" => Sdl3Native.ScDelete,

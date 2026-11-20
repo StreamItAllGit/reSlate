@@ -98,9 +98,8 @@ internal static unsafe partial class Program
                     overlay.MarkDirty(); st.UiDirty = true; return;
                 }
             }
-            (int winW, int winH) = video.GetWindowSize();
             (float mx, float my) = Sdl3Native.EventMousePosition(ev);
-            (int ox, int oy) = UiOverlayPresenter.WindowToOverlayCoords(mx, my, winW, winH);
+            (int ox, int oy) = UiOverlayPresenter.MapWindowToOverlayCoords(video, mx, my);
             HandleOverlayPointerDown(ox, oy, btn, video, host, cpu, drawer, overlay, settings, env, pacer, logger, st);
         }
         else if (type == Sdl3Native.EventDropFile && Sdl3Native.EventDropPath(ev) is { } dropped)
@@ -155,6 +154,14 @@ internal static unsafe partial class Program
             }
         }
         else if (sc == Sdl3Native.ScF5) host.RequestQuickSave(0);
+        else if (sc == Sdl3Native.ScF6)
+        {
+            settings.IsFastForwardEnabled = !settings.IsFastForwardEnabled;
+            settings.Save(env.ConfigFilePath);
+            if (!settings.IsFastForwardEnabled) st.FastForwardTickBudget = 0.0;
+            overlay.MarkDirty(); st.UiDirty = true;
+        }
+        else if (sc == Sdl3Native.ScF7) host.RequestCutsceneSkip();
         else if (sc == Sdl3Native.ScF9) host.RequestQuickLoad(0);
         else if (!drawer.IsOpen && (uint)sc < (uint)st.LatchedKeys.Length) st.LatchedKeys[sc] = 1;
     }
@@ -181,7 +188,14 @@ internal static unsafe partial class Program
         }
         if (act == DrawerAction.ToggleFullscreen) video.SetFullscreen(settings.IsFullscreen);
         else if (act == DrawerAction.ToggleVsync) video.SetVsync(settings.IsVsyncEnabled);
-        else if (act == DrawerAction.ToggleBackend) st.PendingBackendSwitch = settings.BackendId;
+        else if (act == DrawerAction.ToggleBackend)
+        {
+            st.PendingBackendSwitch = drawer.PendingRequestedBackendId ?? settings.BackendId;
+            drawer.PendingRequestedBackendId = null;
+        }
+        else if (act == DrawerAction.ToggleHdPacks) ApplyHdTexturePackSetting(cpu, env, drawer, settings, logger);
+        else if (act == DrawerAction.ToggleFastForward) { if (!settings.IsFastForwardEnabled) st.FastForwardTickBudget = 0.0; }
+        else if (act == DrawerAction.CutsceneSkip) host.RequestCutsceneSkip();
         else if (act == DrawerAction.ToggleRuntimeLogging) logger.SetEnabled(settings.ShouldEnableRuntimeLogs);
         else if (act == DrawerAction.QuickSave) host.RequestQuickSave(0);
         else if (act == DrawerAction.QuickLoad) host.RequestQuickLoad(0);
