@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-
 def assert_path_contained(candidate_path: str | Path, allowed_root: str | Path) -> Path:
     """Fail-closed containment check ensuring candidate_path resolves strictly inside allowed_root."""
     resolved_candidate = Path(candidate_path).resolve()
@@ -21,14 +20,12 @@ def assert_path_contained(candidate_path: str | Path, allowed_root: str | Path) 
         )
     return resolved_candidate
 
-
 @dataclass(frozen=True)
 class StandardCliOptions:
     data_dir: Path
     config_path: Path
     log_dir: Path
     extra_args: list[str]
-
 
 def parse_standard_cli_flags(
     argv: Sequence[str] | None = None,

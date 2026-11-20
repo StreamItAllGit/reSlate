@@ -28,23 +28,18 @@ _SPLIT_SEP_RE = re.compile(r"[\\/]+")
 _INPROC_GUARD = threading.Lock()
 _INPROC_LOCKS: dict[Path, threading.Lock] = {}
 
-
 class PlatformRegistryHive(StrEnum):
     CURRENT_USER, LOCAL_MACHINE, CLASSES_ROOT = "HKCU", "HKLM", "HKCR"
-
 
 class PlatformRegistryValueKind(StrEnum):
     STRING, EXPAND_STRING, MULTI_STRING, DWORD, QWORD, BINARY = "REG_SZ", "REG_EXPAND_SZ", "REG_MULTI_SZ", "REG_DWORD", "REG_QWORD", "REG_BINARY"
 
-
 _HIVE_MAP = {"HKCU": "HKCU", "HKEYCURRENTUSER": "HKCU", "CURRENTUSER": "HKCU", "HKLM": "HKLM", "HKEYLOCALMACHINE": "HKLM", "LOCALMACHINE": "HKLM", "HKCR": "HKCR", "HKEYCLASSESROOT": "HKCR", "CLASSESROOT": "HKCR"}
 _KIND_MAP = {k.name.replace("_", ""): k.value for k in PlatformRegistryValueKind} | {k.value.replace("_", ""): k.value for k in PlatformRegistryValueKind}
-
 
 def _utc_iso_ms(dt: datetime | None = None) -> str:
     cur = (dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
     return cur.strftime("%Y-%m-%dT%H:%M:%S.") + f"{cur.microsecond // 1000:03d}Z"
-
 
 def _parse_iso_utc(raw: Any) -> datetime | None:
     with suppress(ValueError):
@@ -52,7 +47,6 @@ def _parse_iso_utc(raw: Any) -> datetime | None:
             dt = datetime.fromisoformat((s[:-1] + "+00:00") if s.endswith("Z") else s)
             return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
     return None
-
 
 def _get_process_state(pid: int) -> tuple[bool, datetime | None]:
     if pid <= 0:
@@ -71,13 +65,11 @@ def _get_process_state(pid: int) -> tuple[bool, datetime | None]:
     finally:
         k32.CloseHandle(handle)
 
-
 def _normalize_target(hive: str | PlatformRegistryHive, subkey: str) -> tuple[str, str]:
     if (hive_name := _HIVE_MAP.get(str(hive).strip().upper().replace("_", ""))) is None:
         raise ValueError(f"Unsupported registry hive '{hive}'. Expected HKCU, HKLM, or HKCR.")
     parts = [p for p in _SPLIT_SEP_RE.split(subkey.strip()) if p]
     return hive_name, "\\".join(parts[1:] if parts and _HIVE_MAP.get(parts[0].upper().replace("_", "")) == hive_name else parts)
-
 
 def _encode_value(value: Any, kind: str | PlatformRegistryValueKind | None) -> tuple[str, Any]:
     k = _KIND_MAP.get(str(kind).strip().upper().replace("_", ""), "") if kind is not None else ("REG_SZ" if isinstance(value, str) else "REG_BINARY" if isinstance(value, (bytes, bytearray, memoryview)) else "REG_MULTI_SZ" if isinstance(value, (list, tuple)) else ("REG_DWORD" if -0x80000000 <= value <= 0xFFFFFFFF else "REG_QWORD") if isinstance(value, int) and not isinstance(value, bool) else "")
@@ -91,7 +83,6 @@ def _encode_value(value: Any, kind: str | PlatformRegistryValueKind | None) -> t
         return k, (bytes.fromhex(value.strip()) if isinstance(value, str) else bytes(value)).hex()
     raise ValueError(f"Invalid registryValueKind/type: kind={kind!r}, type={type(value).__name__}")
 
-
 def _os_lock_op(fd: int, lock: bool) -> None:
     if os.name == "nt":
         import msvcrt
@@ -100,7 +91,6 @@ def _os_lock_op(fd: int, lock: bool) -> None:
         return
     import fcntl
     fcntl.flock(fd, (fcntl.LOCK_EX | fcntl.LOCK_NB) if lock else fcntl.LOCK_UN)
-
 
 def _is_lock_held_by_other(lock_path: Path) -> bool:
     with suppress(OSError, ValueError, TypeError):
@@ -114,7 +104,6 @@ def _is_lock_held_by_other(lock_path: Path) -> bool:
         expected_start = _parse_iso_utc(env.get("processStartTimeUtc"))
         return alive and not (expected_start and actual_start and abs((actual_start - expected_start).total_seconds()) > 2.0)
     return False
-
 
 class JsonHivePlatformRegistry:
     """Atomic cross-process JSON pseudo-registry matching Standard 18 registry.hive.json schema."""

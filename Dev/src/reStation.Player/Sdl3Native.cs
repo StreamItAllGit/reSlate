@@ -53,7 +53,7 @@ internal static unsafe partial class Sdl3Native
     public const uint EventGamepadButtonDown = 0x651U, EventGamepadAdded = 0x653U, EventGamepadRemoved = 0x654U, EventDropFile = 0x1000U;
 
     public const int ScA = 4, ScD = 7, ScS = 22, ScW = 26, ScRet = 40, ScEsc = 41, ScBackspace = 42, ScTab = 43, ScSpace = 44;
-    public const int ScF1 = 58, ScF3 = 60, ScF5 = 62, ScF9 = 66, ScPgUp = 75, ScDelete = 76, ScPgDn = 78;
+    public const int ScF1 = 58, ScF3 = 60, ScF5 = 62, ScF6 = 63, ScF7 = 64, ScF9 = 66, ScPgUp = 75, ScDelete = 76, ScPgDn = 78;
     public const int ScRight = 79, ScLeft = 80, ScDown = 81, ScUp = 82;
     public const int MouseBtnLeft = 1, MouseBtnMiddle = 2, MouseBtnRight = 3, MouseBtnX1 = 4, MouseBtnX2 = 5;
     public const ulong WindowInputFocus = 0x0000000000000200UL;

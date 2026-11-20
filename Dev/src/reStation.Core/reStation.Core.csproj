@@ -22,6 +22,9 @@
     <Reference Include="reEngine.Core">
       <HintPath>$(ReStationLibDir)reEngine.Core.dll</HintPath>
     </Reference>
+    <Reference Include="reEngine.Host">
+      <HintPath>$(ReStationLibDir)reEngine.Host.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

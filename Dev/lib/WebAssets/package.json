@@ -1,11 +1,11 @@
 {
   "name": "@foundation/ui",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "private": true,
   "type": "module",
   "main": "./index.ts",
   "types": "./index.ts",
-  "description": "Foundation v0.5.0 (@foundation/ui v0.5.0) shared React 19 UI component library and docked terminal drawer for sister applications (Standard 09, Standard 13 & Standard 17).",
+  "description": "Foundation v0.5.2 (@foundation/ui v0.5.2) shared React 19 UI component library and docked terminal drawer for sister applications (Standard 09, Standard 13 & Standard 17).",
   "peerDependencies": {
     "lucide-react": ">=0.400.0",
     "react": "^19.0.0",

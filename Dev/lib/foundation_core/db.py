@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 from typing import Callable
 
-
 def open_wal_sqlite(db_path: str | Path, busy_timeout_ms: int = 15000) -> sqlite3.Connection:
     """Opens a SQLite connection configured with WAL mode, NORMAL synchronous, and foreign keys."""
     target = Path(db_path).resolve()
@@ -23,7 +22,6 @@ def open_wal_sqlite(db_path: str | Path, busy_timeout_ms: int = 15000) -> sqlite
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA cache_size = -65536;")
     return conn
-
 
 def recover_corrupt_sqlite(db_path: str | Path) -> Path | None:
     """Quarantines a corrupt SQLite database file as .corrupt.<timestamp> so a fresh schema can be initialized."""
@@ -38,7 +36,6 @@ def recover_corrupt_sqlite(db_path: str | Path) -> Path | None:
         if side.exists():
             side.unlink(missing_ok=True)
     return quarantined
-
 
 class SqliteSchemaMigrationRunner:
     """Monotonic schema_version migration runner for SQLite databases."""

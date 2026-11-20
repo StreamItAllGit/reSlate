@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "foundation-core"
-version = "0.5.0"
+version = "0.5.2"
 description = "Shared Foundation SDK for Python 3.12+ suite services (path containment, 4-drive sandbox seam, atomic JSON pseudo-registry, WAL SQLite, PID-safe lockfiles, <= 15s heartbeats)."
 requires-python = ">=3.12"
 dependencies = []

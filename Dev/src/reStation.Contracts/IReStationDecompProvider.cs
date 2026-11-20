@@ -125,6 +125,12 @@ public sealed record AotRecipeExecutableSpec
     /// <summary>SLEIGH language/spec identifier targeting this executable.</summary>
     [JsonPropertyName("sleighLanguageId")]
     public string SleighLanguageId { get; init; } = "psx_r3000a";
+    /// <summary>Optional raw byte offset inside a container/disc image for $O(1)$ slice verification (Standard 18 <c>containerOffsetBytes</c>).</summary>
+    [JsonPropertyName("containerOffsetBytes")]
+    public long? ContainerOffsetBytes { get; init; }
+    /// <summary>Optional per-executable uint32 function entry-point address hints emitted in <c>aot-recipe.json</c> (Standard 18 <c>entryAddresses</c>).</summary>
+    [JsonPropertyName("entryAddresses")]
+    public IReadOnlyList<uint>? EntryAddresses { get; init; }
 }
 
 /// <summary>

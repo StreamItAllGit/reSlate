@@ -31,6 +31,9 @@ public sealed class CliOptions
     public string? ModulePath { get; private init; }
     public string? DiscPath { get; private init; }
     public string? PreloadMediaPath { get; private init; }
+    public string? AspectMode { get; private init; }
+    public bool? HdPacks { get; private init; }
+    public bool? FastForward { get; private init; }
     public bool ShouldWait { get; private init; }
     public string? BackendId { get; private init; }
     public string? RequireBackendId { get; private init; }

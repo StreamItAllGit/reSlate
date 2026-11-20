@@ -35,7 +35,6 @@ _WIN_KF_GUIDS: tuple[tuple[str, str, int], ...] = (
     ("Windows", "F38BF404-1D43-42F2-9305-67DE0B28FC23", 0x4400),
 )
 
-
 class SandboxContainmentError(ValueError):
     """Raised on Stage 2 sandbox containment or host-collision violations (ExitCode=3)."""
 
@@ -43,11 +42,9 @@ class SandboxContainmentError(ValueError):
         super().__init__(message)
         self.exit_code = exit_code
 
-
 def is_containment_violation(exc: BaseException) -> bool:
     """Returns True when exc represents a sandbox containment violation (ExitCode=3)."""
     return isinstance(exc, SandboxContainmentError) or getattr(exc, "exit_code", None) == CONTAINMENT_EXIT_CODE
-
 
 @dataclass(slots=True, frozen=True)
 class SandboxMountSpec:
@@ -58,7 +55,6 @@ class SandboxMountSpec:
 
     def to_dict(self) -> dict[str, object]:
         return {"driveRole": self.drive_role, "driveMount": self.drive_mount, "directoryPath": str(self.directory_path) if self.directory_path is not None else None, "isEnabled": self.is_enabled}
-
 
 @dataclass(slots=True, frozen=True)
 class SandboxResolution:
@@ -75,11 +71,9 @@ class SandboxResolution:
     mounts: tuple[SandboxMountSpec, ...] = ()
     backing_roots: tuple[Path, ...] = ()
 
-
 def _lookup_env(env: Mapping[str, str | None], key: str) -> str | None:
     upper = key.upper()
     return next((v.strip() for k, v in env.items() if k.upper() == upper and isinstance(v, str) and v.strip()), None)
-
 
 def _normalize_path(raw: str | Path) -> Path:
     text = str(raw).strip().strip('"')
@@ -90,15 +84,12 @@ def _normalize_path(raw: str | Path) -> Path:
         text = f"{text[0].upper()}:{os.sep}"
     return Path(os.path.abspath(text))
 
-
 def _norm_key(path: Path) -> Path:
     return Path(os.path.normcase(os.path.abspath(str(path))))
-
 
 def _is_same_or_child(candidate: Path, root: Path) -> bool:
     cand_k, root_k = _norm_key(candidate), _norm_key(root)
     return cand_k == root_k or root_k in cand_k.parents
-
 
 def get_subst_mappings() -> dict[str, Path]:
     """Queries active Windows `subst` drive mappings (`X:` -> target Path) without shell=True."""
@@ -114,7 +105,6 @@ def get_subst_mappings() -> dict[str, Path]:
                 mappings[f"{token}:"] = _normalize_path(right.strip())
     return mappings
 
-
 def _resolve_backing_path(path: Path, subst_map: Mapping[str, Path]) -> Path:
     norm = _normalize_path(path)
     if os.name == "nt" and (drive := os.path.splitdrive(str(norm))[0].upper()) in subst_map:
@@ -123,7 +113,6 @@ def _resolve_backing_path(path: Path, subst_map: Mapping[str, Path]) -> Path:
     with suppress(OSError):
         return _normalize_path(norm.resolve())
     return norm
-
 
 def _win_known_folders() -> dict[str, Path]:
     s32, o32 = ctypes.WinDLL("shell32", use_last_error=True), ctypes.WinDLL("ole32", use_last_error=True)
@@ -140,7 +129,6 @@ def _win_known_folders() -> dict[str, Path]:
             if ptr:
                 o32.CoTaskMemFree(ptr)
     return out
-
 
 def _collect_host_collision_roots(subst_map: Mapping[str, Path], scopes: list[Path]) -> tuple[list[Path], list[Path], tuple[Path, ...]]:
     forbidden, user_homes, temp_roots = [], [], []
@@ -177,7 +165,6 @@ def _collect_host_collision_roots(subst_map: Mapping[str, Path], scopes: list[Pa
             temp_roots.append(st)
     return forbidden, user_homes, tuple(t for t in dict.fromkeys(temp_roots) if not any(_is_same_or_child(t, f) for f in forbidden))
 
-
 def _validate_not_host_collision(label: str, candidate: Path, subst_map: Mapping[str, Path], host_roots: tuple[list[Path], list[Path], tuple[Path, ...]]) -> Path:
     forbidden, user_homes, temp_roots = host_roots
     backing = _resolve_backing_path(candidate, subst_map)
@@ -189,7 +176,6 @@ def _validate_not_host_collision(label: str, candidate: Path, subst_map: Mapping
             if _is_same_or_child(user_root, probe) or (_is_same_or_child(probe, user_root) and not any(_is_same_or_child(probe, t) for t in temp_roots)):
                 raise SandboxContainmentError(f"Fail-Closed Sandbox Host Collision ({label}): '{probe}' collides with user root '{user_root}'.")
     return backing
-
 
 def resolve_sandbox_environment(env_override: Mapping[str, str | None] | None = None) -> SandboxResolution:
     """Resolves Stage 2 4-drive sandbox state strictly from process env (never auto-reading .secrets/.env)."""
@@ -227,7 +213,6 @@ def resolve_sandbox_environment(env_override: Mapping[str, str | None] | None = 
         mounts=tuple(mounts), backing_roots=tuple(dict.fromkeys(backings)),
     )
 
-
 def _build_known_folder_map(profile: Path, local_app: Path, roaming_app: Path, prog_files: Path, prog_x86: Path, common_app: Path, windows: Path) -> dict[str, Path]:
     start_menu = roaming_app / "Microsoft" / "Windows" / "Start Menu"
     programs = start_menu / "Programs"
@@ -238,7 +223,6 @@ def _build_known_folder_map(profile: Path, local_app: Path, roaming_app: Path, p
         "StartMenu": start_menu, "Programs": programs, "Startup": programs / "Startup",
         "ProgramFiles": prog_files, "ProgramFilesX86": prog_x86, "CommonApplicationData": common_app, "Windows": windows,
     }
-
 
 def _host_known_folders(env: Mapping[str, str | None]) -> dict[str, Path]:
     profile = _normalize_path(_lookup_env(env, "USERPROFILE") or _lookup_env(env, "HOME") or Path.home())
@@ -252,7 +236,6 @@ def _host_known_folders(env: Mapping[str, str | None]) -> dict[str, Path]:
         _normalize_path(_lookup_env(env, "SystemRoot") or _lookup_env(env, "WINDIR") or (sys_drive / "Windows")),
     )
 
-
 def resolve_known_folders(resolution: SandboxResolution | None = None, env_override: Mapping[str, str | None] | None = None) -> dict[str, Path]:
     """Resolves Windows SpecialFolder-equivalent paths into the sandbox when active, or host OS paths otherwise."""
     res = resolution if resolution is not None else resolve_sandbox_environment(env_override)
@@ -262,13 +245,11 @@ def resolve_known_folders(resolution: SandboxResolution | None = None, env_overr
     profile = res.sandbox_profile_dir or (c_root / "Users" / "Sandbox")
     return _build_known_folder_map(profile, profile / "AppData" / "Local", profile / "AppData" / "Roaming", c_root / "Program Files", c_root / "Program Files (x86)", c_root / "ProgramData", c_root / "Windows")
 
-
 def get_known_folder(folder_name: str, resolution: SandboxResolution | None = None, env_override: Mapping[str, str | None] | None = None) -> Path:
     for key, path in resolve_known_folders(resolution, env_override).items():
         if key.lower() == folder_name.strip().lower():
             return path
     raise KeyError(f"Unknown folder name '{folder_name}'.")
-
 
 def is_path_within_sandbox(candidate_path: str | Path, resolution: SandboxResolution | None = None, env_override: Mapping[str, str | None] | None = None) -> bool:
     """Returns True iff sandbox is active and both logical and resolved paths stay within sandbox/drive roots."""
@@ -279,7 +260,6 @@ def is_path_within_sandbox(candidate_path: str | Path, resolution: SandboxResolu
     logical = _normalize_path(candidate_path)
     return any(_is_same_or_child(logical, r) for r in allowed) and any(_is_same_or_child(_resolve_backing_path(logical, get_subst_mappings()), r) for r in allowed)
 
-
 def assert_sandbox_path_if_active(candidate_path: str | Path, resolution: SandboxResolution | None = None, env_override: Mapping[str, str | None] | None = None) -> Path:
     """When sandbox is active, fails closed (exit_code=3) if candidate_path escapes sandbox roots."""
     res = resolution if resolution is not None else resolve_sandbox_environment(env_override)
@@ -287,7 +267,6 @@ def assert_sandbox_path_if_active(candidate_path: str | Path, resolution: Sandbo
     if res.is_sandbox_active and not is_path_within_sandbox(normalized, res):
         raise SandboxContainmentError(f"Fail-Closed Sandbox Containment Violation: '{normalized}' escapes '{res.sandbox_root}'.")
     return normalized
-
 
 def map_host_path_to_sandbox(host_path: str | Path, resolution: SandboxResolution | None = None, env_override: Mapping[str, str | None] | None = None) -> Path:
     """Maps a host known-folder path into the active sandbox, or returns it normalized when inactive."""

@@ -9,7 +9,6 @@ import sys
 import time
 from pathlib import Path
 
-
 def emit_heartbeat(operation_name: str, completed: int, total: int, current_item: str = "working") -> str:
     """Formats and writes a <=15s heartbeat line with TTY-aware in-place carriage return."""
     pct = min(100.0, max(0.0, (completed / total * 100.0) if total > 0 else 0.0))
@@ -18,7 +17,6 @@ def emit_heartbeat(operation_name: str, completed: int, total: int, current_item
         sys.stdout.write(f"\r\x1b[K{line}")
         sys.stdout.flush()
     return line
-
 
 class RollingLogSink:
     """Thread-safe rolling text log writer with automatic size-based rotation."""

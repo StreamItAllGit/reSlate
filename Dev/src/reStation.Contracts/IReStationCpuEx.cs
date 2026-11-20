@@ -26,4 +26,9 @@ public interface IReStationCpuEx : IReStationCpu
     void RunSlice(uint entryPc, uint returnSentinelPc = IReStationCpu.ReturnSentinelPc, bool inSubTickRender = false);
     /// <summary>Advances cycles to the next VBlank when unmasked and outside sub-tick/unwind states.</summary>
     bool TryAdvanceToNextVBlank();
+    /// <summary>
+    /// Bounded guest VBlank-counter wait helper preventing tight-loop PsyQ <c>VSync(n)</c> spin timeouts.
+    /// Returns <see langword="true"/> once <paramref name="counterAddr"/> reaches <paramref name="targetValue"/> within <paramref name="maxVBlanks"/> VBlanks.
+    /// </summary>
+    bool TryWaitForVBlankCounter(uint counterAddr, int targetValue, uint waitEntryPc = 0U, int maxVBlanks = 16) => false;
 }

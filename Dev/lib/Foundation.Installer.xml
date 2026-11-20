@@ -15,6 +15,9 @@
             Preserves user data\ and logs\ during upgrades and respects isolated runtime overrides (Standard 02).
             </summary>
         </member>
+        <member name="P:Foundation.Installer.InstallerMarkupManifest.SuiteName">
+            <summary>Legacy read-only JSON fallback for <see cref="P:Foundation.Installer.InstallerMarkupManifest.SuiteId"/> per Standard 18.</summary>
+        </member>
         <member name="T:Foundation.Installer.InstallerProfileKind">
             <summary>
             Supported installer bundle footprint profiles (Standard 18: installProfile).

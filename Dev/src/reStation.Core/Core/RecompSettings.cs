@@ -7,6 +7,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Foundation.Core;
+using reEngine.Host.Contracts;
 using reStation.Contracts;
 using reStation.Core.Input;
 
@@ -42,7 +43,12 @@ public sealed class RecompSettings
     [JsonPropertyName("resolutionScale")] public int ResolutionScale { get; set; } = 4;
     [JsonPropertyName("backendId")] public string BackendId { get; set; } = PsxRenderBackendIds.OpenGl;
     [JsonPropertyName("isWidescreen16By9")] public bool IsWidescreen16By9 { get; set; } = false;
+    [JsonPropertyName("aspectRatioMode")] public string AspectRatioMode { get; set; } = string.Empty;
+    [JsonPropertyName("overscanCropPx")] public HostOverscanCrop OverscanCropPx { get; set; }
     [JsonPropertyName("isPgxpEnabled")] public bool IsPgxpEnabled { get; set; } = true;
+    [JsonPropertyName("isHdTexturePackEnabled")] public bool IsHdTexturePackEnabled { get; set; } = false;
+    [JsonPropertyName("isFastForwardEnabled")] public bool IsFastForwardEnabled { get; set; } = false;
+    [JsonPropertyName("fastForwardMultiplier")] public double FastForwardMultiplier { get; set; } = 2.0;
     [JsonPropertyName("isFullscreen")] public bool IsFullscreen { get; set; }
     [JsonPropertyName("controlMode")] public ControlMode ControlMode { get; set; } = ControlMode.ModernWasdMouse;
     [JsonPropertyName("controllerDpadMode")] public string ControllerDpadMode { get; set; } = NativeInputModeIds.ControllerDpadQuickActions;

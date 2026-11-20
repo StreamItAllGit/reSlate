@@ -11,7 +11,6 @@ import socket
 import time
 from pathlib import Path
 
-
 class PidSentinelLock:
     """Manages cross-process .hklock sentinel files with stale PID recovery."""
 

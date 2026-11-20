@@ -173,6 +173,11 @@
             for SDL3/offscreen HUD overlays and deterministic PNG screenshot capture.
             </summary>
         </member>
+        <member name="T:Foundation.Core.QrCodeEncoder">
+            <summary>
+            Pure-.NET ISO/IEC 18004 byte-mode QR encoder supporting Versions 1-10 at Error Correction Level M (up to 213 UTF-8 bytes).
+            </summary>
+        </member>
         <member name="T:Foundation.Core.RgbaPngWriter">
             <summary>
             Pure-.NET lossless 8-bit RGBA PNG encoder with zero GDI+ or System.Drawing dependencies.

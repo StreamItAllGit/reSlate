@@ -11,7 +11,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 class ThreeFileSettingsStore:
     """Manages atomic 3-file JSON settings persistence and config_history/ rotation (Standard 05)."""
 

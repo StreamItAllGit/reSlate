@@ -24,4 +24,10 @@ public interface IReStationHostEx : IReStationHost
     (float MouseDx, float MouseDy, float StickX, float StickY) PollSubTickLook();
     /// <summary>Presents the rendered sub-tick frame and drains any queued GPU commands on the render thread.</summary>
     void PresentSubTickFrame();
+    /// <summary>True when runtime Fast-Forward boost is currently active (Standard 18 <c>isFastForwardEnabled</c>).</summary>
+    bool IsFastForwardEnabled => false;
+    /// <summary>Active runtime Fast-Forward speed multiplier (default <c>1.0</c>; Standard 18 <c>fastForwardMultiplier</c>).</summary>
+    double FastForwardMultiplier => 1.0;
+    /// <summary>Requests an opt-in Cutscene Skip (<see cref="ISkipCutsceneHook"/>) at the next safe frame boundary.</summary>
+    void RequestCutsceneSkip() { }
 }

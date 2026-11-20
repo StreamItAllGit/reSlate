@@ -33,7 +33,7 @@ from .sandbox_seam import (
 )
 from .settings import ThreeFileSettingsStore
 
-SDK_VERSION: str = "0.5.0"
+SDK_VERSION: str = "0.5.2"
 MODULE_VERSION: str = "0.1.0"
 
 __all__ = [

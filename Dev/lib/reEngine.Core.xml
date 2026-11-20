@@ -368,6 +368,9 @@
         <member name="F:reEngine.Core.Decomp.DecompD4StrictnessValidator.CanonicalCorpusTiers">
             <summary>Canonical preserved decompilation tier directory names under <c>Corpus\tiers\</c>.</summary>
         </member>
+        <member name="F:reEngine.Core.Decomp.DecompD4StrictnessValidator.LegacyCorpusTierAliases">
+            <summary>Scoped legacy transition tier directory aliases mapped to canonical <c>Corpus\tiers\</c> names.</summary>
+        </member>
         <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.BareWarnSuppressRegex">
             <remarks>
             Pattern:<br/>
@@ -433,7 +436,7 @@
             <summary>Audits a <c>.decomp</c> ZIP archive to reject embedded C source function bodies.</summary>
         </member>
         <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.DiscoverCorpusTiers(System.String)">
-            <summary>Discovers preserved tier folders inside <c>Corpus\tiers\</c>.</summary>
+            <summary>Discovers preserved tier folders inside <c>Corpus\tiers\</c>, resolving legacy aliases to canonical names without duplication.</summary>
         </member>
         <member name="M:reEngine.Core.Decomp.DecompD4StrictnessValidator.ContainsCFunctionBody(System.String)">
             <summary>Detects embedded C function bodies or <c>cBody</c>/<c>functionBody</c> schema payloads.</summary>
@@ -573,6 +576,80 @@
             Validates offline toolchain availability for the active <paramref name="profile"/> without network access.
             </summary>
         </member>
+        <member name="T:reEngine.Core.Decomp.PackageVerificationReport">
+            <summary>Standard 18 verification report emitted by <see cref="T:reEngine.Core.Decomp.PackageVerificationService"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.PackageVerificationReport.#ctor(System.Boolean,System.String,System.Int64,System.Int32,System.String,System.String,System.String,System.String,reEngine.Core.Resolution.InstalledEngineCandidate,System.Boolean,System.String,System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>Standard 18 verification report emitted by <see cref="T:reEngine.Core.Decomp.PackageVerificationService"/>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.PackageVerificationReport.ToJson(System.Boolean)">
+            <summary>Serializes this verification report to Standard 18 camelCase JSON.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.PackageVerificationService">
+            <summary>Verifies <c>.recomp</c> and <c>.decomp</c> packages/directories for schema, clean-room, engine track, and BYO media readiness.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.PackageVerificationService.Verify(System.String,System.String,System.String,System.String,System.Boolean,reEngine.Core.Updates.ReEngineSettings,System.String)">
+            <summary>Runs synchronous verification for a <c>.recomp</c>/<c>.recomp.json</c> or <c>.decomp</c>/<c>.decomp.json</c>/directory package.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.PackageVerificationService.VerifyAsync(System.String,System.String,System.String,System.String,System.Boolean,reEngine.Core.Updates.ReEngineSettings,System.String,System.Threading.CancellationToken)">
+            <summary>Asynchronously verifies a <c>.recomp</c> or <c>.decomp</c> package.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.SuiteMediaCandidate">
+            <summary>Discovered BYO disc image, ROM, or PS-X executable candidate with ranking metadata.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.SuiteMediaCandidate.#ctor(System.String,System.String,System.String,System.Int64,System.Int32,System.Boolean,System.Boolean,System.Boolean,System.Boolean,System.String)">
+            <summary>Discovered BYO disc image, ROM, or PS-X executable candidate with ranking metadata.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.SuiteMediaDiscoveryResult">
+            <summary>Result of walking module and suite trees for unambiguous or promptable BYO media.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.SuiteMediaDiscoveryResult.#ctor(System.Boolean,System.Boolean,System.String,reEngine.Core.Decomp.SuiteMediaCandidate,System.Collections.Generic.IReadOnlyList{reEngine.Core.Decomp.SuiteMediaCandidate},System.String)">
+            <summary>Result of walking module and suite trees for unambiguous or promptable BYO media.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.StagedMediaResult">
+            <summary>Result of staging selected media (and any <c>.cue</c> companion binaries) into <c>data\rom\</c>.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.StagedMediaResult.#ctor(System.String,System.Collections.Generic.IReadOnlyList{System.String})">
+            <summary>Result of staging selected media (and any <c>.cue</c> companion binaries) into <c>data\rom\</c>.</summary>
+        </member>
+        <member name="T:reEngine.Core.Decomp.SuiteMediaTreeWalker">
+            <summary>Safely discovers and stages BYO disc/ROM media across module and suite root trees.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.SuiteMediaTreeWalker.CueFileLineRegex">
+            <remarks>
+            Pattern:<br/>
+            <code>^\\s*FILE\\s+(?:"(?&lt;quoted&gt;[^"]+)"|(?&lt;bare&gt;\\S+))</code><br/>
+            Options:<br/>
+            <code>RegexOptions.IgnoreCase | RegexOptions.CultureInvariant</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at the beginning of the string.<br/>
+            ○ Match a whitespace character atomically any number of times.<br/>
+            ○ Match a character in the set [Ff].<br/>
+            ○ Match a character in the set [Ii].<br/>
+            ○ Match a character in the set [Ll].<br/>
+            ○ Match a character in the set [Ee].<br/>
+            ○ Match a whitespace character greedily at least once.<br/>
+            ○ Match with 2 alternative expressions, atomically.<br/>
+                ○ Match a sequence of expressions.<br/>
+                    ○ Match '"'.<br/>
+                    ○ "quoted" capture group.<br/>
+                        ○ Match a character other than '"' atomically at least once.<br/>
+                    ○ Match '"'.<br/>
+                ○ "bare" capture group.<br/>
+                    ○ Match any character other than a whitespace character atomically at least once.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:reEngine.Core.Decomp.SuiteMediaTreeWalker.DeriveSuiteRootDirectory(System.String,System.String,System.String)">
+            <summary>Derives the suite root directory from <paramref name="enginesRootDir"/> or <paramref name="dataDirectory"/> within optional containment.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.SuiteMediaTreeWalker.Discover(System.String,System.String,System.String,System.String,System.String,System.String)">
+            <summary>Discovers and deterministically ranks BYO media across module and suite root directories.</summary>
+        </member>
+        <member name="M:reEngine.Core.Decomp.SuiteMediaTreeWalker.StageMediaIntoRomDirectoryAsync(System.String,System.String,System.String,System.Threading.CancellationToken)">
+            <summary>Stages <paramref name="sourceMediaPath"/> (plus any <c>.cue</c> <c>FILE</c> companions) into <paramref name="targetRomDirectory"/>.</summary>
+        </member>
         <member name="T:reEngine.Core.Manifests.DecompToolchainRequirements">
             <summary>
             Toolchain prerequisites declared by a <c>.decomp</c> package manifest.
@@ -617,7 +694,16 @@
             <summary>Optional relative assembly path or filename providing <see cref="T:reEngine.Core.Manifests.IDecompPlatformProvider"/>.</summary>
         </member>
         <member name="P:reEngine.Core.Manifests.DecompPackageManifest.PreservedTiers">
-            <summary>Preserved earned research tiers present in upstream <c>Corpus\tiers\</c> (e.g., <c>D1_Raw</c>.. <c>D5_ByteExact</c>).</summary>
+            <summary>Preserved earned research tiers present in upstream <c>Corpus\tiers\</c> (<c>D1_Raw</c>, <c>D2_Structured</c>, <c>D3_Mapped</c>, canonical <c>D4_CleanSource</c> with <c>D4_FunctionalRewrite</c> legacy alias, <c>D5_ByteExact</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.D4ParityTier">
+            <summary>Standard 18 D4 parity level (<c>none</c>, <c>D4a</c> subsystem parity, or <c>D4b</c> execution parity).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.CurrentPortTier">
+            <summary>Standard 18 separate port/reimplementation axis tier (<c>none</c>, <c>P0</c>–<c>P5</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.DecompPackageManifest.ExpectedSha256">
+            <summary>Optional expected 64-char hex SHA-256 of verified user media for suite-tree disambiguation.</summary>
         </member>
         <member name="P:reEngine.Core.Manifests.DecompPackageManifest.DecompSchemaVersion">
             <summary>Standard 18 SemVer of the <c>.decomp</c> container schema.</summary>
@@ -690,6 +776,15 @@
         <member name="P:reEngine.Core.Manifests.EngineManifestModel.EngineId">
             <summary>Canonical platform engine identifier (e.g., <c>reStation</c> or coded alias <c>reSlate</c>).</summary>
         </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.LegacyEngineIds">
+            <summary>Backward-compatible alias identifiers resolved alongside <see cref="P:reEngine.Core.Manifests.EngineManifestModel.EngineId"/> (Standard 18: <c>legacyEngineIds</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.HostProtocolVersion">
+            <summary>Minimum <c>reEngine.Host</c> ABI/CLI protocol SemVer declared by this engine (Standard 18: <c>hostProtocolVersion</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Manifests.EngineManifestModel.MinSuiteVersion">
+            <summary>Minimum companion suite SemVer required by this engine.</summary>
+        </member>
         <member name="P:reEngine.Core.Manifests.EngineManifestModel.DisplayName">
             <summary>Installed engine display name.</summary>
         </member>
@@ -718,7 +813,7 @@
             <summary>Preferred execution tier mode (<c>aotPrimary</c>, <c>jitBringup</c>, <c>threadedIr</c>).</summary>
         </member>
         <member name="P:reEngine.Core.Manifests.EngineManifestModel.BackendId">
-            <summary>Default render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
+            <summary>Default render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>directx</c>, <c>parallelCpu</c>, <c>software</c>, reserved <c>metal</c>).</summary>
         </member>
         <member name="P:reEngine.Core.Manifests.EngineManifestModel.ResolutionScale">
             <summary>Default pass-through resolution scale factor (1..8).</summary>
@@ -759,7 +854,7 @@
             <summary>Ordered list of compatible engine tracks supported by this module.</summary>
         </member>
         <member name="P:reEngine.Core.Manifests.RecompPackageManifest.BackendId">
-            <summary>Optional preferred render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
+            <summary>Optional preferred render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>directx</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
         </member>
         <member name="P:reEngine.Core.Manifests.RecompPackageManifest.ResolutionScale">
             <summary>Optional integer resolution scale factor requested by this module (1..8).</summary>
@@ -818,19 +913,62 @@
             Discovers optical discs and ROM images under the module's configured <c>preloadRomDir</c>.
             </summary>
         </member>
+        <member name="T:reEngine.Core.Resolution.HostRenderBackendIds">
+            <summary>
+            Canonical Standard 18 <c>backendId</c> tokens owned by <c>reEngine</c> without modifying read-only <c>Foundation.Retro</c>.
+            </summary>
+        </member>
+        <member name="F:reEngine.Core.Resolution.HostRenderBackendIds.OpenGl">
+            <summary>OpenGL 3.3+ hardware render backend identifier.</summary>
+        </member>
+        <member name="F:reEngine.Core.Resolution.HostRenderBackendIds.Vulkan">
+            <summary>Vulkan 1.3+ hardware render backend identifier.</summary>
+        </member>
+        <member name="F:reEngine.Core.Resolution.HostRenderBackendIds.DirectX">
+            <summary>DirectX 12 stable Windows hardware render backend identifier.</summary>
+        </member>
+        <member name="F:reEngine.Core.Resolution.HostRenderBackendIds.ParallelCpu">
+            <summary>Deterministic multi-threaded CPU band rasterizer identifier.</summary>
+        </member>
+        <member name="F:reEngine.Core.Resolution.HostRenderBackendIds.Software">
+            <summary>Reference single-threaded software CPU backend identifier.</summary>
+        </member>
+        <member name="F:reEngine.Core.Resolution.HostRenderBackendIds.Metal">
+            <summary>Reserved Apple Metal backend identifier (<c>v1.1.0+</c> macOS/iOS).</summary>
+        </member>
+        <member name="P:reEngine.Core.Resolution.HostRenderBackendIds.AllWindowsBackends">
+            <summary>All five desktop Windows render backends exposed in the UI and host pipeline.</summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.HostRenderBackendIds.TryNormalize(System.String,System.String@)">
+            <summary>Normalizes CLI/manifest backend strings (<c>dx12</c> / <c>d3d12</c> -&gt; <c>directx</c>) against canonical tokens.</summary>
+        </member>
+        <member name="T:reEngine.Core.Resolution.BackendUnavailableException">
+            <summary>
+            Raised when <c>--require-backend</c> mandates a render backend that is unavailable or unsupported (maps to <c>ExitCode = 6</c>).
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Resolution.BackendUnavailableException.RequestedBackend">
+            <summary>Requested backend identifier that could not be provisioned.</summary>
+        </member>
+        <member name="P:reEngine.Core.Resolution.BackendUnavailableException.Reason">
+            <summary>Diagnostic reason why the backend was unavailable or rejected.</summary>
+        </member>
+        <member name="M:reEngine.Core.Resolution.BackendUnavailableException.#ctor(System.String,System.String)">
+            <summary>Initializes a new <see cref="T:reEngine.Core.Resolution.BackendUnavailableException"/> for <paramref name="requestedBackend"/>.</summary>
+        </member>
         <member name="T:reEngine.Core.Resolution.EngineAliasCatalog">
             <summary>
-            Maps coded hardware engine identifiers cleanly to/from legacy <c>re*</c> identifiers per <c>SeriesMap.json</c>.
+            Maps coded and legacy hardware engine identifiers cleanly across N-way <c>SeriesMap.json</c> equivalence groups.
             </summary>
         </member>
         <member name="M:reEngine.Core.Resolution.EngineAliasCatalog.GetEquivalentIds(System.String)">
             <summary>
-            Returns the requested <paramref name="engineId"/> first followed by any bidirectional alias equivalents.
+            Returns the requested <paramref name="engineId"/> first followed by all other identifiers in its equivalence group.
             </summary>
         </member>
         <member name="M:reEngine.Core.Resolution.EngineAliasCatalog.TryGetAlias(System.String,System.String@)">
             <summary>
-            Attempts to resolve the single bidirectional alias for <paramref name="engineId"/>.
+            Attempts to resolve the primary alias for <paramref name="engineId"/> within its equivalence group.
             </summary>
         </member>
         <member name="M:reEngine.Core.Resolution.EngineAliasCatalog.AreEquivalent(System.String,System.String)">
@@ -855,7 +993,7 @@
             <summary>Attempts to parse a SemVer string (with optional leading <c>v</c>).</summary>
         </member>
         <member name="M:reEngine.Core.Resolution.SemVer.CompareTo(reEngine.Core.Resolution.SemVer)">
-            <summary>Compares two semantic versions per SemVer 2.0.0 precedence (stable &gt; prerelease).</summary>
+            <summary>Compares two semantic versions using ecosystem precedence (<c>-hf.&lt;n&gt;</c> &gt; stable &gt; other prereleases).</summary>
         </member>
         <member name="M:reEngine.Core.Resolution.SemVer.ToString">
             <summary>Formats the semantic version without a leading <c>v</c>.</summary>
@@ -893,6 +1031,9 @@
             Discovers installed side-by-side <c>re*</c> engines and resolves the highest compatible candidate.
             </summary>
         </member>
+        <member name="M:reEngine.Core.Resolution.EngineVersionResolver.TryReadEngineManifest(System.String)">
+            <summary>Safely reads and deserializes <c>engine.manifest.json</c> from <paramref name="versionDir"/> if present and valid.</summary>
+        </member>
         <member name="M:reEngine.Core.Resolution.EngineVersionResolver.DiscoverInstalledEngines(System.String,System.String)">
             <summary>Enumerates ready side-by-side engines (plus alias equivalents when filtering) while skipping incomplete staging folders.</summary>
         </member>
@@ -921,6 +1062,23 @@
         </member>
         <member name="M:reEngine.Core.Updates.UpdateCoordinator.CheckAllInstalledEnginesAsync(reEngine.Core.Updates.ReEngineSettings,System.Collections.Generic.IReadOnlyList{reEngine.Core.Resolution.InstalledEngineCandidate},System.String,System.Net.Http.HttpMessageHandler,System.String,System.Threading.CancellationToken)">
             <summary>Sweeps every installed engine track against <paramref name="feedSource"/> using a 2-second manifest poll timeout.</summary>
+        </member>
+        <member name="T:reEngine.Core.Updates.OverscanCropPxSettings">
+            <summary>
+            Per-edge integer pixel overscan crop bounds (Standard 18: <c>overscanCropPx</c>).
+            </summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.OverscanCropPxSettings.Top">
+            <summary>Top edge overscan crop in source pixels.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.OverscanCropPxSettings.Bottom">
+            <summary>Bottom edge overscan crop in source pixels.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.OverscanCropPxSettings.Left">
+            <summary>Left edge overscan crop in source pixels.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.OverscanCropPxSettings.Right">
+            <summary>Right edge overscan crop in source pixels.</summary>
         </member>
         <member name="T:reEngine.Core.Updates.ReEngineSettings">
             <summary>
@@ -955,7 +1113,28 @@
             <summary>Canonical Standard 18 integer resolution scale setting (1..8).</summary>
         </member>
         <member name="P:reEngine.Core.Updates.ReEngineSettings.BackendId">
-            <summary>Canonical Standard 18 preferred render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
+            <summary>Canonical Standard 18 preferred render backend identifier (<c>opengl</c>, <c>vulkan</c>, <c>directx</c>, <c>parallelCpu</c>, <c>software</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.AspectRatioMode">
+            <summary>Canonical Standard 18 aspect ratio presentation mode (<c>nativePar</c>, <c>fourByThree</c>, <c>squareInteger</c>, <c>nativeFit</c>, <c>horPlus16By9</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.OverscanCropPx">
+            <summary>Canonical Standard 18 pixel edge overscan crop settings.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.IsFastForwardEnabled">
+            <summary>Canonical Standard 18 runtime fast-forward flag.</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.IsFullscreen">
+            <summary>Whether fullscreen host presentation is enabled by default (Standard 18: <c>isFullscreen</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.AudioDriver">
+            <summary>Optional explicit OS native audio driver override (e.g., <c>wasapi</c>, <c>pipewire</c>, <c>coreaudio</c>; <see langword="null"/> = auto).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.IsHdTexturePackEnabled">
+            <summary>Whether path-contained <c>hdpacks\</c> texture overrides are enabled (Standard 18: <c>isHdTexturePackEnabled</c>).</summary>
+        </member>
+        <member name="P:reEngine.Core.Updates.ReEngineSettings.ShutdownTimeoutMs">
+            <summary>Bounded graceful child-tree shutdown timeout in milliseconds during synchronous <c>--wait</c> teardown.</summary>
         </member>
         <member name="P:reEngine.Core.Updates.ReEngineSettings.PinnedEngineVersions">
             <summary>Explicit per-engine pinned version overrides keyed by engine ID.</summary>
@@ -1096,6 +1275,38 @@
             <returns>true if a possible match was found; false if no more matches are possible.</returns>
         </member>
         <member name="M:System.Text.RegularExpressions.Generated.CFunctionBodyRegex_1.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.CueFileLineRegex_2">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the CueFileLineRegex method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.CueFileLineRegex_2.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
             <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
             <param name="inputSpan">The text being scanned by the regular expression.</param>
             <returns>true if the regular expression matches at the current position; otherwise, false.</returns>

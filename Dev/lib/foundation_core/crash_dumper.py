@@ -14,7 +14,6 @@ import traceback
 from pathlib import Path
 from types import TracebackType
 
-
 class CrashDumper:
     """Writes deterministic JSON crash dumps into the configured log directory."""
 
