@@ -1,134 +1,110 @@
 # reSlate — Operations & Verification Runbook
 
-- **Synced Version:** `0.3.0-hf.3` (`2026-11-19` · Public Beta Hotfix · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.3.1` *(Shared `reEngine.Host` `Vulkan`, `ParallelCpu`, Enhancement SDK & QoL)*
-- **Scope:** Install Topology, CLI Flags, Settings, Log Audit & Release Verification
+- **Synced Version:** `0.3.1` (`2026-11-20` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.4.0` *(Pure-Static Overlay Promoter, Analog Rumble, CD-DA, `.m3u` Lid-Swap & `--save-dir`)*
+- **Scope:** Install Topology, CLI Flags, `--doctor` Diagnostics, `v0.3.0 -> v0.3.1` Settings Migration, Framework-Dependent `SharedLibs`, Log Audit & Stage 2 Sandbox Verification
 - **Canonical Production Boundary:** Zero automated edits or unconfirmed writes to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\` or any live installation during tests, builds, or audits.
 
 ---
 
 ## 1. Install Topology (`AllowAutoStart = false`)
 
-Starting in **`v0.3.0`**, `reSlate` installs per-user under `engines\reSlate\v0.3.0-hf.3\` alongside the required `.ready` discovery marker (`v0.2.8` and earlier installed under `engines\reStation\v<Ver>\`):
+Starting in **`v0.3.0`**, `reSlate` installs per-user under `engines\reSlate\v0.3.1\` alongside `.ready` and `schemaVersion: 2` manifests (`suiteId: "reEngine"`, `hostProtocolVersion: "0.5.0"`, `minSuiteVersion: "0.5.0"`):
 
 ```text
 %LOCALAPPDATA%\Programs\StreamItAll\reEngine\
 ├── toolchain\                          (Optional Full profile offline Ghidra + OpenJDK)
-└── engines\reSlate\v0.3.0-hf.3\        (v0.2.8 and earlier: engines\reStation\v<Ver>\)
+└── engines\reSlate\v0.3.1\             (v0.2.8 and earlier: engines\reStation\v<Ver>\)
     ├── reSlate.exe                     (Single-file launcher -> app\reSlate.Player.exe)
-    ├── .ready                          (Required for reEngine v0.3.0+ engine discovery)
-    ├── engine.manifest.json            (engineId: "reSlate", appId: "reslate", decompProviderAssembly: "app/reSlate.Decomp.dll")
-    ├── settings.example.json           (Clean-room v0.3.0 overlay template staged at track root)
-    ├── app\                            (reSlate.Player.exe, reSlate.Decomp.dll, reSlate.Compiler.exe, reStation.{Contracts,Core}.dll, Foundation.{Core,Retro,Installer,Launcher}.dll v0.5.0, reEngine.{Core,Host}.dll v0.3.0, SDL3.dll, 7z.{exe,dll}, LICENSE, LICENSE-7ZIP.txt, engine.manifest.json — strictly ZERO AGENTS.md & ZERO Release Foundation.Automation.dll)
+    ├── .ready                          (Required for reEngine engine discovery)
+    ├── engine.manifest.json            (schemaVersion: 2, manifestType: "standalone-app", suiteId: "reEngine", hostProtocolVersion: "0.5.0")
+    ├── settings.example.json           (Clean-room v0.3.1 33-key config template)
+    ├── app\                            (reSlate.Player.exe, reSlate.Decomp.dll, reSlate.Compiler.exe, reStation.{Contracts,Core}.dll, Foundation.*.dll v0.5.2, reEngine.{Core,Host}.dll v0.5.0, SDL3.dll, 7z.{exe,dll}, LICENSE, LICENSE-7ZIP.txt, engine.manifest.json — strictly ZERO AGENTS.md & ZERO Release Foundation.Automation.dll)
     ├── data\
-    │   ├── config\settings.json        (v0.3.0 canonical settings path; auto-migrates <dataDir>\settings.json)
+    │   ├── config\settings.json        (Canonical settings path; auto-migrates <dataDir>\settings.json and isWidescreen16By9)
     │   ├── rom\                        (User-owned BYO-ROM media; preserved across upgrades/uninstalls)
     │   ├── cache\                      (Player-PC local <Game>.Generated.dll AOT cache; auto-evicts stale keys)
-    │   ├── hdpacks\                    (Reserved for v0.3.1 clean-room texture overrides; unused in v0.3.0)
+    │   ├── hdpacks\                    (Active v0.3.1 path-contained PNG texture override folder; ExitCode=3 on escape/junction)
     │   ├── saves\                      (Quick-save .rst1 + "RSTX" snapshots incl. "MCD2")
-    │   ├── memcards\                   (Canonical v0.3.0 Slot 1+2 .mcr files via SIO0 0x81 + BIOS B0:0x4E-0x50 _new_card)
+    │   ├── memcards\                   (Canonical Slot 1+2 .mcr files via SIO0 0x81 + BIOS B0:0x4E-0x50 _new_card)
     │   └── settings.controls.json      (Global 1:1 baseline profile)
     └── logs\                           (runtime.log, installer.log, crashes\crash_*.json)
 ```
 
-- **No Background Daemons:** `AllowAutoStart = false` is enforced in [`ReStationInstallerTheme.cs`](../src/reStation.Installer/ReStationInstallerTheme.cs) and [`LauncherArgsHelper.cs`](../src/reStation.Launcher/LauncherArgsHelper.cs); `--autostart` / `--auto-start` flags fail fast cleanly.
+- **No Background Daemons:** `AllowAutoStart = false` is enforced in [`ReStationInstallerTheme.cs`](../src/reStation.Installer/ReStationInstallerTheme.cs), [`installer.manifest.json`](../src/reStation.Installer/installer.manifest.json), and [`LauncherArgsHelper.cs`](../src/reStation.Launcher/LauncherArgsHelper.cs); `--autostart` / `--auto-start` flags are stripped/rejected.
 
 ---
 
-## 2. CLI Flags & Environment Contract
+## 2. CLI Flags, `--doctor` Diagnostics & Exit Codes
 
-### Player (`reSlate.exe` / `app\reSlate.Player.exe`) & Launcher (`reStation.Launcher`)
-- `--module <path>` — Load unpacked module directory, `module.recomp.json`, or single-file ZIP `.recomp` archive (`EngineAliasCatalog.AreEquivalent` accepts `"reSlate"` and `"reStation"`).
-- `--disc <path>` / `--preload-media <path>` — Point to verified `SlateOne` (`R3000A`) disc/EXE media inside allowed root.
-- `--data-dir <dir>` / `--config <file>` / `--log-dir <dir>` / `--save-dir <dir>` / `--port <n>` — Explicit runtime data, settings JSON (defaults to `config/settings.json`), log directory, save directory override (`--save-dir` accepted; full router hook in `v0.4.0`), and port overrides.
-- `--reengine-dir <dir>` / `--suite-dir <dir>` — Override companion `reEngine` / suite router directory (`reSlate.Player.exe --profile <json>` accepts a runtime profile JSON path, whereas `reSlate-Setup` `--profile Lightweight|Full` selects install profile).
-- `--backend opengl|software` · `--require-backend opengl|software|vulkan|parallelCpu` (`vulkan` and `parallelCpu` are **deferred to `v0.3.1`**; `--require-backend vulkan|parallelCpu` or an unavailable backend immediately exits with `ExitCode = 6`) · `--scale 1|2|4|8` · `--fps-mode original|enhanced` · `--target-fps <30..500|unlocked>` (`30` decimates swap/presentation only while keeping SPU at `60 Hz`) · `--vsync [on|off]` / `--no-vsync`.
-- `--execution-tier staticAotOnly|aotWithJitFallback|aotWithThreadedIr|jitBringup|interpreterOracle` — Live native RyuJIT / Zero-RWX IR (`Tier3ExecutionCoordinator`) executes unlifted blocks directly inside `PsxCpu`; `staticAotOnly` fails closed; `PsxInterpreter` is strictly quarantined to `interpreterOracle`.
-- `--jit-bringup` / `--force-zero-rwx` — Enable `JitBringupRecorder` (emitting canonical `isPureStaticReady: false` during active bring-up + `[Obsolete]` `isR4PromotionReady` read compat) + Zero-RWX Threaded-IR diagnostic mode (`ExitCode = 5` on VBlank stall guard).
-- `--verify` / `--doctor` / `--tray-only` / `--dry-run` / `--open-settings` / `--enable-logs` / `--show-fps` / `--frames <n>` / `--fixture <path>` / `--dump-screenshot <png>` / `--dump-audio <wav>` / `--wait` — Non-interactive health checks, host diagnostics (`--doctor`), tray/background startup (`UiPresentationMode.TrayOrBackground`), UI toggles, fixture/audio/frame dumps, and Job-Object synchronous wait mode.
-- `--automation-port <n>` / `--automation-token <tok>` — **`Debug` / `RESTATION_TEST_AUTOMATION=true` only** loopback inspection server (`127.0.0.1`); pure `Release` binaries strip `Foundation.Automation` completely and fail closed with `ExitCode = 2`.
+### Player (`reSlate.exe` / `app\reSlate.Player.exe`) & Launcher ([`CliOptions.cs`](../src/reStation.Core/Core/CliOptions.cs), [`LauncherArgsHelper.cs`](../src/reStation.Launcher/LauncherArgsHelper.cs))
+- **Media & Execution:** `--module <path>`, `--disc <path>`, `--preload-media <path>`, `--execution-tier staticAotOnly|aotWithJitFallback|aotWithThreadedIr|jitBringup|interpreterOracle` (`PsxInterpreter` quarantined strictly to `interpreterOracle`), `--jit-bringup`, `--force-zero-rwx`, `--frames <n>`.
+- **Video & Enhancement Flags:** `--backend opengl|vulkan|parallelCpu|software` (aliases `gl`, `parallelcpu`, `parallel-cpu`, `parallel_cpu`), `--require-backend <id>`, `--scale 1|2|4|8`, `--aspect-mode <nativePar|fourByThree|squareInteger|nativeFit|horPlus16By9>`, `--hd-packs [on|off]`, `--fast-forward [on|off]`, `--fps-mode original|enhanced`, `--target-fps <30..500|unlocked>`, `--vsync [on|off]`, `--no-vsync`.
+  - *Note on `--tray-only` + `--require-backend`:* `--tray-only` (or `UiPresentationMode.TrayOrBackground`) always initializes an offscreen `software` surface (`HostVideoSurface.CreateOffscreen`); pairing `--tray-only` with `--require-backend opengl`, `vulkan`, or `parallelCpu` fails closed with **`ExitCode = 6`** (only `--require-backend software` succeeds under `--tray-only`). Conflicting `--backend` vs `--require-backend` values also fail closed with **`ExitCode = 6`**.
+  - *Note on Overscan & FF Multiplier:* `overscanCropPx` (`0px/8px/16px` F1 cycle; `0..32px` per-edge clamp) and `fastForwardMultiplier` (`2x/3x/4x` F1 pills; `2.0..4.0` clamp) are configured in the `F1` drawer or `data\config\settings.json` (there are no `--overscan` or `--ff-mult` CLI flags).
+- **Overrides & Diagnostics:** `--data-dir <dir>`, `--config <file>` (default `config/settings.json`), `--log-dir <dir>`, `--save-dir <dir>` (accepted; router hook completes in `v0.4.0`), `--fixture <path>`, `--port <1..65535>`, `--reengine-dir <dir>`, `--suite-dir <dir>`, `--profile <json>`, `--dump-screenshot <png>`, `--dump-audio <wav>`, `--tray-only`, `--dry-run`, `--verify`, `--open-settings`, `--enable-logs`, `--show-fps`, `--doctor`, `--wait`, `--version`, `--help`.
+- **Debug/Test-Only Automation:** `--automation-port <0..65535>` / `--automation-token <tok>` (`#if DEBUG || RESTATION_TEST_AUTOMATION` only; pure `Release` builds omit `Foundation.Automation` and exit **`2`** immediately).
+- **`--doctor` Diagnostics Output ([`Program.MediaGate.cs`](../src/reStation.Player/Program.MediaGate.cs#L199-L242)):** Emits structured line-by-line plain-text diagnostic records (NOT JSON) to both stdout and `DOCTOR` log entries (`reSlate Doctor v0.3.1`, `Containment`, `Paths`, `Execution`, `Host`, and `BackendProbe [<Kind> (<id>)]: available=<bool> diag="<msg>"` for `OpenGL`, `Vulkan`, `DirectX12`, `ParallelCpu`, and `Software` via `HostBackendProbe.ProbeAll()`).
 
-### Compiler (`reSlate.Compiler.exe`)
-- `--disc`, `--gamedata-dir`, `--exe-path`, `--decomp-dir`, `--functions-json`, `--out-dir`, `--module-id`, `--serial`, `--title`, `--version`, `--aot-recipe`, `--execution-tier`, `--emit-clean-room` (emits `aot-recipe.json` + clean `module.recomp.json` with zero `*.Generated.dll`), `--out-package`, `--compile-dll`, `--compile-generated-dll`, `--data-dir`, `--thin-shell`, `--help`.
+### Compiler (`reSlate.Compiler.exe` / `dotnet reSlate.Compiler.dll`)
+- `--disc`, `--gamedata-dir`, `--exe-path`, `--decomp-dir`, `--functions-json` (filters `"program"` entries when tagged), `--out-dir`, `--module-id`, `--serial`, `--title`, `--version`, `--aot-recipe` (consumes optional $O(1)$ `containerOffsetBytes` and per-EXE `entryAddresses`), `--execution-tier`, `--emit-clean-room`, `--out-package`, `--compile-dll`, `--compile-generated-dll`, `--data-dir`, `--thin-shell`, `--version`, `--help`.
 
-### Installer (`reSlate-Setup-v0.3.0-hf.3-win-x64.exe`)
-- `--install-dir <dir>` / `--target-dir <dir>` / `--reengine-dir <dir>` / `--suite-dir <dir>` / `--payload <zip>` / `--profile Lightweight|Full` / `--data-dir <dir>` / `--config <file>` / `--log-dir <dir>` / `--automation-port <n>` / `--automation-token <tok>` (`Debug`/`RESTATION_TEST_AUTOMATION` only; `ExitCode = 2` in `Release`) / `--migrate-legacy` / `--confirm-legacy-cleanup` / `--uninstall` / `--silent` (`--quiet`) / `--dry-run` / `--verify` / `--tray-only` (`APP_ISOLATED_TEST=1` suppresses host/registry mutations in automated tests).
+### Installer (`reSlate-Setup-v0.3.1-win-x64.exe`)
+- `--profile Lightweight|Full`, `--reengine-dir <dir>`, `--suite-dir <dir>`, `--install-dir <dir>`, `--target-dir <dir>`, `--payload <zip>`, `--data-dir <dir>`, `--config <file>`, `--log-dir <dir>`, `--automation-port <n>`, `--automation-token <tok>` (`ExitCode = 2` in `Release`), `--migrate-legacy`, `--confirm-legacy-cleanup`, `--uninstall`, `--purge-data`, `--silent`/`--quiet`, `--dry-run`, `--verify`, `--tray-only`, `--no-launch`, `--help`.
 
----
-
-## 3. Config & Settings File Reference
-
-Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.3.0-hf.3` template (`appId: "reslate"`, `umbrellaSubpath: "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.3"`) persisted to `<dataDir>\config\settings.json` (`SettingsMigrationHelper.MigrateForConfigPathIfNeeded` automatically migrates legacy `<dataDir>\settings.json` non-destructively while keeping `.bak`):
-- **Suite & Decomp Metadata:** `installProfile`, `reEngineInstallDir`, `suiteInstallDir`, `umbrellaSubpath`, `decompSchemaVersion`, `goalDecompTier`, `executionTierMode`.
-- **Audio/Video & Framing:** `backendId` (`"opengl"` / `"software"`), `resolutionScale`, `isWidescreen16By9` (`false` default for `4:3` framing; unstretched Hor+ `16:9` when enabled), `frameRateMode` (`"original"` with `targetFps=30` swap decimation vs `"enhanced"` `60–240+`/`0` Max), `targetFps`, `isVsyncEnabled` (`"VSync (Caps to Monitor Hz)"`), `isPgxpEnabled`, `isFpsOverlayEnabled`, `shouldFastLoadData`, `masterVolume`, `useGlobalFormatRules`.
-- **Input (`Schema A` / `Schema B` & Per-Game Options):** `inputProfileMode`, `controlMode`, `keyBindings` (`bindings` KBM scancodes + nested `controllerBindings` codes `2001..2032` or `0` cleared across `Global 1:1` and `Game 1:1`), `modernActionBindings` (`Dictionary<string, int[<=3]>` via `ModernBindingsJsonConverter` with legacy scalar read support), `modernControllerBindings` (`int[<=3]` with `SetModernControllerSlot` clean single-slot replacement), `metadataJson` (`Dictionary<string, string>` per-game `ControlOptions`), legacy `controllerDpadMode`/`isometricMoveMode` compatibility fields, and `jsonExtensionData` passthrough.
+### Exit Codes ([`Program.cs`](../src/reStation.Player/Program.cs), [`CliOptions.cs`](../src/reStation.Core/Core/CliOptions.cs))
+`0` Success · `1` Fatal runtime error / `--verify` failed · `2` CLI usage error or disallowed Release `--automation-port` · `3` Fail-closed path containment or reparse-point violation (`--data-dir`/`--config`/`--log-dir`, media extraction, or `<dataDir>\hdpacks\`) · `4` Missing disc/media or SHA-256 mismatch · `5` `--jit-bringup` spin watchdog · `6` Unavailable, conflicting, or `--tray-only`-incompatible `--require-backend` · `130` `SIGINT`.
 
 ---
 
-## 4. Ports, Locks & Sister-App Coexistence
+## 3. Config, `v0.3.0 -> v0.3.1` Migration & Containment
 
-- **Zero Network Ports in Release:** Pure `Release` `reSlate.exe`, `reSlate.Player.exe`, and `reSlate-Setup-v0.3.0-hf.3-win-x64.exe` binaries strip `Foundation.Automation` completely, open zero listening TCP/UDP sockets during normal operation, and fail closed with `ExitCode = 2` when `--automation-port` is passed (only `Debug` / `RESTATION_TEST_AUTOMATION=true` builds expose `127.0.0.1` loopback automation).
-- **Process Supervision (`--wait`) & Exit Codes:** [`LauncherArgsHelper.AttachJobGuard`](../src/reStation.Launcher/LauncherArgsHelper.cs) assigns a Windows `KILL_ON_JOB_CLOSE` Job Object so closing the caller/router terminates supervised `reSlate.exe` sessions cleanly with exact exit code propagation (`0` clean, `1` runtime/`--verify` fault, `2` CLI error / disallowed Release `--automation-port`, `3` path containment rejection, `4` disc/archive verification error, `5` `--jit-bringup` VBlank stall guard, `6` unavailable or `v0.3.1`-deferred `--require-backend`, `130` `SIGINT`).
-
----
-
-## 5. Logs & Crash Bundles (Two-Tier Sweep)
-
-1. **Production (`Read-Only` during Audits):** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.0-hf.3\logs\` (`runtime.log`, `crashes\`; `v0.2.8` and earlier wrote under `engines\reStation\v<Ver>\logs\`).
-2. **Development Logs:** `Dev\logs\` (resolved automatically via [`ReStationLogger.TryResolveDevLogsDirectory`](../src/reStation.Core/Core/ReStationLogger.cs#L117-L134) inside source checkouts; excluded by root `.gitignore`).
-
-Every long-running loop emits `<= 15s` structured telemetry heartbeats (`frame`, `fps`, `backend`, `subTicks`, `vramOps`, `spuVoices`, `status`). Crash bundles write `crashes\crash_*.json` plus preceding log tail context.
+Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.3.1` template (`33` camelCase keys under a scoped single-file backward-compatibility exception documented in [`ARCHITECTURE.md`](ARCHITECTURE.md#L135), `appId: "reslate"`, `umbrellaSubpath: "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.1"`):
+- **`v0.3.0 -> v0.3.1` Automatic Migration ([`RecompSettings.cs`](../src/reStation.Core/Core/RecompSettings.cs#L94-L104)):**
+  - `SettingsMigrationHelper.MigrateForConfigPathIfNeeded` first migrates legacy `<dataDir>\settings.json` non-destructively to `<dataDir>\config\settings.json` (retaining `.bak`).
+  - On `RecompSettings.Load()` / `Clamp()`, if `aspectRatioMode` is absent or empty, `isWidescreen16By9 == true` automatically migrates to `aspectRatioMode = "horPlus16By9"`, while `isWidescreen16By9 == false` maps to `"nativePar"`. Once set, `isWidescreen16By9` stays synchronized (`aspectRatioMode == "horPlus16By9"`).
+- **New `v0.3.1` Keys & Clamps:** `backendId` (`opengl|vulkan|parallelCpu|software`), `aspectRatioMode` (`nativePar`), `overscanCropPx` (`{ top: 0, bottom: 0, left: 0, right: 0 }`, clamped `0..32` in JSON; `F1` cycles `0/8/16px`), `isHdTexturePackEnabled` (`false`), `isFastForwardEnabled` (`false`), `fastForwardMultiplier` (`2.0`, clamped `2.0..4.0`).
+- **Clean-Room `<dataDir>\hdpacks\` Containment (`ExitCode = 3`):** [`HdTexturePackStore`](../src/reStation.Core/Enhancement/HdTexturePackStore.cs) + `HdPackResolver` reject `..` traversal (`../escape.png`), rooted paths (`C:\...`), and Windows junctions/reparse points with `InvalidOperationException` ("Fail-Closed Path Containment Violation"), exiting `3` cleanly at startup or disabling HD packs with an inline warning banner if toggled at runtime. Canonical `1x` VRAM stays untouched.
 
 ---
 
-## 6. Backup, Restore & Legacy Migration
+## 4. Ports, Locks & Two-Tier Logs
 
-- **Source Archive (`Archive\`):** Before history rewrites or release tagging, create a compressed backup via `7z.exe a -mx=9 Archive\pre-scrub-v0.3.0.7z ...` (excluding gitignored caches/logs/`bin`/`obj`).
-- **Opt-In Legacy Migration:** [`ReStationLegacyMigrationHelper`](../src/reStation.Installer/ReStationLegacyMigrationHelper.cs) detects stranded `v0.1.x` / `v0.2.x` installs (`app\data\` + `logs\crashes\crash_*.json`), copies `settings.json` to `data\config\settings.json` and preserves `data\rom\` into the `v0.3.0` `data\` directory **only** when `--migrate-legacy` is passed, and deletes non-ROM stranded artifacts **only** after explicit interactive confirmation or `--confirm-legacy-cleanup`. At runtime, [`MemCardMcrStore`](../src/reStation.Core/Bios/MemCardMcrStore.cs) non-destructively copies legacy `<dataDir>\saves\memcard_*.mcr` files to `<dataDir>\memcards\`.
+- **Zero Network Ports in Release:** Pure `Release` Player, Setup, and `SharedLibs` binaries strip `Foundation.Automation` completely (`ExitCode = 2` on `--automation-port`); `--wait` binds a `KILL_ON_JOB_CLOSE` Windows Job Object (`LauncherArgsHelper.AttachJobGuard`).
+- **Two-Tier Log Audit:** Sweep (1) Production `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.1\logs\` (**read-only** during audits) and (2) Development `Dev\logs\` (`runtime.log` `<= 15s` heartbeats, `[VK_FALLBACK]` / `GL_FALLBACK` / `CONTAINMENT`, and `crashes\crash_*.json` with preceding 20–50 lines).
 
 ---
 
-## 7. Build, Sanitization & Beta Release Procedure
+## 5. Build, Framework-Dependent `SharedLibs`, Stage 2 Sandbox E2E & CI
 
-1. **Dual-Config Zero-Warning Compile & Test Suite (`250 / 400 / 600` Code-Only SLOC Gate):**
+1. **Dual-Config Zero-Warning Unit Suite (`310/310` Passing):**
    ```powershell
    $env:APP_ISOLATED_TEST = "1"
-   dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --no-restore
-   dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true --no-restore
+   dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --disable-build-servers -p:UseSharedCompilation=false
+   dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true --disable-build-servers -p:UseSharedCompilation=false
    ```
-   Verify all non-exempt production files follow the code-only SLOC ceiling (`<= 250` preferred, `400` soft cap, `600` hard cap excluding comments/whitespace; tests exempt) and **`281/281` passing (`0` warnings, `0` failures, `0` skipped)** in both configurations.
-2. **Visible Interactive 4-Step Debug/Test `Foundation.Automation` 4-Drive Sandbox E2E:**
+2. **Single-Pass Release Packaging & Framework-Dependent `SharedLibs\reSlate\v0.3.1\` ([`build_release.ps1`](../scripts/build_release.ps1), [`package_helpers.ps1`](../scripts/package_helpers.ps1)):**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.0-hf.3 -EvidenceDir <temp_dir>
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.3.1
    ```
-   - Runs `Foundation\Dev\tools\run_sandbox_e2e.py` against the isolated 4-drive sandbox (`SANDBOX_C_DRIVE`, `SANDBOX_D_DRIVE`, `SANDBOX_REMOVABLE_DRIVE`, `SANDBOX_DISC_DRIVE` via `%USERPROFILE%\.gemini\.secrets\.env`, asserting `hostDiffCount == 0`), drives a visible interactive `-p:ReStationTestAutomation=true` Setup Wizard (`InstallerAutomationHook` inside `O:\` with profile toggles, details log expand, install, `Finish`, `.ready`/`reSlate.exe --version`, uninstall & `0` host diff), drives visible SDL3 MediaGate & live `RunHostLoop` F1 Drawer / F3 HUD button interactions + `settings.json` persistence (`DebugAutomationHook` `30s` STA readiness wait + `15 Hz` telemetry push + `DebugAutomationDiagnostics` `pad:`/`key:`/`audio:wav:`/`mem:watch:` diagnostics + `cpuMs`/`ovHash` + `SDL3.dll`), optionally copies live PNGs to `-EvidenceDir`, and verifies pure `Release` rejects `--automation-port` with `ExitCode = 2` on both `reSlate.Player.exe` and `reSlate-Setup`.
-3. **Single-Pass Release Build (`Dev\scripts\build_release.ps1` + `Dev\scripts\package_helpers.ps1`):**
+   - Enforces the `<= 400` code-only SLOC gate (`Dev\src\` non-test + `Dev\scripts\`), builds & tests `Release`, stages `Builds\v0.3.1\` (zero `AGENTS.md`, zero `Foundation.Automation`/`WinForms`), signs EXEs, creates 7-file NTFS-hardlinked `Releases\v0.3.1\` + `Latest\` + `-Portable.zip`, runs `audit_installer.ps1`, snapshots `Archive\reSlate-v0.3.1-src.7z`, and executes `Publish-SharedLibsSdk`:
+   - **`Publish-SharedLibsSdk` Dual EXE + DLL Verification:** Publishes `reSlate.Compiler` (`net8.0`, `--no-self-contained`, inheriting `reEngine.Host.dll`) and `reSlate.Player` (`net8.0-windows`, `--no-self-contained`) into `<ProjectsRoot>\SharedLibs\reSlate\v0.3.1\` + `Latest\`, asserts `runtimeconfig.json` is framework-dependent (zero `includedFrameworks`, resolving `hostpolicy.dll` error `0x80008083`), verifies zero `Foundation.Automation`/`System.Windows.Forms`/`Foundation.UI` bytes/refs, and executes live `reSlate.Compiler.exe --help`, `dotnet reSlate.Compiler.dll --help`, and `reSlate.Player.exe --version` smoke tests.
+3. **4-Drive Stage 2 Sandbox E2E ([`run_stage2_sandbox_e2e.ps1`](../scripts/run_stage2_sandbox_e2e.ps1)):**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.3.0-hf.3
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.1 -EvidenceDir <temp_dir>
    ```
-   Emits `Builds\v0.3.0-hf.3\` (`.ready` marker, `app\LICENSE`, `engine.manifest.json`, `reEngine.Host.dll`, zero `data\rom\`, **zero `AGENTS.md`** inside `Builds\`/`app\`/`payload.zip`, **zero forbidden `Installers\` root folder**), compiles `Releases\v0.3.0-hf.3\README.md` from `USER_GUIDE.md` (+ any `USER_GUIDE.*.md`) via [`sanitize_release_docs.ps1`](../scripts/sanitize_release_docs.ps1) (rewriting repo-relative `[label](Dev/...)` before leak filtering + verifying zero unexempt trademarks), packages **`reSlate-v0.3.0-hf.3-win-x64-Portable.zip`** alongside signed **`reSlate-Setup-v0.3.0-hf.3-win-x64.exe`** into NTFS-hardlinked **7-file `Releases\v0.3.0-hf.3\` + `Latest\`** mirrored at `<ProjectsRoot>\Releases\Personal\reStation\` (+ sibling `<ProjectsRoot>\Releases\Personal\reSlate\` junction), runs `audit_installer.ps1 -InstallerPath Releases\v0.3.0-hf.3` (`0` findings) + `Assert-BinaryPurity` (`0` `Foundation.Automation` / `System.Windows.Forms` references in Release Player) + `Assert-InstallerPurity` (`0` `Foundation.Automation` bytes + `ExitCode = 2` on Release Setup), publishes immutable `<ProjectsRoot>\SharedLibs\reSlate\v0.3.0-hf.3\` (keeping `SharedLibs\reStation\v0.1.0..v0.2.8` intact), and snapshots `Archive\reSlate-v0.3.0-hf.3-src.7z`.
-4. **Public History Hygiene & Beta Distribution (`StreamItAllGit/reSlate`):**
-   - Keep `.gitignore` strict on `Archive/`, `Builds/`, `Releases/`, `Dev/docs/*/`, `Dev/data/`, `Dev/logs/`, and runtime databases, keep `git log --all` + `%an <%ae>` free of secrets, workstation paths, and unexempt trademarks (`git-filter-repo` pre-public scrub), and sanitize release docs before pushing or publishing.
-   - Distribute via **GitHub Releases** (`gh release create --prerelease` attaching `Setup.exe`, `-Portable.zip`, `.7z`, `SHA256SUMS.txt` on [StreamItAllGit/reSlate](https://github.com/StreamItAllGit/reSlate/releases) — never Google Drive), **Discord Dev Updates** (`active.state -> discordPost` webhook delivery), and optional manual **Notion Public Hub** (`*.notion.site` when published).
+   - Runs `Foundation\Dev\tools\run_sandbox_e2e.py` (`hostDiffCount == 0`), passes `"-t:Rebuild,Publish"` when building `-p:ReStationTestAutomation=true` Setup/Player test binaries (preventing stale incremental automation builds) while preserving Windows OS known-folder env vars (`SystemDrive`, `ProgramData`, `ProgramFiles`, `ALLUSERSPROFILE`, `PUBLIC`) inside `stage2_e2e_helpers.ps1`, drives visible Setup Wizard (`O:\`), drives visible SDL3 MediaGate & `RunHostLoop` Step `[3B/4]` across all 4 backend pills (`ParallelCpu <-> OpenGL` swap), `HD Texture Packs`, `Aspect Ratio`, `Overscan Crop`, `Fast-Forward` (`3x`), `Cutscene Skip`, `F3` HUD, verifies `settings.json` persistence, runs `Test-Stage2SharedLibsCompilerSmoke` (`EXE --help` + `dotnet DLL --help`), and verifies pure `Release` `ExitCode = 2`.
+4. **GitHub CI Release Workflow (`.github/workflows/release.yml`):** On `v*` tag push or `workflow_dispatch`, runs `build_release.ps1 -SkipSigning -SkipSourceArchive` under `APP_ISOLATED_TEST=1` and submits unsigned Setup artifacts for SignPath signing when configured.
 
 ---
 
-## 8. Isolated Verification & Log Audit Recipe
-
-1. Run isolated xUnit + installer CLI tests under `APP_ISOLATED_TEST=1` in both `-c Release` and `-c Debug` (verifying `--dry-run`, `--tray-only`, `--verify`, `--doctor`, `--require-backend`, and `--uninstall` containment via `InstallerRuntimeContext` and `AppEnvironment.AssertPathContained` without touching `%LOCALAPPDATA%` or canonical host program paths).
-2. Verify offline AOT cold-to-warm cache generation in isolated temp dirs (including recipe-ordered `<container>#<slice>` overlays and `generatedCacheAssemblyName` PE assembly verification) and clean-room `.decomp` provider `D4_CleanSource` checks (`PsxD4CraftsmanshipValidator`: 6 decompiler-tell families, `_01.._NN.c` rejection, `-Wno-everything` ban, real `-Wall -Wextra -Wno-unused-parameter` `0`-warning compile checks, `camelCase` `d4b_lockstep_report.json`).
-3. Sweep both log roots (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`) with preceding 20–50 lines and write timestamped report to `Dev\docs\reports\`.
-
----
-
-## 9. Incident Playbooks
+## 6. Incident Playbooks
 
 | Symptom | Root Diagnosis | Resolution |
 | :--- | :--- | :--- |
-| **`ExitCode = 6` on `--require-backend vulkan` or `parallelCpu`** | Requested backend is deferred to `v0.3.1` pending shared `reEngine.Host` GPU rendering | Pass `--backend opengl` or `--backend software` in `v0.3.0`, or upgrade once `v0.3.1` ships |
-| **`ExitCode = 2` on `--automation-port`** | Pure `Release` binaries strip `Foundation.Automation` and fail closed by design | Use a `-c Debug` or `-p:ReStationTestAutomation=true` build for sandbox UI automation |
+| **`ExitCode = 6` on `--require-backend`** | Requested GPU/Vulkan ICD unavailable, `--backend` conflicts with `--require-backend`, or `--tray-only` was combined with `opengl`/`vulkan`/`parallelCpu` | Run `reSlate.exe --doctor` to inspect `BackendProbe` diagnostics; remove `--tray-only` for GPU backends or use `--require-backend software` offscreen |
+| **`ExitCode = 3` (`Containment Violation`)** | Path in CLI flags, media archive, or `<dataDir>\hdpacks\hdpack.manifest.json` escaped allowed root or hit a junction/reparse point | Replace `..`/rooted paths in `hdpack.manifest.json` with clean relative paths inside `hdpacks\` and remove directory junctions |
+| **`0x80008083` (`hostpolicy.dll` missing) in `SharedLibs`** | Stale single-file or self-contained `.runtimeconfig.json` staged beside `reSlate.Compiler.dll` | Re-run `build_release.ps1 -Version 0.3.1` (`Publish-SharedLibsSdk` enforces `--no-self-contained` + live EXE & `dotnet DLL --help` smoke check) |
+| **`ExitCode = 2` on `--automation-port`** | Pure `Release` binaries strip `Foundation.Automation` and fail closed by design | Use a `-c Debug` or `-p:ReStationTestAutomation=true` build (`-t:Rebuild,Publish`) for UI automation |
+| **`[VK_FALLBACK]` / `GL_FALLBACK` banner on launch** | Host GPU driver/ICD lacks Vulkan or OpenGL 3.3 Core support | `HostVideoSurface` safely falls back to `Software CPU`; switch to `Parallel CPU` or update GPU drivers |
 | **`PSX_D4_CRAFTSMANSHIP_FAILED` on `.decomp` export** | Exported C files tripped one of the 6 decompiler-tell checks, `_01.._NN.c` fragment naming, `-Wno-everything`, or `-Wall -Wextra -Wno-unused-parameter` warnings | Coalesce logical modules cleanly, replace decompiler patterns, and clear all compiler warnings |
-| **`PSX_GHIDRA_BATCH_FAILED` / `MISSING_OFFLINE_TOOLCHAIN`** | `Full` `.decomp` run invoked without valid `toolchain\ghidra` + JDK under `reEngine` | Point `--toolchain-dir` / install `reEngine` Full toolchain; clean-room script generation still succeeds offline without `invokeGhidra=true` |
-| **OpenGL immediately reverts to Software with banner** | GPU/VM lacks OpenGL 3.3 Core context | `HostVideoSurface.TrySwitchBackend` automatically preserves Software pipeline; update GPU driver or stay on `Software` |
-| **Installer or player fails with path containment error (`ExitCode = 3`)** | Candidate path attempted to escape an allowed root (`AppEnvironment.AssertPathContained`) | Pass strictly contained subpaths inside the configured `--install-dir` / `--data-dir` / isolated root |
 | **Exit code `5` during `--jit-bringup`** | `JitBringupRecorder` hit `MaxStalledCyclesWithoutVBlank` spin threshold | Inspect emitted bringup profile JSON (`isPureStaticReady: false`) under `<dataDir>\logs\` or run primary AOT cache |
-| **Stranded legacy files linger after upgrade** | `--migrate-legacy` ran without `--confirm-legacy-cleanup` (by safety design) | Re-run with `--confirm-legacy-cleanup` or approve the interactive confirmation prompt |

@@ -176,7 +176,7 @@ internal static partial class Program
         var cpu = new PsxCpu(settings, env.DataDirectory, video.Backend, logger);
         if (hdPackStore.IsEnabled)
         {
-            (cpu.Gpu.Backend as IPsxGpuBackendHooks)?.AttachHdTexturePack(hdPackStore);
+            cpu.Gpu.AttachHdTexturePack(hdPackStore);
             logger.Info("VIDEO", $"HD texture packs active (entries={hdPackStore.IndexedCount}).");
         }
         if (discManifest is not null) cpu.AttachDisc(discManifest);

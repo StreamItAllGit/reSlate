@@ -111,6 +111,7 @@ internal static unsafe partial class Program
     {
         int slices = ComputeFastForwardGuestSlices(fastForwardActive, multiplier, ref st.FastForwardTickBudget);
         st.LastGuestSlices = slices;
+        cpu.Spu.SetFastForwardDecimation(fastForwardActive && slices > 1, multiplier);
         for (int i = 0; i < slices && !st.QuitRequested && !host.HasFinished; i++)
         {
             if (i > 0 && cpu.Spu.Output.BufferedSamples > (PsxSpu.RingCapacitySamples / 2))
@@ -243,7 +244,7 @@ internal static unsafe partial class Program
     {
         if (!settings.IsHdTexturePackEnabled)
         {
-            (cpu.Gpu.Backend as IPsxGpuBackendHooks)?.AttachHdTexturePack(null);
+            cpu.Gpu.AttachHdTexturePack(null);
             drawer.VideoWarningBanner = null;
             logger.Info("VIDEO", "HD texture packs disabled.");
             return;
@@ -252,7 +253,7 @@ internal static unsafe partial class Program
         try
         {
             var store = HdTexturePackStore.FromDataDirectory(env.DataDirectory, isEnabled: true);
-            (cpu.Gpu.Backend as IPsxGpuBackendHooks)?.AttachHdTexturePack(store);
+            cpu.Gpu.AttachHdTexturePack(store);
             drawer.VideoWarningBanner = null;
             logger.Info("VIDEO", $"HD texture packs enabled (entries={store.IndexedCount}).");
         }
@@ -260,7 +261,7 @@ internal static unsafe partial class Program
         {
             settings.IsHdTexturePackEnabled = false;
             settings.Save(env.ConfigFilePath);
-            (cpu.Gpu.Backend as IPsxGpuBackendHooks)?.AttachHdTexturePack(null);
+            cpu.Gpu.AttachHdTexturePack(null);
             drawer.VideoWarningBanner = $"HD pack rejected: {ex.Message}";
             logger.Warn("CONTAINMENT", $"Rejected runtime HD texture pack: {ex.Message}");
         }
@@ -276,6 +277,6 @@ internal static unsafe partial class Program
         if (settings.IsHdTexturePackEnabled)
             ApplyHdTexturePackSetting(cpu, env, drawer, settings, logger);
         else
-            (cpu.Gpu.Backend as IPsxGpuBackendHooks)?.AttachHdTexturePack(null);
+            cpu.Gpu.AttachHdTexturePack(null);
     }
 }

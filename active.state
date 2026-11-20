@@ -7,16 +7,16 @@
   "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.3.0-hf.3",
-  "activeMilestone": "0.3.1",
+  "version": "0.3.1",
+  "activeMilestone": "0.4.0",
   "goalMajorVersion": "1.0.0",
-  "stateChangedDate": "2026-11-19",
-  "lastVersionDate": "2026-11-19",
+  "stateChangedDate": "2026-11-20",
+  "lastVersionDate": "2026-11-20",
   "productionSubpath": "StreamItAll\\reEngine\\engines\\reSlate",
   "supersededBy": null,
   "tasklistDetailLevel": 3,
   "openTaskCount": 0,
-  "completedTaskCount": 29,
+  "completedTaskCount": 37,
   "openReportCount": 0,
   "isPublicRepo": true,
   "requireHumanReviewBeforePush": false,
@@ -27,7 +27,7 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "reSlate v0.3.0-hf.3 Public Beta Hotfix (https://github.com/StreamItAllGit/reSlate | 281/281 Release+Debug /warnaserror tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 verified; splits CdlGetlocL 0x10 vs CdlGetlocP 0x11 layout to fix XA minute-rollover loops, adds owner-thread OpenGl33RenderBackend.Readback.cs + PsxGpu.SyncBackendToVramMirror() before QuickSave and backend hot-swaps, aligns Call()/ResumeMidStack() Pc before frame patches, adds ITextScopedOverlayRecompModule immutable .text SHA verification + MipsLifter loop/call MidEntries, and appends cpuMs/ovHash to Diag_Telemetry). Next milestone v0.3.1 adds shared reEngine.Host Vulkan, ParallelCpu, Enhancement SDK, Fast-Forward, and Cutscene Skip.",
+  "notes": "reSlate v0.3.1 Public Beta (https://github.com/StreamItAllGit/reSlate | 310/310 Release+Debug /warnaserror tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 + SharedLibs dual EXE/DLL --help + audit_installer 0 findings PASS; ships hardware Vulkan R16UI + VulkanPresenter, deterministic 16px-band ParallelCpu bit-exact to Software at 1x, Enhancement SDK ISubTickFrameHook + fail-closed <dataDir>\\hdpacks\\, Aspect Ratio & Overscan Crop + isWidescreen16By9 migration, audio-safe Fast-Forward F6/guarded Tab + ISkipCutsceneHook F7, TryWaitForVBlankCounter tight-loop VSync(n) parity, O(1) containerOffsetBytes + per-EXE entryAddresses, and Foundation v0.5.2 + reEngine v0.5.0 v2 manifests). Next milestone v0.4.0 adds Pure-Static Overlay Promoter, dual-motor analog rumble, Redbook CD-DA, .m3u lid-swap, and --save-dir routing.",
   "discordPost": {
     "isEnabled": true,
     "serverName": null,
@@ -38,5 +38,5 @@
     "secretEnvKey": "DISCORD_WEBHOOK_FOUNDATION",
     "autoPostOnRelease": true
   },
-  "updatedAtUtc": "2026-11-19T19:25:00.000Z"
+  "updatedAtUtc": "2026-11-20T06:09:30.000Z"
 }
