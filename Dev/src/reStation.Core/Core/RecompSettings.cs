@@ -84,9 +84,24 @@ public sealed class RecompSettings
             ? ReStationEngineInfo.AppId
             : AppId.Trim();
         ResolutionScale = ResolutionScale <= 1 ? 1 : ResolutionScale <= 2 ? 2 : ResolutionScale <= 4 ? 4 : 8;
-        BackendId = string.Equals(BackendId?.Trim(), PsxRenderBackendIds.Software, StringComparison.OrdinalIgnoreCase)
-            ? PsxRenderBackendIds.Software
-            : PsxRenderBackendIds.OpenGl;
+        BackendId = (BackendId?.Trim().ToLowerInvariant()) switch
+        {
+            PsxRenderBackendIds.Software => PsxRenderBackendIds.Software,
+            PsxRenderBackendIds.Vulkan => PsxRenderBackendIds.Vulkan,
+            "parallelcpu" or "parallel-cpu" or "parallel_cpu" => PsxRenderBackendIds.ParallelCpu,
+            _ => PsxRenderBackendIds.OpenGl
+        };
+        HostAspectRatioMode resolvedAspect = string.IsNullOrWhiteSpace(AspectRatioMode)
+            ? (IsWidescreen16By9 ? HostAspectRatioMode.HorPlus16By9 : HostAspectRatioMode.NativePar)
+            : HostAspectRatioModeCodec.Parse(AspectRatioMode);
+        AspectRatioMode = HostAspectRatioModeCodec.ToCanonicalId(resolvedAspect);
+        IsWidescreen16By9 = resolvedAspect == HostAspectRatioMode.HorPlus16By9;
+        OverscanCropPx = new HostOverscanCrop(
+            Math.Clamp(OverscanCropPx.Top, 0, 32),
+            Math.Clamp(OverscanCropPx.Bottom, 0, 32),
+            Math.Clamp(OverscanCropPx.Left, 0, 32),
+            Math.Clamp(OverscanCropPx.Right, 0, 32));
+        FastForwardMultiplier = double.IsFinite(FastForwardMultiplier) ? Math.Clamp(FastForwardMultiplier, 2.0, 4.0) : 2.0;
         ControllerDpadMode = NativeInputModeIds.NormalizeControllerDpadMode(ControllerDpadMode);
         IsometricMoveMode = NativeInputModeIds.NormalizeIsometricMoveMode(IsometricMoveMode);
         ExecutionTierMode = ReStationExecutionTierModes.Normalize(ExecutionTierMode);
