@@ -132,7 +132,7 @@ Assert-BinaryPurity -AppDir $stageApp -LauncherExe (Join-Path $stageDir "reSlate
 foreach ($cliExe in @((Join-Path $stageApp "reSlate.Player.exe"), (Join-Path $stageDir "reSlate.exe"))) {
     $helpOut = (& $cliExe --help | Out-String)
     if ($LASTEXITCODE -ne 0) { throw "CLI --help check failed ($LASTEXITCODE) for $cliExe" }
-    foreach ($requiredFlag in @("--preload-media", "--wait", "--version", "--require-backend", "--doctor")) {
+    foreach ($requiredFlag in @("--preload-media", "--wait", "--version", "--require-backend", "--doctor", "--aspect-mode", "--fast-forward", "--hd-packs")) {
         if ($helpOut -notmatch [regex]::Escape($requiredFlag)) {
             throw "CLI --help parity check failed for ${cliExe}: missing '$requiredFlag'."
         }
@@ -141,6 +141,10 @@ foreach ($cliExe in @((Join-Path $stageApp "reSlate.Player.exe"), (Join-Path $st
     if ($LASTEXITCODE -ne 0 -or ($verOut -notmatch [regex]::Escape("reSlate v$Version"))) {
         throw "CLI --version parity check failed ($LASTEXITCODE) for ${cliExe}: '$verOut'"
     }
+}
+$compHelp = (& (Join-Path $stageApp "reSlate.Compiler.exe") --help 2>&1 | Out-String)
+if ($LASTEXITCODE -ne 0 -or ($compHelp -notmatch "Usage: reSlate\.Compiler")) {
+    throw "Compiler --help check failed ($LASTEXITCODE) in ${stageApp}: $compHelp"
 }
 
 $forbiddenExts = @(".pdb", ".db", ".sqlite", ".sqlite3", ".log")
@@ -189,7 +193,7 @@ if ((-not $SkipSigning) -and (Test-Path -LiteralPath $resolvedAuditScript)) {
 }
 
 Write-Host "[6/7] Publishing SharedLibs\reSlate\v$Version and Latest..."
-Publish-SharedLibsSdk -RootDir $root -DevDir $devDir -StageApp $stageApp -InstallerPath $relBundle.InstallerPath -Version $Version
+Publish-SharedLibsSdk -RootDir $root -DevDir $devDir -StageApp $stageApp -InstallerPath $relBundle.InstallerPath -Version $Version -Cert $cert -SkipSigning:$SkipSigning
 
 if (-not $SkipSourceArchive) {
     Write-Host "[7/7] Updating Archive\reSlate-v$Version-src.7z..."

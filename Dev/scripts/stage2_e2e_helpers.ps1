@@ -2,9 +2,16 @@
 # @module: Dev/scripts/stage2_e2e_helpers.ps1
 # @purpose: Shared Win32 visible-window, loopback automation, PNG verification, and 4-drive sandbox helpers for run_stage2_sandbox_e2e.ps1.
 # @depends-on: System.Drawing, System.Net.Sockets, Foundation/Dev/tools/sandbox_ctl.py
-# @exports: Win32VisibleWindow, Show-VisibleWindowOnTop, Send-WindowClose, Get-FreeLoopbackPort, Invoke-LoopbackJson, Wait-AutomationHealth, Wait-TreeControl, Wait-TreeControlAbsent, Find-TreeNodeRecursive, Quote-WindowsArg, Start-ProcessWithEnv, Read-EnvKeyMap, Resolve-FourDriveSandboxConfig, Resolve-FoundationSandboxRunner, Get-SandboxChildEnv, Test-SandboxHostClean, Assert-ValidPng
+# @exports: Win32VisibleWindow, Show-VisibleWindowOnTop, Send-WindowClose, Get-FreeLoopbackPort, Invoke-LoopbackJson, Wait-AutomationHealth, Wait-TreeControl, Wait-TreeControlAbsent, Find-TreeNodeRecursive, Quote-WindowsArg, Start-ProcessWithEnv, Read-EnvKeyMap, Resolve-FourDriveSandboxConfig, Resolve-FoundationSandboxRunner, Get-SandboxChildEnv, Test-SandboxHostClean, Resolve-SharedLibsSdkDir, Test-Stage2SharedLibsCompilerSmoke, Assert-ValidPng
 
 Set-StrictMode -Version Latest
+
+$script:PreservedSandboxOsVars = @(
+    "SystemDrive", "SystemRoot", "WINDIR", "COMSPEC", "PATH", "PATHEXT",
+    "ProgramData", "ProgramFiles", "ProgramFiles(x86)", "CommonProgramFiles", "CommonProgramFiles(x86)",
+    "ALLUSERSPROFILE", "PUBLIC", "OS", "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE",
+    "DOTNET_ROOT", "DOTNET_CLI_TELEMETRY_OPTOUT"
+)
 
 if (-not ("Win32VisibleWindow" -as [type])) {
     Add-Type -TypeDefinition @"
@@ -169,7 +176,15 @@ function Start-ProcessWithEnv(
     if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory)) { $psi.WorkingDirectory = $WorkingDirectory }
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $false
-    if ($ClearExistingEnv) { $psi.EnvironmentVariables.Clear() }
+    if ($ClearExistingEnv) {
+        $preserved = @{}
+        foreach ($osVar in $script:PreservedSandboxOsVars) {
+            $osVal = [Environment]::GetEnvironmentVariable($osVar)
+            if (-not [string]::IsNullOrWhiteSpace($osVal)) { $preserved[$osVar] = $osVal }
+        }
+        $psi.EnvironmentVariables.Clear()
+        foreach ($pkv in $preserved.GetEnumerator()) { $psi.EnvironmentVariables[$pkv.Key] = $pkv.Value }
+    }
     foreach ($kv in $EnvOverrides.GetEnumerator()) {
         if ($null -eq $kv.Value) {
             if ($psi.EnvironmentVariables.ContainsKey($kv.Key)) { $psi.EnvironmentVariables.Remove($kv.Key) }
@@ -240,7 +255,39 @@ print(json.dumps({"dDrive": cfg["drives"]["SANDBOX_D_DRIVE"], "env": build_sandb
 '@
     $raw = ($pyCode | & python - $ToolsDir)
     if ($LASTEXITCODE -ne 0) { throw "Failed initializing 4-drive sandbox env via sandbox_ctl.py ($LASTEXITCODE)" }
-    return ($raw | ConvertFrom-Json)
+    $parsed = ($raw | ConvertFrom-Json)
+    foreach ($osVar in @("SystemDrive", "ProgramData", "ProgramFiles", "ProgramFiles(x86)", "CommonProgramFiles", "CommonProgramFiles(x86)", "ALLUSERSPROFILE", "PUBLIC")) {
+        $osVal = [Environment]::GetEnvironmentVariable($osVar)
+        if (-not [string]::IsNullOrWhiteSpace($osVal) -and (-not $parsed.env.PSObject.Properties[$osVar])) {
+            $parsed.env | Add-Member -NotePropertyName $osVar -NotePropertyValue $osVal
+        }
+    }
+    return $parsed
+}
+
+function Resolve-SharedLibsSdkDir([string]$RepoRoot, [string]$Version) {
+    $candidates = [System.Collections.Generic.List[string]]@(
+        (Join-Path (Split-Path -Parent (Split-Path -Parent $RepoRoot)) "SharedLibs\reSlate\v$Version")
+    )
+    try {
+        $gitCommon = (& git -C $RepoRoot rev-parse --git-common-dir 2>$null | Out-String).Trim()
+        if ($gitCommon) {
+            $primaryRepo = Split-Path -Parent ([System.IO.Path]::GetFullPath([System.IO.Path]::Combine($RepoRoot, $gitCommon)))
+            $candidates.Add((Join-Path (Split-Path -Parent (Split-Path -Parent $primaryRepo)) "SharedLibs\reSlate\v$Version"))
+        }
+    } catch { $null = $_ }
+    return ($candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1)
+}
+
+function Test-Stage2SharedLibsCompilerSmoke([string]$SdkDir) {
+    $compExe = Join-Path $SdkDir "reSlate.Compiler.exe"
+    $compDll = Join-Path $SdkDir "reSlate.Compiler.dll"
+    foreach ($pair in @(@{ File = $compExe; Args = @("--help") }, @{ File = "dotnet"; Args = @($compDll, "--help") })) {
+        $out = (& $pair.File @($pair.Args) 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0 -or $out -match 'hostpolicy\.dll|0x80008083' -or $out -notmatch 'Usage: reSlate\.Compiler') {
+            throw "Stage 2 SharedLibs compiler smoke failed for '$($pair.File) $($pair.Args -join ' ')' (exit=$LASTEXITCODE): $out"
+        }
+    }
 }
 
 function Test-SandboxHostClean([string]$ToolsDir, [string]$SnapshotName) {

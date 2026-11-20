@@ -201,7 +201,7 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         string e2eScript = File.ReadAllText(Path.Combine(devDir, "scripts", "run_stage2_sandbox_e2e.ps1"));
 
         Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "build_release.ps1")).Length < 300);
-        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "package_helpers.ps1")).Length < 300);
+        Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "package_helpers.ps1")).Length <= 400);
         Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "sanitize_release_docs.ps1")).Length < 300);
         Assert.True(File.ReadAllLines(Path.Combine(devDir, "scripts", "run_stage2_sandbox_e2e.ps1")).Length < 300);
 
@@ -228,6 +228,13 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("HardLink", helpersScript, StringComparison.Ordinal);
         Assert.Contains("Portable.zip", helpersScript, StringComparison.Ordinal);
         Assert.Contains("SharedLibs\\reSlate", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("--no-self-contained", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("Test-SharedLibsCompilerSmoke", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("schemaVersion = 2", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("manifestType = \"standalone-app\"", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("hostProtocolVersion = \"0.5.0\"", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("minSuiteVersion = \"0.5.0\"", helpersScript, StringComparison.Ordinal);
+        Assert.Contains("suiteId = \"reEngine\"", helpersScript, StringComparison.Ordinal);
         Assert.Contains("engine.manifest.json", helpersScript, StringComparison.Ordinal);
         Assert.Contains("sdk-manifest.json", helpersScript, StringComparison.Ordinal);
         Assert.Contains("supportedEngineTracks", helpersScript, StringComparison.Ordinal);
@@ -236,15 +243,19 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains(".ready", helpersScript, StringComparison.Ordinal);
         Assert.Contains("Prune-MinorVersionArchives", sanitizeScript, StringComparison.Ordinal);
         Assert.Contains("RequireAllFourDrives", e2eScript, StringComparison.Ordinal);
+        Assert.Contains("-t:Rebuild,Publish", e2eScript, StringComparison.Ordinal);
+        Assert.Contains("Video_BackendParallelCpu", e2eScript, StringComparison.Ordinal);
+        Assert.Contains("System_ToggleFastForward", e2eScript, StringComparison.Ordinal);
+        Assert.Contains("System_SkipCutscene", e2eScript, StringComparison.Ordinal);
 
-        Assert.Equal("0.3.0-hf.3", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.Equal("0.3.1", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.3.0-hf.3", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.1", appManifest.RootElement.GetProperty("version").GetString());
         Assert.Equal("reslate", appManifest.RootElement.GetProperty("appId").GetString());
 
         using JsonDocument settingsExample = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "data", "settings.example.json")));
         Assert.Equal("reslate", settingsExample.RootElement.GetProperty("appId").GetString());
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.0-hf.3", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.1", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
     }
 
     [Fact]
@@ -311,8 +322,29 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
 
         using JsonDocument doc = JsonDocument.Parse(stdout);
         Assert.True(doc.RootElement.GetProperty("dryRun").GetBoolean());
-        Assert.Equal("0.3.0-hf.3", doc.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.1", doc.RootElement.GetProperty("version").GetString());
         Assert.Contains("run_sandbox_e2e.py", doc.RootElement.GetProperty("sandboxRunner").GetString(), StringComparison.OrdinalIgnoreCase);
+
+        string helpersPath = Path.Combine(devDir, "scripts", "stage2_e2e_helpers.ps1");
+        string envProbeCmd =
+            $". '{helpersPath.Replace("'", "''")}'; " +
+            "$p = Start-ProcessWithEnv -FilePath 'cmd.exe' -ClearExistingEnv -EnvOverrides @{ USERPROFILE = 'C:\\SandboxProf'; APP_ISOLATED_TEST = $null } -ArgumentList @('/c', 'echo %SystemDrive%,%ProgramData%,%ProgramFiles%,%ProgramFiles(x86)%,%CommonProgramFiles%,%ALLUSERSPROFILE%,%PUBLIC%'); " +
+            "$null = $p.WaitForExit(5000); exit $p.ExitCode";
+        var (envExit, envOut, envErr) = RunPowerShell(envProbeCmd);
+        Assert.True(envExit == 0, envErr);
+        Assert.Contains("ProgramData", envOut, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Program Files", envOut, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Program Files (x86)", envOut, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Common Files", envOut, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Users\\Public", envOut, StringComparison.OrdinalIgnoreCase);
+
+        string repoRoot = Path.GetDirectoryName(devDir)!;
+        string releaseYml = Path.Combine(repoRoot, ".github", "workflows", "release.yml");
+        Assert.True(File.Exists(releaseYml), $"Missing workflow file: {releaseYml}");
+        string ymlText = File.ReadAllText(releaseYml);
+        Assert.Contains("build_release.ps1", ymlText, StringComparison.Ordinal);
+        Assert.Contains("SHA256SUMS.txt", ymlText, StringComparison.Ordinal);
+        Assert.Contains("--prerelease", ymlText, StringComparison.Ordinal);
     }
 
     private static (int ExitCode, string Stdout, string Stderr) RunPowerShell(string command)

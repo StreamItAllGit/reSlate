@@ -2,7 +2,7 @@
 # @module: Dev/scripts/package_helpers.ps1
 # @purpose: Shared packaging helpers for build_release.ps1 (cert lookup, code-only SLOC gate, binary purity, .ready/manifests, NTFS hardlinks, Portable.zip, SharedLibs, junctions).
 # @depends-on: Dev/scripts/sanitize_release_docs.ps1
-# @exports: Resolve-CodeSigningCertificate, Invoke-AuthenticodeSign, Invoke-SevenZip, Assert-CodeOnlySlocGate, Assert-BinaryPurity, Assert-InstallerPurity, Write-EngineStageMetadata, Build-EndUserDocMap, Publish-ReleaseBundle, Publish-SharedLibsSdk
+# @exports: Resolve-CodeSigningCertificate, Invoke-AuthenticodeSign, Invoke-SevenZip, Assert-CodeOnlySlocGate, Assert-DirectoryAssembliesClean, Assert-BinaryPurity, Assert-InstallerPurity, New-EngineManifestJson, Write-EngineStageMetadata, Build-EndUserDocMap, Publish-ReleaseBundle, Assert-FrameworkDependentRuntimeConfig, Test-SharedLibsCompilerSmoke, Publish-SharedLibsSdk
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -75,17 +75,19 @@ function Assert-CodeOnlySlocGate([string]$DevDir, [int]$MaxCodeSloc = 400) {
     if ($violations.Count -gt 0) { throw "Standard 32 code-only SLOC ceiling violated:`n$($violations -join "`n")" }
 }
 
-function Assert-BinaryPurity([string]$AppDir, [string]$LauncherExe) {
-    $forbidden = @("Foundation.Automation", "System.Windows.Forms")
-    $targets = @("reSlate.Player.dll", "reSlate.Player.exe", "reEngine.Host.dll", "reSlate.Compiler.dll", "reSlate.Decomp.dll") |
-        ForEach-Object { Join-Path $AppDir $_ }
-    $targets += $LauncherExe
-    foreach ($binPath in $targets) {
+function Assert-DirectoryAssembliesClean([string]$TargetDir, [string[]]$TargetFiles, [string[]]$ForbiddenTokens = @("Foundation.Automation", "System.Windows.Forms", "Foundation.UI")) {
+    $badNames = @(Get-ChildItem -LiteralPath $TargetDir -Recurse -File -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -like "*Foundation.Automation*" -or $_.Name -like "*System.Windows.Forms*" -or $_.Name -like "*Foundation.UI*"
+    })
+    if ($badNames.Count -gt 0) {
+        throw "Forbidden assembly file(s) detected in '$TargetDir': $($badNames.FullName -join ', ')"
+    }
+    foreach ($binPath in $TargetFiles) {
         if (-not (Test-Path -LiteralPath $binPath)) { throw "Binary missing for purity check: $binPath" }
         $raw = [System.IO.File]::ReadAllBytes($binPath)
         $ascii = [System.Text.Encoding]::ASCII.GetString($raw)
         $utf16 = [System.Text.Encoding]::Unicode.GetString($raw, 0, $raw.Length - ($raw.Length % 2))
-        foreach ($tok in $forbidden) {
+        foreach ($tok in $ForbiddenTokens) {
             if ($ascii.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
                 $utf16.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
                 throw "Release binary purity violation in '$binPath': found '$tok'."
@@ -94,13 +96,21 @@ function Assert-BinaryPurity([string]$AppDir, [string]$LauncherExe) {
         $deps = [System.IO.Path]::ChangeExtension($binPath, ".deps.json")
         if (Test-Path -LiteralPath $deps) {
             $depsText = Read-Utf8Text $deps
-            foreach ($tok in $forbidden) {
+            foreach ($tok in $ForbiddenTokens) {
                 if ($depsText.IndexOf($tok, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
                     throw "Release deps.json purity violation in '$deps': found '$tok'."
                 }
             }
         }
     }
+}
+
+function Assert-BinaryPurity([string]$AppDir, [string]$LauncherExe) {
+    $targets = @("reSlate.Player.dll", "reSlate.Player.exe", "reEngine.Host.dll", "reSlate.Compiler.dll",
+        "reSlate.Compiler.exe", "reSlate.Decomp.dll", "reStation.Contracts.dll", "reStation.Core.dll",
+        "Foundation.Core.dll", "Foundation.Retro.dll", "reEngine.Core.dll") | ForEach-Object { Join-Path $AppDir $_ }
+    $targets += $LauncherExe
+    Assert-DirectoryAssembliesClean -TargetDir $AppDir -TargetFiles $targets
     $probeRoot = Join-Path $env:TEMP ("reslate_purity_" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
     $prevIso = $env:APP_ISOLATED_TEST
     $env:APP_ISOLATED_TEST = "1"
@@ -136,6 +146,27 @@ function Assert-InstallerPurity([string]$InstallerExe) {
     }
 }
 
+function New-EngineManifestJson([string]$Version, [string]$DecompAssembly, [string]$UpdatedAtUtc) {
+    return ([ordered]@{
+        '$schema' = "https://schemas.local/manifest.v2.json"
+        schemaVersion = 2
+        manifestType = "standalone-app"
+        appId = "reslate"
+        engineId = "reSlate"
+        displayName = "reSlate"
+        version = $Version
+        updatedAtUtc = $UpdatedAtUtc
+        suiteId = "reEngine"
+        hostProtocolVersion = "0.5.0"
+        minSuiteVersion = "0.5.0"
+        entryExecutable = "reSlate.exe"
+        compatibleEngineTrack = "0.3.x"
+        supportedEngineTracks = @("0.3.x", "0.2.x", "0.1.x")
+        decompProviderAssembly = $DecompAssembly
+        platformId = "ps1"
+    } | ConvertTo-Json -Depth 4) + "`r`n"
+}
+
 function Write-EngineStageMetadata([string]$StageDir, [string]$StageApp, [string]$Version) {
     Write-Utf8Text (Join-Path $StageApp "version.txt") $Version
     $nowUtc = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
@@ -145,12 +176,7 @@ function Write-EngineStageMetadata([string]$StageDir, [string]$StageApp, [string
         @{ Path = (Join-Path $StageDir "engine.manifest.json"); Decomp = "app/reSlate.Decomp.dll" },
         @{ Path = (Join-Path $StageApp "engine.manifest.json"); Decomp = "reSlate.Decomp.dll" }
     )) {
-        $m = ([ordered]@{
-            schemaVersion = 1; engineId = "reSlate"; appId = "reslate"; displayName = "reSlate"; version = $Version
-            entryExecutable = "reSlate.exe"; compatibleEngineTrack = "0.3.x"; supportedEngineTracks = @("0.3.x", "0.2.x", "0.1.x")
-            decompProviderAssembly = $pair.Decomp; platformId = "ps1"; updatedAtUtc = $nowUtc
-        } | ConvertTo-Json -Depth 4) + "`r`n"
-        Write-Utf8Text $pair.Path $m
+        Write-Utf8Text $pair.Path (New-EngineManifestJson -Version $Version -DecompAssembly $pair.Decomp -UpdatedAtUtc $nowUtc)
     }
 }
 
@@ -163,13 +189,13 @@ function Build-EndUserDocMap([string]$RootDir, [string]$DevDir, [string]$Version
     $rawNotes = (@'
 # reSlate - Release v__VER__
 
-Clean-room MPL-2.0 SlateOne static recompilation engine (`reSlate.Decomp` + local AOT cache), MIPS32 R3000A + GTE lifter, OpenGL 3.3 / Software render backends, and modular BYO-media runtime (`AllowAutoStart = false`).
+Clean-room MPL-2.0 SlateOne static recompilation engine (`reSlate.Decomp` + local AOT cache), MIPS32 R3000A + GTE lifter, Vulkan 1.3 / ParallelCPU / OpenGL 3.3 / Software render backends, Enhancement SDK (`hdpacks\` + Sub-Tick Interpolation), and modular BYO-media runtime (`AllowAutoStart = false`).
 
 ## Highlights
-- Installs per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v__VER__\` (auto-detecting existing `reSlate`/`reEngine`/`reStation` paths and saved install profiles on upgrade) with `.ready` discovery marker, `reSlate.exe`, `--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`.
-- Clean-room SlateOne `.decomp` provider (`reSlate.Decomp.dll`) with `D4_CleanSource` 6-tell / `-Wall -Wextra -Wno-unused-parameter` validation and player-PC `<dataDir>\cache\` AOT compiler + live Tier 3 JIT/IR.
-- Unified `SIO0 0x81` + BIOS `B0:0x4E/0x4F/0x50` `_new_card` Slot 1+2 `.mcr` persistence, `60 Hz` SPU lock (`44.1 kHz`) with `VSync(n)`/`TargetFps` cadence, and single-edge menu input.
-- `reEngine.Host.Contracts` alignment (`reEngine.Host.dll`), canonical `data\config\settings.json`, 7-file `Portable.zip` release bundle, and zero-automation `Release` binaries (`ExitCode = 2`).
+- Installs per-user under `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v__VER__\` (`suiteId: reEngine`) with `.ready` discovery marker, `reSlate.exe`, `--profile Lightweight|Full`, `--reengine-dir`, and opt-in `--migrate-legacy`.
+- **Vulkan & Deterministic ParallelCPU Backends:** Hardware `Vulkan` backend alongside bit-exact `ParallelCPU`, `OpenGL 3.3`, and `Software` renderers, live `--doctor` probe, `HostViewportGeometry` aspect modes (`--aspect-mode`), and `overscanCropPx`.
+- **Enhancement SDK & QoL Controls:** Clean-room `<dataDir>\hdpacks\` PNG texture overrides (`--hd-packs`), `ISubTickFrameHook` interpolation, audio-safe Fast-Forward (`F6` / `--fast-forward`), and Cutscene Skip (`F7`).
+- **Framework-Dependent SDK & Clean Binaries:** `SharedLibs` compiler/player tools ship framework-dependent, zero-automation `Release` binaries (`ExitCode = 2`), and 7-file `Portable.zip` release bundle.
 
 ## Download Mirrors & Formats
 - **Setup Installer:** `reSlate-Setup-v__VER__-win-x64.exe` *(Signed Setup Wizard & silent CLI installer)*
@@ -246,42 +272,97 @@ function Publish-ReleaseBundle([string]$RootDir, [string]$ReleasesDir, [string]$
     return @{ RelVerDir = $relVerDir; InstallerPath = $installerPath }
 }
 
-function Publish-SharedLibsSdk([string]$RootDir, [string]$DevDir, [string]$StageApp, [string]$InstallerPath, [string]$Version) {
-    $sharedRoot = Join-Path (Split-Path -Parent (Split-Path -Parent $RootDir)) "SharedLibs\reSlate"
-    $contractsOut = Join-Path $DevDir "src\reStation.Contracts\bin\Release\net8.0"
-    $coreOut = Join-Path $DevDir "src\reStation.Core\bin\Release\net8.0"
-    $decompOut = Join-Path $DevDir "src\reStation.Decomp\bin\Release\net8.0"
-    $installerName = [System.IO.Path]::GetFileName($InstallerPath)
-    $sources = @(
-        @{ Dir = $contractsOut; Names = @("reStation.Contracts.dll", "reStation.Contracts.xml", "reStation.Contracts.deps.json") },
-        @{ Dir = $coreOut; Names = @("reStation.Core.dll", "reStation.Core.deps.json") },
-        @{ Dir = $decompOut; Names = @("reSlate.Decomp.dll", "reSlate.Decomp.xml", "reSlate.Decomp.deps.json") },
-        @{ Dir = $StageApp; Names = @("reSlate.Player.exe", "reSlate.Player.dll", "reSlate.Player.deps.json", "reSlate.Player.runtimeconfig.json",
-            "reSlate.Compiler.exe", "reSlate.Compiler.dll", "reSlate.Compiler.deps.json", "reSlate.Compiler.runtimeconfig.json",
-            "Foundation.Core.dll", "Foundation.Retro.dll", "reEngine.Core.dll", "reEngine.Host.dll", "SDL3.dll") }
-    )
-    foreach ($sdkDir in @((Join-Path $sharedRoot "v$Version"), (Join-Path $sharedRoot "Latest"))) {
-        if (Test-Path -LiteralPath $sdkDir) { Remove-Item -LiteralPath $sdkDir -Recurse -Force }
-        New-Item -ItemType Directory -Force $sdkDir | Out-Null
+function Assert-FrameworkDependentRuntimeConfig([string]$ConfigPath) {
+    if (-not (Test-Path -LiteralPath $ConfigPath)) { throw "Missing runtimeconfig.json: $ConfigPath" }
+    $cfg = (Read-Utf8Text $ConfigPath) | ConvertFrom-Json
+    $ro = $cfg.runtimeOptions
+    if ($null -eq $ro -or $ro.PSObject.Properties["includedFrameworks"]) {
+        throw "SharedLibs runtimeconfig must be framework-dependent (found includedFrameworks): $ConfigPath"
+    }
+    if (-not ($ro.PSObject.Properties["framework"] -and $ro.framework.name)) {
+        throw "SharedLibs runtimeconfig missing framework reference: $ConfigPath"
+    }
+}
+
+function Test-SharedLibsCompilerSmoke([string]$SdkDir, [string]$Version) {
+    $compilerExe = Join-Path $SdkDir "reSlate.Compiler.exe"
+    $compilerDll = Join-Path $SdkDir "reSlate.Compiler.dll"
+    $playerExe = Join-Path $SdkDir "reSlate.Player.exe"
+    foreach ($pair in @(
+        @{ File = $compilerExe; Args = @("--help"); Expect = "Usage: reSlate.Compiler" },
+        @{ File = "dotnet"; Args = @($compilerDll, "--help"); Expect = "Usage: reSlate.Compiler" },
+        @{ File = $playerExe; Args = @("--version"); Expect = "reSlate v$Version" }
+    )) {
+        $out = (& $pair.File @($pair.Args) 2>&1 | Out-String)
+        if ($LASTEXITCODE -ne 0 -or $out -match 'hostpolicy\.dll|0x80008083' -or $out -notmatch [regex]::Escape($pair.Expect)) {
+            throw "SharedLibs live smoke failed for '$($pair.File) $($pair.Args -join ' ')' (exit=$LASTEXITCODE): $out"
+        }
+    }
+}
+
+function Publish-SharedLibsSdk([string]$RootDir, [string]$DevDir, [string]$StageApp, [string]$InstallerPath, [string]$Version, $Cert = $null, [switch]$SkipSigning, [string]$SharedRootOverride = "") {
+    $sharedRoot = if (-not [string]::IsNullOrWhiteSpace($SharedRootOverride)) { $SharedRootOverride } else { Join-Path (Split-Path -Parent (Split-Path -Parent $RootDir)) "SharedLibs\reSlate" }
+    $pubTmp = Join-Path $env:TEMP ("reslate_sdk_pub_" + [Guid]::NewGuid().ToString("N").Substring(0, 8))
+    $compPub = Join-Path $pubTmp "compiler"; $playPub = Join-Path $pubTmp "player"
+    New-Item -ItemType Directory -Force $compPub, $playPub | Out-Null
+    try {
+        & dotnet publish (Join-Path $DevDir "src\reStation.Compiler\reStation.Compiler.csproj") -c Release --no-self-contained -p:Version="$Version" -p:DebugType=none -p:DebugSymbols=false -o $compPub /warnaserror --disable-build-servers -p:UseSharedCompilation=false | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish (SharedLibs) reStation.Compiler failed ($LASTEXITCODE)" }
+        & dotnet publish (Join-Path $DevDir "src\reStation.Player\reStation.Player.csproj") -c Release -r win-x64 --no-self-contained -p:Version="$Version" -p:DebugType=none -p:DebugSymbols=false -o $playPub /warnaserror --disable-build-servers -p:UseSharedCompilation=false | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish (SharedLibs) reStation.Player failed ($LASTEXITCODE)" }
+        $decompOut = Join-Path $DevDir "src\reStation.Decomp\bin\Release\net8.0"
+        if (-not (Test-Path -LiteralPath (Join-Path $decompOut "reSlate.Decomp.dll"))) {
+            & dotnet build (Join-Path $DevDir "src\reStation.Decomp\reStation.Decomp.csproj") -c Release -p:Version="$Version" /warnaserror --disable-build-servers -p:UseSharedCompilation=false | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "dotnet build reStation.Decomp failed ($LASTEXITCODE)" }
+        }
+        $installerName = [System.IO.Path]::GetFileName($InstallerPath)
+        $sources = @(
+            @{ Dir = (Join-Path $DevDir "src\reStation.Contracts\bin\Release\net8.0"); Names = @("reStation.Contracts.dll", "reStation.Contracts.xml", "reStation.Contracts.deps.json") },
+            @{ Dir = (Join-Path $DevDir "src\reStation.Core\bin\Release\net8.0"); Names = @("reStation.Core.dll", "reStation.Core.deps.json") },
+            @{ Dir = $decompOut; Names = @("reSlate.Decomp.dll", "reSlate.Decomp.xml", "reSlate.Decomp.deps.json") },
+            @{ Dir = $compPub; Names = @("reSlate.Compiler.exe", "reSlate.Compiler.dll", "reSlate.Compiler.deps.json", "reSlate.Compiler.runtimeconfig.json", "Foundation.Core.dll", "Foundation.Retro.dll", "reEngine.Core.dll", "reEngine.Host.dll") },
+            @{ Dir = $playPub; Names = @("reSlate.Player.exe", "reSlate.Player.dll", "reSlate.Player.deps.json", "reSlate.Player.runtimeconfig.json", "SDL3-CS.dll") }
+        )
+        $sdkVerDir = Join-Path $sharedRoot "v$Version"
+        $sdkLatestDir = Join-Path $sharedRoot "Latest"
+        if (Test-Path -LiteralPath $sdkVerDir) { Remove-Item -LiteralPath $sdkVerDir -Recurse -Force }
+        New-Item -ItemType Directory -Force $sdkVerDir | Out-Null
         $copied = [System.Collections.Generic.List[string]]::new()
         foreach ($srcGroup in $sources) {
             foreach ($fn in $srcGroup.Names) {
                 $src = Join-Path $srcGroup.Dir $fn
-                if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $sdkDir $fn) -Force; $copied.Add($fn) }
+                if (Test-Path -LiteralPath $src) { Copy-Item -LiteralPath $src -Destination (Join-Path $sdkVerDir $fn) -Force; $copied.Add($fn) }
             }
         }
-        Copy-Item -LiteralPath $InstallerPath -Destination (Join-Path $sdkDir $installerName) -Force; $copied.Add($installerName)
-        Copy-Item -LiteralPath (Join-Path $RootDir "README.md") -Destination (Join-Path $sdkDir "README.md") -Force; $copied.Add("README.md")
-        Copy-Item -LiteralPath (Join-Path $RootDir "LICENSE") -Destination (Join-Path $sdkDir "LICENSE") -Force; $copied.Add("LICENSE")
+        $sdlSrc = @((Join-Path $playPub "SDL3.dll"), (Join-Path $playPub "runtimes\win-x64\native\SDL3.dll"), (Join-Path $StageApp "SDL3.dll"), (Join-Path $DevDir "lib\SDL3.dll")) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+        if (-not $sdlSrc) { throw "SDL3.dll missing for SharedLibs staging." }
+        Copy-Item -LiteralPath $sdlSrc -Destination (Join-Path $sdkVerDir "SDL3.dll") -Force; $copied.Add("SDL3.dll")
+        if ((-not $SkipSigning) -and ($null -ne $Cert)) {
+            Invoke-AuthenticodeSign $Cert (Join-Path $sdkVerDir "reSlate.Player.exe")
+            Invoke-AuthenticodeSign $Cert (Join-Path $sdkVerDir "reSlate.Compiler.exe")
+        }
+        Copy-Item -LiteralPath $InstallerPath -Destination (Join-Path $sdkVerDir $installerName) -Force; $copied.Add($installerName)
+        Copy-Item -LiteralPath (Join-Path $RootDir "README.md") -Destination (Join-Path $sdkVerDir "README.md") -Force; $copied.Add("README.md")
+        Copy-Item -LiteralPath (Join-Path $RootDir "LICENSE") -Destination (Join-Path $sdkVerDir "LICENSE") -Force; $copied.Add("LICENSE")
         $nowUtc = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-        $engJson = ([ordered]@{
-            schemaVersion = 1; engineId = "reSlate"; appId = "reslate"; displayName = "reSlate"; version = $Version
-            entryExecutable = "reSlate.exe"; compatibleEngineTrack = "0.3.x"; supportedEngineTracks = @("0.3.x", "0.2.x", "0.1.x")
-            decompProviderAssembly = "reSlate.Decomp.dll"; platformId = "ps1"; updatedAtUtc = $nowUtc
-        } | ConvertTo-Json -Depth 4) + "`r`n"
-        Write-Utf8Text (Join-Path $sdkDir "engine.manifest.json") $engJson; $copied.Add("engine.manifest.json")
-        $artifacts = @($copied | ForEach-Object { $p = Join-Path $sdkDir $_; [ordered]@{ fileName = $_; fileSizeBytes = (Get-Item -LiteralPath $p).Length; sha256Hex = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant() } })
+        Write-Utf8Text (Join-Path $sdkVerDir "engine.manifest.json") (New-EngineManifestJson -Version $Version -DecompAssembly "reSlate.Decomp.dll" -UpdatedAtUtc $nowUtc)
+        $copied.Add("engine.manifest.json")
+        Assert-FrameworkDependentRuntimeConfig (Join-Path $sdkVerDir "reSlate.Compiler.runtimeconfig.json")
+        Assert-FrameworkDependentRuntimeConfig (Join-Path $sdkVerDir "reSlate.Player.runtimeconfig.json")
+        $sdkBinTargets = @("reSlate.Compiler.dll", "reSlate.Compiler.exe", "reSlate.Player.dll", "reSlate.Player.exe", "reSlate.Decomp.dll",
+            "reStation.Contracts.dll", "reStation.Core.dll", "Foundation.Core.dll", "Foundation.Retro.dll", "reEngine.Core.dll", "reEngine.Host.dll") | ForEach-Object { Join-Path $sdkVerDir $_ }
+        Assert-DirectoryAssembliesClean -TargetDir $sdkVerDir -TargetFiles $sdkBinTargets
+        Test-SharedLibsCompilerSmoke -SdkDir $sdkVerDir -Version $Version
+        $artifacts = @($copied | ForEach-Object { $p = Join-Path $sdkVerDir $_; [ordered]@{ fileName = $_; fileSizeBytes = (Get-Item -LiteralPath $p).Length; sha256Hex = (Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant() } })
         $sdkJson = ([ordered]@{ schemaVersion = 1; appId = "reslate"; displayName = "reSlate"; sdkVersion = $Version; version = $Version; updatedAtUtc = $nowUtc; artifacts = $artifacts } | ConvertTo-Json -Depth 5) + "`r`n"
-        Write-Utf8Text (Join-Path $sdkDir "sdk-manifest.json") $sdkJson
+        Write-Utf8Text (Join-Path $sdkVerDir "sdk-manifest.json") $sdkJson
+        if (Test-Path -LiteralPath $sdkLatestDir) { Remove-Item -LiteralPath $sdkLatestDir -Recurse -Force }
+        New-Item -ItemType Directory -Force $sdkLatestDir | Out-Null
+        foreach ($item in (Get-ChildItem -LiteralPath $sdkVerDir -File)) {
+            $dst = Join-Path $sdkLatestDir $item.Name
+            try { New-Item -ItemType HardLink -Path $dst -Target $item.FullName | Out-Null } catch { Copy-Item -LiteralPath $item.FullName -Destination $dst -Force }
+        }
+    } finally {
+        if (Test-Path -LiteralPath $pubTmp) { Remove-Item -LiteralPath $pubTmp -Recurse -Force -ErrorAction SilentlyContinue }
     }
 }
