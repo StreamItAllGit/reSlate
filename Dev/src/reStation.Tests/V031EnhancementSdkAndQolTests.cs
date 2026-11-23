@@ -261,7 +261,7 @@ public sealed class V031EnhancementSdkAndQolTests : IDisposable
         if (File.Exists(examplePath))
         {
             using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(examplePath));
-            Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.1", doc.RootElement.GetProperty("umbrellaSubpath").GetString());
+            Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.2", doc.RootElement.GetProperty("umbrellaSubpath").GetString());
             Assert.Equal("nativePar", doc.RootElement.GetProperty("aspectRatioMode").GetString());
             Assert.False(doc.RootElement.GetProperty("isHdTexturePackEnabled").GetBoolean());
             Assert.False(doc.RootElement.GetProperty("isFastForwardEnabled").GetBoolean());

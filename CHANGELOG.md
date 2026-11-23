@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-23
+### Fixed
+- **BIOS `A0:0x1A` (`strncpy`) for Memory Card Directory Creation (`PsxBiosHle.cs`, `Hotfix032BiosStrncpyTests.cs`):** Implemented `case 0x1A:` (`CopyNString`) inside `PsxBiosHle.HandleA0` with exact ANSI C `strncpy` zero-padding/truncation semantics and `NotifyRamWriteRange` coherence; resolves empty `.mcr` directory filenames emitted by `libmcrd` `_card_create2` (`McErrFileNotExist` / `"saving to memory card failed"` in `HMBackToNature-Recomp`) and adds 3 isolated regression tests (`313/313` Release & Debug `/warnaserror`).
+
+
+### Changed
+- **Workspace Hygiene (`/clean` -- 2026-11-20)**: purged 20.47 MB of disposable caches.
 ## [0.3.1] - 2026-11-20
 ### Added
 - **Hardware `Vulkan` & Deterministic `ParallelCpu` Render Backends (`VulkanRenderBackend`, `ParallelCpuRenderBackend`):** Implemented `VulkanBindings.cs`, `VulkanDeviceContext.cs` (`vulkan-1.dll`, `VK_FORMAT_R16_UINT` `1024x512` `VkImage` + canonical `1x` VRAM mirror), `VulkanRenderBackend.cs` / `VulkanRenderBackend.Pipelines.cs`, and shared `reEngine.Host.Rendering.VulkanPresenter` swapchain compositing (`WindowVulkan`, `[VK_FALLBACK]`, `--require-backend` `ExitCode = 6`); added deterministic `16px`-band `ParallelBandRasterizer.cs` + `ParallelCpuRenderBackend.cs` + `ParallelCpuPresenter` (`100%` SHA-256 bit-exact with `SoftwareCpuRenderBackend` at `1x` across `1`/`4`/`16` threads and `50` consecutive runs), `GP0(E6h)` mask-bit protection, Hor+ `16:9` wings, `1x`–`8x` PGXP, canonical `1x` `GP0(C0h)` preservation, and live `HostBackendProbe` `--doctor` diagnostics.

@@ -6,9 +6,9 @@
 
 Clean-room SlateOne (MIPS32 R3000A) static recompilation engine, `.decomp` lifter, player-PC local AOT compiler, and modular runtime for `reEngine` (formerly `reStation`; repository path `Personal/reStation`).
 
-![Version](https://img.shields.io/badge/version-0.3.1--beta-blue?style=flat) ![Next](https://img.shields.io/badge/next-v0.4.0-teal?style=flat) ![License](https://img.shields.io/badge/license-MPL--2.0-green?style=flat) ![Runtime](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat) ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat)
+![Version](https://img.shields.io/badge/version-0.3.2--beta-blue?style=flat) ![Next](https://img.shields.io/badge/next-v0.4.0-teal?style=flat) ![License](https://img.shields.io/badge/license-MPL--2.0-green?style=flat) ![Runtime](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat) ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey?style=flat)
 
-**Active Milestone (`v0.3.1` Public Beta -> `v0.4.0`):** `▓▓▓▓▓▓░░░░` **62% toward v1.0.0** — `v0.3.1` ships shared `reEngine.Host v0.5.0` hardware `Vulkan` (`R16UI` VRAM + `VulkanPresenter`) and deterministic `16px`-band `ParallelCpu` (`100%` SHA-256 bit-exact to `Software` at `1x`), the Enhancement SDK (`ISubTickFrameHook` + path-contained `<dataDir>\hdpacks\` PNG texture overrides, Aspect Modes, and `0–16px` Overscan Crop), audio-safe `Fast-Forward` (`F6` / guarded unbound `Tab`, `2x/3x/4x`, `xaDrops == 0`) + opt-in `Cutscene Skip` (`F7` / `ISkipCutsceneHook`), `IReStationCpuEx.TryWaitForVBlankCounter`, $O(1)$ `containerOffsetBytes` + per-EXE `entryAddresses` lifting, framework-dependent `SharedLibs` compiler SDKs, `Foundation v0.5.2` SemVer `-hf.<n>` parity, and **`310/310`** dual Release + Debug `/warnaserror` tests (`0` warnings).
+**Active Milestone (`v0.3.2` Public Beta -> `v0.4.0`):** `▓▓▓▓▓▓░░░░` **62% toward v1.0.0** — `v0.3.2` fixes BIOS `A0:0x1A` (`strncpy`) for memory card directory creation (`libmcrd` `_card_create2` / 4-block save persistence) on top of `v0.3.1`'s shared `reEngine.Host v0.5.0` hardware `Vulkan` (`R16UI` VRAM + `VulkanPresenter`), deterministic `16px`-band `ParallelCpu` (`100%` SHA-256 bit-exact to `Software` at `1x`), Enhancement SDK (`ISubTickFrameHook` + path-contained `<dataDir>\hdpacks\`), Aspect Modes & `0–16px` Overscan Crop, audio-safe `Fast-Forward` (`F6`/`Tab`) + `Cutscene Skip` (`F7`), `TryWaitForVBlankCounter`, $O(1)$ `containerOffsetBytes` + per-EXE `entryAddresses`, framework-dependent `SharedLibs` compiler SDKs, `Foundation v0.5.2`, and **`313/313`** dual Release + Debug `/warnaserror` tests (`0` warnings).
 
 </div>
 
@@ -16,11 +16,11 @@ Clean-room SlateOne (MIPS32 R3000A) static recompilation engine, `.decomp` lifte
 
 ## About
 
-> **Beta (Pre-1.0):** `reSlate` (`v0.3.1`) is an active pre-1.0 public beta release targeting `v1.0.0` desktop stability and `v2.0.0` cross-platform support.
+> **Beta (Pre-1.0):** `reSlate` (`v0.3.2`) is an active pre-1.0 public beta release targeting `v1.0.0` Windows desktop General Availability (`opengl`, `vulkan`, `directx`, `parallelCpu`) alongside long-horizon `v2.0.0–v5.0.0` cross-platform, creator, remix, and connected milestones.
 
 `reSlate` decouples clean-room `SlateOne` (`R3000A` + `GTE` COP2) reverse engineering from end-user gameplay—operating strictly as a **static AOT recompiler**, native Tier 3 Shared-IR/RyuJIT runtime translator, and clean-room HLE hardware runtime (**never an emulator**). Launched on demand by [reEngine](https://github.com/StreamItAllGit/reEngine) with zero background daemons (`AllowAutoStart = false`), it converts clean `.recomp` packages and verified user-supplied media (`data\rom\`) into locally compiled native `.NET 8.0` assemblies (`<dataDir>\cache\<Game>.Generated.dll`) on first launch.
 
-`reSlate v0.3.1` runs on `Foundation v0.5.2` and `reEngine v0.5.0` (`suiteId: "reEngine"`, `schemaVersion: 2` manifests, `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.1\`, and framework-dependent `SharedLibs\reSlate\v0.3.1\`). Bidirectional `reSlate` / `reStation` alias resolution and preserved `reStation.{Contracts,Core}` assembly identities keep `0.1.x`–`0.3.0` cartridges binary-compatible.
+`reSlate v0.3.2` runs on `Foundation v0.5.2` and `reEngine v0.5.0` (`suiteId: "reEngine"`, `schemaVersion: 2` manifests, `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.2\`, and framework-dependent `SharedLibs\reSlate\v0.3.2\`). Bidirectional `reSlate` / `reStation` alias resolution and preserved `reStation.{Contracts,Core}` assembly identities keep `0.1.x`–`0.3.1` cartridges binary-compatible.
 
 ## Key Features
 
@@ -100,7 +100,7 @@ reSlate-Setup-v0.3.1-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPP
 ## Documentation
 
 - [Features](FEATURES.md) — Current capabilities and source mapping
-- [Roadmap](ROADMAP.md) — Active `v0.3.1` completion status and `v0.4.0`–`v2.0.0` milestones
+- [Roadmap](ROADMAP.md) — Active `v0.3.1` completion status, `v0.4.0–v1.0.0` Desktop Gold path, and loose `v2.0.0–v5.0.0` milestones
 - [Changelog](CHANGELOG.md) — Version history ledger
 - [Security Policy](SECURITY.md) — Supported tracks, containment boundaries, and vulnerability reporting
 - [Contributing](CONTRIBUTING.md) — Local test setup, PR checklist, and clean-room rules

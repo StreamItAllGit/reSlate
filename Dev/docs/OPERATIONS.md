@@ -1,6 +1,6 @@
 # reSlate — Operations & Verification Runbook
 
-- **Synced Version:** `0.3.1` (`2026-11-20` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.4.0` *(Pure-Static Overlay Promoter, Analog Rumble, CD-DA, `.m3u` Lid-Swap & `--save-dir`)*
+- **Synced Version:** `0.3.1` (`2026-11-20` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.4.0` *(Pure-Static Promoter, Analog Rumble, CD-DA, Unified Multi-Disc, `--save-dir` & GitHub Polish)* $\rightarrow$ `v0.5.0`–`v0.7.0` $\rightarrow$ `v1.0.0` Gold $\rightarrow$ `v2.0–v5.0` Horizon
 - **Scope:** Install Topology, CLI Flags, `--doctor` Diagnostics, `v0.3.0 -> v0.3.1` Settings Migration, Framework-Dependent `SharedLibs`, Log Audit & Stage 2 Sandbox Verification
 - **Canonical Production Boundary:** Zero automated edits or unconfirmed writes to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\` or any live installation during tests, builds, or audits.
 
@@ -58,7 +58,7 @@ Starting in **`v0.3.0`**, `reSlate` installs per-user under `engines\reSlate\v0.
 
 ## 3. Config, `v0.3.0 -> v0.3.1` Migration & Containment
 
-Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.3.1` template (`33` camelCase keys under a scoped single-file backward-compatibility exception documented in [`ARCHITECTURE.md`](ARCHITECTURE.md#L135), `appId: "reslate"`, `umbrellaSubpath: "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.1"`):
+Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provides the clean-room `v0.3.1` template (`33` camelCase keys under a temporary compatibility exception documented in [`ARCHITECTURE.md`](ARCHITECTURE.md#L135) **that expires at `v0.5.0`** when `reEngine.Host v0.6.0` transitions to domain-split `settings.video.json`, `settings.audio.json`, and subsequently `settings.controls.json` / `settings.packs.json`, `appId: "reslate"`, `umbrellaSubpath: "StreamItAll\\reEngine\\engines\\reSlate\\v0.3.1"`):
 - **`v0.3.0 -> v0.3.1` Automatic Migration ([`RecompSettings.cs`](../src/reStation.Core/Core/RecompSettings.cs#L94-L104)):**
   - `SettingsMigrationHelper.MigrateForConfigPathIfNeeded` first migrates legacy `<dataDir>\settings.json` non-destructively to `<dataDir>\config\settings.json` (retaining `.bak`).
   - On `RecompSettings.Load()` / `Clamp()`, if `aspectRatioMode` is absent or empty, `isWidescreen16By9 == true` automatically migrates to `aspectRatioMode = "horPlus16By9"`, while `isWidescreen16By9 == false` maps to `"nativePar"`. Once set, `isWidescreen16By9` stays synchronized (`aspectRatioMode == "horPlus16By9"`).
@@ -93,7 +93,11 @@ Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provid
    powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.1 -EvidenceDir <temp_dir>
    ```
    - Runs `Foundation\Dev\tools\run_sandbox_e2e.py` (`hostDiffCount == 0`), passes `"-t:Rebuild,Publish"` when building `-p:ReStationTestAutomation=true` Setup/Player test binaries (preventing stale incremental automation builds) while preserving Windows OS known-folder env vars (`SystemDrive`, `ProgramData`, `ProgramFiles`, `ALLUSERSPROFILE`, `PUBLIC`) inside `stage2_e2e_helpers.ps1`, drives visible Setup Wizard (`O:\`), drives visible SDL3 MediaGate & `RunHostLoop` Step `[3B/4]` across all 4 backend pills (`ParallelCpu <-> OpenGL` swap), `HD Texture Packs`, `Aspect Ratio`, `Overscan Crop`, `Fast-Forward` (`3x`), `Cutscene Skip`, `F3` HUD, verifies `settings.json` persistence, runs `Test-Stage2SharedLibsCompilerSmoke` (`EXE --help` + `dotnet DLL --help`), and verifies pure `Release` `ExitCode = 2`.
-4. **GitHub CI Release Workflow (`.github/workflows/release.yml`):** On `v*` tag push or `workflow_dispatch`, runs `build_release.ps1 -SkipSigning -SkipSourceArchive` under `APP_ISOLATED_TEST=1` and submits unsigned Setup artifacts for SignPath signing when configured.
+4. **GitHub CI Release Workflow (`.github/workflows/release.yml` & Upcoming Ops Gates):** On `v*` tag push or `workflow_dispatch`, runs `build_release.ps1 -SkipSigning -SkipSourceArchive` under `APP_ISOLATED_TEST=1` and submits unsigned Setup artifacts for SignPath signing when configured. Upcoming scoped operational milestones:
+   - **`v0.4.0`:** Pulls forward visibility-gated `.github\workflows\pages.yml` + Community Profile health (`>= 85%`), checks `Get-NetUDPEndpoint -LocalPort 5004` (`exebox-stream`) cleanly in Stage 2 E2E, and verifies compiled multi-disc/CD-DA/rumble/`--save-dir` fixtures (`hostDiffCount == 0`).
+   - **`v0.5.0`:** Fixes `audioFillPct=0.0` telemetry via live `SDL_GetAudioStreamQueued(audioStream)`, expires the single-file `settings.json` exception onto domain configs, and validates native GPU `DirectX 12` + `Vulkan` + `OpenGL` + `ParallelCpu` 4-backend readback parity + Safe Mode sentinel recovery.
+   - **`v0.6.0`:** Verifies zero-`.recomp` Raw-Media JIT boot, `.mcr`-coherent 1-Step Quick-Save Undo, and switches `build_release.ps1` / `release.yml` to the **8-file Dual-Installer (`Online Setup` + `Offline Setup` + `Portable.zip`)** tested against local `127.0.0.1` HTTP loopback + tampered-SHA256 fail-closed gates (`audit_installer.ps1 -ReleaseLayoutMode DualSetup8 -RequireDualInstaller -VerifyChecksums`).
+   - **`v0.7.0` & `v1.0.0`:** Keeps Release `--automation-port` (`ExitCode = 2`) strictly isolated from opt-in loopback `HostRuntimeApiServer` (`isRuntimeApiEnabled: false` default) + `ResearchInspector`, verifies `.re*` live VBlank hot-reload + deterministic `hd_recipe` hashes, and certifies Symmetric `2+` Gold parity across `CrownDepths-ForsakenIsle-SlateOne-02-Recomp` & `MeadowValley-BackToEarth-SlateOne-04-Recomp`.
 
 ---
 

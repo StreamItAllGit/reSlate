@@ -120,6 +120,7 @@ public sealed partial class PsxBiosHle
             case 0x17: _cpu.R[2] = (uint)string.CompareOrdinal(ReadCString(_cpu.R[4]), ReadCString(_cpu.R[5])); break;
             case 0x18: _cpu.R[2] = (uint)CompareN(ReadCString(_cpu.R[4]), ReadCString(_cpu.R[5]), (int)_cpu.R[6]); break;
             case 0x19: WriteCString(_cpu.R[4], ReadCString(_cpu.R[5])); _cpu.R[2] = _cpu.R[4]; break;
+            case 0x1A: _cpu.R[2] = CopyNString(_cpu.R[4], _cpu.R[5], (int)_cpu.R[6]); break;
             case 0x1B: _cpu.R[2] = (uint)ReadCString(_cpu.R[4]).Length; break;
             case 0x15 or 0x1E: WriteCString(_cpu.R[4], ReadCString(_cpu.R[4]) + ReadCString(_cpu.R[5])); _cpu.R[2] = _cpu.R[4]; break;
             case 0x28: ZeroRam(_cpu.R[4], _cpu.R[5]); break;
@@ -310,4 +311,32 @@ public sealed partial class PsxBiosHle
     private void WriteCString(uint addr, string s, int max = 256) { byte[] b = Encoding.ASCII.GetBytes(s); int n = Math.Min(b.Length, max - 1); for (int i = 0; i < n; i++) _cpu.Bus.Write8(addr + (uint)i, b[i]); _cpu.Bus.Write8(addr + (uint)n, 0); }
     private static uint ToDigit(byte c) => c is >= (byte)'0' and <= (byte)'9' ? (uint)(c - '0') : c is >= (byte)'A' and <= (byte)'Z' ? (uint)(c - 'A' + 10) : c is >= (byte)'a' and <= (byte)'z' ? (uint)(c - 'a' + 10) : 0x009FFFFFU;
     private static int CompareN(string a, string b, int n) => string.CompareOrdinal(a.Length > n ? a[..n] : a, b.Length > n ? b[..n] : b);
+
+    private uint CopyNString(uint dst, uint src, int maxLen)
+    {
+        if (maxLen <= 0)
+        {
+            return dst;
+        }
+
+        int count = Math.Min(maxLen, 0x200000);
+        bool hitNull = false;
+        for (int i = 0; i < count; i++)
+        {
+            byte value = 0;
+            if (!hitNull)
+            {
+                value = _cpu.Bus.Read8(src + (uint)i);
+                if (value == 0)
+                {
+                    hitNull = true;
+                }
+            }
+
+            _cpu.Bus.Write8(dst + (uint)i, value);
+        }
+
+        _cpu.Bus.NotifyRamWriteRange(dst, (uint)count);
+        return dst;
+    }
 }

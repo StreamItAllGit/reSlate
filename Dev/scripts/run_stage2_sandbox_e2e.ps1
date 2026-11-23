@@ -73,9 +73,13 @@ function Invoke-WizardGuiSandboxStep([string]$ToolsDir, [string]$BuildsDir, [str
     $wizProc = Start-ProcessWithEnv -FilePath $wizExe -ClearExistingEnv -EnvOverrides $wizEnv -ArgumentList @(
         "--install-dir", $wizInstallDir, "--reengine-dir", $wizReEngineDir, "--payload", $wizPayload, "--log-dir", $wizLogDir, "--no-launch", "--automation-port", "$wizPort", "--automation-token", $wizTok
     )
+    $wizStream = $null
     try {
         $null = Wait-AutomationHealth -Proc $wizProc -Port $wizPort -Token $wizTok
         $null = Show-VisibleWindowOnTop -Proc $wizProc -MinWidth 600 -MinHeight 380
+        if (Get-Command Start-ExeboxLiveVlcStream -ErrorAction SilentlyContinue) {
+            $wizStream = Start-ExeboxLiveVlcStream -AutomationPort $wizPort -AutomationToken $wizTok -TargetPid $wizProc.Id -SnapshotDir (Join-Path $wizWorkDrive "stream_tmp") -UdpPort 5004 -Fps 20
+        }
         $null = Wait-TreeControl -Port $wizPort -Token $wizTok -ControlId "Wizard_PrimaryButton"
         Start-Sleep -Milliseconds 650
         foreach ($rbId in @("Wizard_ProfileFull", "Wizard_ProfileLightweight")) {
@@ -108,7 +112,10 @@ function Invoke-WizardGuiSandboxStep([string]$ToolsDir, [string]$BuildsDir, [str
         $evidencePngs.Add($wizSnapCopy)
         try { $null = Invoke-LoopbackJson -Port $wizPort -Token $wizTok -Method "POST" -Route "/v1/pointer" -Body @{ action = "click"; targetId = "Wizard_PrimaryButton" } } catch [System.Net.WebException] { $null = $_ }
         if (-not $wizProc.WaitForExit(15000) -or $wizProc.ExitCode -ne 0) { throw "Setup Wizard exit failed ($($wizProc.ExitCode))" }
-    } finally { if ($wizProc -and (-not $wizProc.HasExited)) { $wizProc.Kill() } }
+    } finally {
+        if (Get-Command Stop-ExeboxLiveVlcStream -ErrorAction SilentlyContinue) { Stop-ExeboxLiveVlcStream $wizStream }
+        if ($wizProc -and (-not $wizProc.HasExited)) { $wizProc.Kill() }
+    }
 
     foreach ($reqRel in @(".ready", "reSlate.exe", "app\reSlate.Player.exe", "data\config\settings.json")) {
         if (-not (Test-Path -LiteralPath (Join-Path $wizInstallDir $reqRel))) { throw "Visible Setup Wizard missed expected artifact: $reqRel" }
@@ -143,10 +150,14 @@ function Invoke-PlayerVisibleGuiSteps([string]$OutLogs) {
     $gateData = Join-Path $sandboxWork "gate_data"; $gateCfg = Join-Path $gateData "config\settings.json"; $gateLogs = Join-Path $OutLogs "gate"
     New-Item -ItemType Directory -Force (Split-Path -Parent $gateCfg), $gateLogs | Out-Null
     $pGate = Get-FreeLoopbackPort; $tGate = [Guid]::NewGuid().ToString("N")
+    $gateStream = $null
     $gateProc = Start-ProcessWithEnv -FilePath $autoExe -EnvOverrides $playerEnv -ArgumentList @("--enable-logs", "--data-dir", $gateData, "--config", $gateCfg, "--log-dir", $gateLogs, "--backend", "opengl", "--automation-port", "$pGate", "--automation-token", $tGate)
     try {
         $null = Wait-AutomationHealth -Proc $gateProc -Port $pGate -Token $tGate
         $null = Show-VisibleWindowOnTop -Proc $gateProc -MinWidth 800 -MinHeight 500
+        if (Get-Command Start-ExeboxLiveVlcStream -ErrorAction SilentlyContinue) {
+            $gateStream = Start-ExeboxLiveVlcStream -AutomationPort $pGate -AutomationToken $tGate -TargetPid $gateProc.Id -SnapshotDir (Join-Path $sandboxWork "stream_tmp") -UdpPort 5004 -Fps 20
+        }
         $null = Wait-TreeControl -Port $pGate -Token $tGate -ControlId "Gate_BrowseDisc"
         $null = Wait-TreeControl -Port $pGate -Token $tGate -ControlId "Gate_BrowseModule"
         Start-Sleep -Milliseconds 1000
@@ -155,7 +166,10 @@ function Invoke-PlayerVisibleGuiSteps([string]$OutLogs) {
         Assert-ValidPng -Path $gatePng; $evidencePngs.Add($gatePng)
         $null = Invoke-LoopbackJson -Port $pGate -Token $tGate -Method "POST" -Route "/v1/keyboard" -Body @{ action = "press"; key = "ESC" }
         if (-not $gateProc.WaitForExit(10000) -or $gateProc.ExitCode -ne 0) { throw "Media Gate did not exit cleanly ($($gateProc.ExitCode))" }
-    } finally { if ($gateProc -and (-not $gateProc.HasExited)) { $gateProc.Kill() } }
+    } finally {
+        if (Get-Command Stop-ExeboxLiveVlcStream -ErrorAction SilentlyContinue) { Stop-ExeboxLiveVlcStream $gateStream }
+        if ($gateProc -and (-not $gateProc.HasExited)) { $gateProc.Kill() }
+    }
 
     Write-Host "[3B/4] Launching live SDL3 Player RunHostLoop + driving F1 Drawer & F3 HUD buttons..."
     $liveData = Join-Path $sandboxWork "live_data"; $liveCfg = Join-Path $liveData "config\settings.json"; $liveLogs = Join-Path $OutLogs "live"; $gameDataDir = Join-Path $liveData "gamedata"
@@ -164,11 +178,14 @@ function Invoke-PlayerVisibleGuiSteps([string]$OutLogs) {
     [System.IO.File]::WriteAllText($smokeMod, ([ordered]@{ schemaVersion = 1; moduleId = "reslate-stage2-smoke"; title = "reSlate Stage 2 Smoke"; displayName = "reSlate Stage 2 Smoke"; platformId = "ps1"; version = "0.3.0"; engineId = "reSlate"; engineVersion = $Version; compatibleEngineTrack = "0.3.x"; serialNumber = "SLUS-00000"; entryAssembly = ""; defaultFramerateMode = "unlocked" } | ConvertTo-Json -Depth 3), [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText((Join-Path $gameDataDir "disc_manifest.json"), ([ordered]@{ schemaVersion = 1; moduleId = "reslate-stage2-smoke"; serialNumber = "SLUS-00000"; volumeId = "STAGE2_SMOKE"; primaryImagePath = ""; files = @() } | ConvertTo-Json -Depth 3), [System.Text.UTF8Encoding]::new($false))
 
-    $pLive = Get-FreeLoopbackPort; $tLive = [Guid]::NewGuid().ToString("N")
+    $pLive = Get-FreeLoopbackPort; $tLive = [Guid]::NewGuid().ToString("N"); $liveStream = $null
     $liveProc = Start-ProcessWithEnv -FilePath $autoExe -EnvOverrides $playerEnv -ArgumentList @("--module", $smokeMod, "--enable-logs", "--data-dir", $liveData, "--config", $liveCfg, "--log-dir", $liveLogs, "--backend", "opengl", "--automation-port", "$pLive", "--automation-token", $tLive)
     try {
         $null = Wait-AutomationHealth -Proc $liveProc -Port $pLive -Token $tLive
         $liveHwnd = Show-VisibleWindowOnTop -Proc $liveProc -MinWidth 800 -MinHeight 500
+        if (Get-Command Start-ExeboxLiveVlcStream -ErrorAction SilentlyContinue) {
+            $liveStream = Start-ExeboxLiveVlcStream -AutomationPort $pLive -AutomationToken $tLive -TargetPid $liveProc.Id -SnapshotDir (Join-Path $sandboxWork "stream_tmp") -UdpPort 5004 -Fps 20
+        }
         $null = Wait-TreeControl -Port $pLive -Token $tLive -ControlId "Drawer_TogglePill"
         Start-Sleep -Milliseconds 650
         $null = Invoke-LoopbackJson -Port $pLive -Token $tLive -Method "POST" -Route "/v1/pointer" -Body @{ action = "click"; targetId = "Drawer_TogglePill" }
@@ -212,7 +229,10 @@ function Invoke-PlayerVisibleGuiSteps([string]$OutLogs) {
         $liveHwnd = Show-VisibleWindowOnTop -Proc $liveProc -MinWidth 800 -MinHeight 500
         Send-WindowClose -Hwnd $liveHwnd
         if (-not $liveProc.WaitForExit(10000) -or $liveProc.ExitCode -ne 0) { throw "Live Player window did not exit cleanly ($($liveProc.ExitCode))" }
-    } finally { if ($liveProc -and (-not $liveProc.HasExited)) { $liveProc.Kill() } }
+    } finally {
+        if (Get-Command Stop-ExeboxLiveVlcStream -ErrorAction SilentlyContinue) { Stop-ExeboxLiveVlcStream $liveStream }
+        if ($liveProc -and (-not $liveProc.HasExited)) { $liveProc.Kill() }
+    }
 
     $saved = Get-Content -LiteralPath $liveCfg -Raw | ConvertFrom-Json
     if ($saved.resolutionScale -ne 2 -or $saved.isPgxpEnabled -ne $false -or $saved.isFpsOverlayEnabled -ne $true -or [Math]::Abs([double]$saved.mouseSensitivity - 1.2) -ge 0.05 -or

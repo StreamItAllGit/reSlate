@@ -14,7 +14,7 @@ internal static class ReStationInstallerTheme
     public const string EngineId = "reSlate";
     public const string LegacyEngineId = "reStation";
     public const string AppId = "reslate";
-    public const string Version = "0.3.1";
+    public const string Version = "0.3.2";
     public const string Publisher = "StreamItAll";
     public const string StudioName = "StreamItAll";
     public const string SuiteId = "reEngine";

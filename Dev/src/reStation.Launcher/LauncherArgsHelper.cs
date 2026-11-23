@@ -10,7 +10,7 @@ namespace reStation.Launcher;
 
 internal static class LauncherArgsHelper
 {
-    internal const string DefaultVersion = "0.3.1";
+    internal const string DefaultVersion = "0.3.2";
     internal const string CanonicalEngineFolder = "v" + DefaultVersion;
     internal const string PrimaryEngineId = "reSlate";
     internal const string LegacyEngineId = "reStation";

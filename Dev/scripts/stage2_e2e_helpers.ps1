@@ -328,3 +328,6 @@ function Assert-ValidPng([string]$Path, [int]$MinBytes = 4096) {
         $bmp.Dispose()
     }
 }
+
+$script:SharedExeboxHelpers = Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) "Foundation\Dev\tools\ExeboxStreamHelpers.ps1"
+if (Test-Path -LiteralPath $script:SharedExeboxHelpers) { . $script:SharedExeboxHelpers }

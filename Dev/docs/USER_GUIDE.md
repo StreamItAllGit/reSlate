@@ -117,7 +117,7 @@ Press **`F1`** (or pass `--open-settings` / click **Settings (F1)** in the top-r
 ## 7. Releases, Community Channels & Glossary
 
 - **Beta Release Distribution (`v0.3.1` Public Beta):**
-  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.1-win-x64.exe`, standalone `reSlate-v0.3.1-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs ([GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases)).
+  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.1-win-x64.exe`, standalone `reSlate-v0.3.1-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs ([GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases)). *(Planned upgrade at `v0.6.0`: Dual Online + Offline Setup 8-file releases alongside `Unified Multi-Disc` automatic volume switching in `v0.4.0`, `DirectX 12` + `Safe Mode` in `v0.5.0`, `Standalone Raw-Media` JIT boot + `10-Rail` controller menu + `1-Step Quick-Save Undo` in `v0.6.0`, and `.reTexture`/`.reAudio`/`.reFont`/`.reLang`/`.reSub`/`.reMod` Hot-Reload + `Asset Dumper` / `hd_recipe` / `subtitle_recipe` authoring guides in `v0.7.0`.)*
   - **Discord Dev Updates:** Automated release announcements and community build notes.
 - **Clean-Room `.decomp` Package:** Shareable clean-room decompilation metadata, offline Ghidra recipe scripts, and C/asset normalization descriptors containing zero copyrighted retail game media.
 - **Local AOT Cache (`data\cache\`):** Player-PC generated native assembly synthesized strictly locally from your own verified `data\rom\` media and clean-room recipe.

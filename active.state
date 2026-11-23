@@ -7,17 +7,17 @@
   "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "activeMilestone": "0.4.0",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-20",
-  "lastVersionDate": "2026-11-20",
+  "lastVersionDate": "2026-11-23",
   "productionSubpath": "StreamItAll\\reEngine\\engines\\reSlate",
   "supersededBy": null,
   "tasklistDetailLevel": 3,
-  "openTaskCount": 0,
-  "completedTaskCount": 37,
-  "openReportCount": 0,
+  "openTaskCount": 26,
+  "completedTaskCount": 23,
+  "openReportCount": 1,
   "isPublicRepo": true,
   "requireHumanReviewBeforePush": false,
   "gates": {
@@ -27,7 +27,7 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "reSlate v0.3.1 Public Beta (https://github.com/StreamItAllGit/reSlate | 310/310 Release+Debug /warnaserror tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 + SharedLibs dual EXE/DLL --help + audit_installer 0 findings PASS; ships hardware Vulkan R16UI + VulkanPresenter, deterministic 16px-band ParallelCpu bit-exact to Software at 1x, Enhancement SDK ISubTickFrameHook + fail-closed <dataDir>\\hdpacks\\, Aspect Ratio & Overscan Crop + isWidescreen16By9 migration, audio-safe Fast-Forward F6/guarded Tab + ISkipCutsceneHook F7, TryWaitForVBlankCounter tight-loop VSync(n) parity, O(1) containerOffsetBytes + per-EXE entryAddresses, and Foundation v0.5.2 + reEngine v0.5.0 v2 manifests). Next milestone v0.4.0 adds Pure-Static Overlay Promoter, dual-motor analog rumble, Redbook CD-DA, .m3u lid-swap, and --save-dir routing.",
+  "notes": "reSlate v0.3.1 Public Beta (https://github.com/StreamItAllGit/reSlate | 310/310 Release+Debug /warnaserror tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 + SharedLibs dual EXE/DLL --help + audit_installer 0 findings PASS). Scoped 2026-11-20 path to v1.0.0 & v2.0–v5.0: v0.4.0 (Pure-Static R3 Promoter, Port 1+2 analog/rumble, Redbook CD-DA, Unified Multi-Disc Virtual Volume w/ 0 swap prompts, --save-dir & GitHub polish) -> v0.5.0 (Native 3D DX12 & GPU Vulkan parity, reEngine.Host v0.6 cutover, JIT toggle/RAM preload/FastBoot/SafeMode, VRR/21:9/Filters/F12, Dedicated Audio LP-HP/Jukebox, audioFillPct fix & domain-split settings) -> v0.6.0 (Standalone Raw-Media Tier 3 JIT Boot, 10-Rail Menu/Dynamic Prompts, Save/Password Vaults + Quick-Save 1-Step Undo, isLookYInverted & 8-file Dual-Installer) -> v0.7.0 (Catalog/Dumper/hd_recipe/subtitle_recipe/.re* Hot-Reload, Built-In PS1 Research Tools & Opt-In Runtime API/Clean-Capture) -> v1.0.0 (Symmetric 2+ Confirmed Gold: KingsFieldRecomp + HMBackToNature-Recomp) -> v2.0–v5.0 (10-Platform/Achievements -> Creator Suite/Rewind/.reTas -> Remix/Soft-Patch/Randomizer -> Connected Rollback Netplay).",
   "discordPost": {
     "isEnabled": true,
     "serverName": null,
@@ -38,5 +38,5 @@
     "secretEnvKey": "DISCORD_WEBHOOK_FOUNDATION",
     "autoPostOnRelease": true
   },
-  "updatedAtUtc": "2026-11-20T06:09:30.000Z"
+  "updatedAtUtc": "2026-11-23T19:41:00.000Z"
 }
