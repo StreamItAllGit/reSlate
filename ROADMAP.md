@@ -1,9 +1,9 @@
 # reSlate — Roadmap & Milestones
 
-**Current Active Version:** `0.3.1` *(Public Pre-1.0 Beta — `310/310` Dual Release & Debug Tests Passing, Shared `reEngine.Host v0.5.0`, Enhancement SDK & Standard QoL)*  
+**Current Active Version:** `0.3.2` *(Public Pre-1.0 Beta — `313/313` Dual Release & Debug Tests Passing, Shared `reEngine.Host v0.5.0`, Enhancement SDK & Standard QoL)*  
 **Next Target Milestone:** `0.4.0` *(Pure-Static Overlay Promoter, Analog Rumble, Redbook CD-DA, Unified Multi-Disc Virtual Volume, `--save-dir` & GitHub Polish)*  
 **Lifecycle State:** [`active.state`](active.state)  
-**Last Updated:** `2026-11-20`
+**Last Updated:** `2026-11-23`
 
 ---
 
@@ -82,6 +82,7 @@ flowchart LR
 ---
 
 ## 4. Completed Milestones
+- [x] **`0.3.2` (`2026-11-23`):** Implemented BIOS `A0:0x1A` (`strncpy`) in `PsxBiosHle.HandleA0` with `NotifyRamWriteRange` coherence, resolving empty `.mcr` directory filenames emitted by `libmcrd` `_card_create2` and expanding verification to **`313/313`** dual Release & Debug `/warnaserror` tests (`0` warnings). ([Notes](CHANGELOG.md#032---2026-11-23))
 - [x] **`0.3.1` (`2026-11-20`):** Shipped `RS-304` `Vulkan` (`VK_FORMAT_R16_UINT` `1024x512` `VkImage` + `VulkanPresenter` + `[VK_FALLBACK]` / `--require-backend` `ExitCode = 6`), `RS-305` deterministic `16px`-band `ParallelCpu` (`100%` SHA-256 bit-exact with `Software` at `1x` across `1`/`4`/`16` threads and `50` consecutive runs), `RS-306` Enhancement SDK (`SubTickInterpolationSdk` + pure `.NET 8.0` `MinimalPngDecoder` + `<dataDir>\hdpacks\` containment `ExitCode = 3`, canonical `1x` VRAM preserved), Aspect Modes (`Native PAR`, `4:3`, `Square Int`, `Native Fit`, `16:9 Hor+` + automatic `isWidescreen16By9 -> horPlus16By9` migration) & `0–16px` Overscan Crop, Standard QoL (`F6` / guarded `Tab` `Fast-Forward` `2x..4x` keeping `xaDrops == 0`, `F7` `ISkipCutsceneHook` `Cutscene Skip`), `IReStationCpuEx.TryWaitForVBlankCounter` tight-loop `VSync(n)` parity, $O(1)$ `containerOffsetBytes` & per-EXE `entryAddresses` / `"program"` `functions.json` filtering, `Foundation v0.5.2` + `reEngine v0.5.0` `-hf.<n>` SemVer & `schemaVersion: 2` / `"suiteId": "reEngine"` parity, framework-dependent `SharedLibs` compiler SDK (`--help` EXE+DLL verified), and **`310/310`** dual Release & Debug `/warnaserror` tests (`0` warnings). ([Notes](CHANGELOG.md#031---2026-11-20))
 - [x] **`0.3.0-hf.3` (`2026-11-19`):** Split `CdlGetlocL` (`0x10`) vs `CdlGetlocP` (`0x11`) subchannel layout to fix XA minute-rollover seek loops, added owner-thread OpenGL `_vramFbo` readback (`OpenGl33RenderBackend.Readback.cs` + `PsxGpu.SyncBackendToVramMirror()`) for non-black QuickSave/QuickLoad & live backend hot-swaps, synchronized `Call()`/`ResumeMidStack()` `Pc` before frame-patch interception, scoped overlay SHA-256 verification to immutable `.text` (`ITextScopedOverlayRecompModule`) with `MipsLifter` loop/call `MidEntries` AOT re-entry, and appended `cpuMs`/`ovHash` to `Diag_Telemetry` across `281/281` Release & Debug `/warnaserror` tests (`0` warnings). ([Notes](CHANGELOG.md#030-hf3---2026-11-19))
 - [x] **`0.3.0-hf.2` (`2026-11-19`):** Fixed `TryAdvanceToNextVBlank()` `< 64`-cycle `Math.Clamp` `ArgumentException`, unlocked `Original + 30` decimation & inter-VBlank `60–240+ / Max` presentation pacing while locking `60 Hz` VBlank & `735`-sample SPU audio, enabled full controller + `LT`/`RT` trigger rebinding & `0` clearability across all 3 tiers, stripped ghost Modern slots, clarified `"VSync (Caps to Monitor Hz)"`, exported `NativeGameActionContext` masks, fixed `libmcrd` async `DeliverCardIoEnd` & `ToT[10]` DCB snapshot parity, and added `DebugAutomationDiagnostics` across `277/277` tests. ([Notes](CHANGELOG.md#030-hf2---2026-11-19))

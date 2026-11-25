@@ -1,6 +1,6 @@
 # reSlate — Interfaces, Public Contracts & Schemas
 
-- **Version:** `v0.3.1` *(GitHub Public-Ready Beta · `appId: "reslate"` · `engineId: "reSlate"` · `SupportedEngineTracks: ["0.3.x", "0.2.x", "0.1.x"]`)*
+- **Version:** `v0.3.2` *(GitHub Public-Ready Beta · `appId: "reslate"` · `engineId: "reSlate"` · `SupportedEngineTracks: ["0.3.x", "0.2.x", "0.1.x"]`)*
 - **Pinned Upstream Dependencies:** `Foundation v0.5.2` (`Foundation.Core`, `Foundation.Retro`, `Foundation.Installer`, `Foundation.Launcher`, plus Debug/`RESTATION_TEST_AUTOMATION`-only `Foundation.Automation`) & `reEngine v0.5.0` (`reEngine.Core`, `reEngine.Host`)
 
 ---

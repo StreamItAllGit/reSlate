@@ -41,10 +41,10 @@ Clean-room SlateOne (MIPS32 R3000A) static recompilation engine, `.decomp` lifte
 
 Every `0.x` beta release is published on [GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases) (`--prerelease`) in 7-file distributions alongside Discord Dev Updates:
 
-- **`reSlate-Setup-v0.3.1-win-x64.exe`** — Signed per-user setup wizard (`Lightweight` player + local AOT or `Full` offline `.decomp` toolchain integration, resolving existing `reSlate`/`reEngine`/`reStation` installs cleanly to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.1\` with `.ready` and `suiteId: "reEngine"`).
-- **`reSlate-v0.3.1-win-x64-Portable.zip`** — Standalone portable bundle containing staged binaries, `.ready` marker, license notices, and sanitized docs with zero setup executable inside.
+- **`reSlate-Setup-v0.3.2-win-x64.exe`** — Signed per-user setup wizard (`Lightweight` player + local AOT or `Full` offline `.decomp` toolchain integration, resolving existing `reSlate`/`reEngine`/`reStation` installs cleanly to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.2\` with `.ready` and `suiteId: "reEngine"`).
+- **`reSlate-v0.3.2-win-x64-Portable.zip`** — Standalone portable bundle containing staged binaries, `.ready` marker, license notices, and sanitized docs with zero setup executable inside.
 
-*`v0.3.1` passes `310/310` dual Release + Debug unit tests (`0` warnings).*
+*`v0.3.2` passes `313/313` dual Release + Debug unit tests (`0` warnings).*
 
 ### Quick Try
 
@@ -61,13 +61,13 @@ reSlate.exe --doctor --data-dir .\tmp-data --log-dir .\tmp-logs
 <summary>Developer verification, CLI overrides, exit codes, and sandbox testing flags</summary>
 
 ```powershell
-# Run the isolated unit test suite in both Release and Debug with warnings treated as errors (310/310 passing)
+# Run the isolated unit test suite in both Release and Debug with warnings treated as errors (313/313 passing)
 $env:APP_ISOLATED_TEST = "1"
 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true
 dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true
 
 # Install silently via the Setup executable into an isolated test root
-reSlate-Setup-v0.3.1-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine" --silent
+reSlate-Setup-v0.3.2-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPPDATA%\Programs\StreamItAll\reEngine" --silent
 ```
 
 | CLI Flag | Purpose |
@@ -100,7 +100,7 @@ reSlate-Setup-v0.3.1-win-x64.exe --profile Lightweight --reengine-dir "%LOCALAPP
 ## Documentation
 
 - [Features](FEATURES.md) — Current capabilities and source mapping
-- [Roadmap](ROADMAP.md) — Active `v0.3.1` completion status, `v0.4.0–v1.0.0` Desktop Gold path, and loose `v2.0.0–v5.0.0` milestones
+- [Roadmap](ROADMAP.md) — Active `v0.3.2` completion status, `v0.4.0–v1.0.0` Desktop Gold path, and loose `v2.0.0–v5.0.0` milestones
 - [Changelog](CHANGELOG.md) — Version history ledger
 - [Security Policy](SECURITY.md) — Supported tracks, containment boundaries, and vulnerability reporting
 - [Contributing](CONTRIBUTING.md) — Local test setup, PR checklist, and clean-room rules

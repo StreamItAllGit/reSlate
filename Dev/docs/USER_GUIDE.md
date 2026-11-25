@@ -1,6 +1,6 @@
 # reSlate — User Guide
 
-> **Release Status:** **Beta (Pre-1.0 — `v0.3.1` `reSlate` Public Beta)**. All `0.x` releases are Beta pre-releases (`--prerelease`) until `v1.0.0` Desktop General Availability.
+> **Release Status:** **Beta (Pre-1.0 — `v0.3.2` `reSlate` Public Beta)**. All `0.x` releases are Beta pre-releases (`--prerelease`) until `v1.0.0` Desktop General Availability.
 
 > **Note:** Clean-room SlateOne (`MIPS32 R3000A`) runtime, local Ahead-of-Time (AOT) compiler, and static recompilation engine (**never an emulator**). Users provide their own legally owned disc media or executables. Zero copyrighted vendor BIOS files, retail ROMs, disc images, save states, or pre-generated game binaries are bundled or distributed.
 
@@ -27,8 +27,8 @@
 - **Full (Developers & `.decomp` Creators):** Includes `Lightweight` capabilities plus integration for an offline Ghidra + OpenJDK toolchain placed alongside `reEngine` (`toolchain\`).
 
 ### Installer & Portable Options
-- **Signed Setup EXE (`reSlate-Setup-v0.3.1-win-x64.exe`):** Interactive wizard or silent CLI installer (`--install-dir <path>`, `--reengine-dir <path>`, `--profile Lightweight|Full`, `--migrate-legacy`, `--confirm-legacy-cleanup`, `--uninstall`). Automatically detects existing `reSlate`/`reEngine`/`reStation` install folders and saved `installProfile` preferences on upgrade without double-nesting `\StreamItAll\` or mistaking a populated `reEngine` folder for a direct engine leaf.
-- **Portable Bundle (`reSlate-v0.3.1-win-x64-Portable.zip`):** Self-contained portable archive (staged binaries, `.ready`, licenses, and sanitized documentation — zero setup EXE inside) for side-by-side manual extraction. Requires the .NET 8.0 Desktop Runtime on the host PC.
+- **Signed Setup EXE (`reSlate-Setup-v0.3.2-win-x64.exe`):** Interactive wizard or silent CLI installer (`--install-dir <path>`, `--reengine-dir <path>`, `--profile Lightweight|Full`, `--migrate-legacy`, `--confirm-legacy-cleanup`, `--uninstall`). Automatically detects existing `reSlate`/`reEngine`/`reStation` install folders and saved `installProfile` preferences on upgrade without double-nesting `\StreamItAll\` or mistaking a populated `reEngine` folder for a direct engine leaf.
+- **Portable Bundle (`reSlate-v0.3.2-win-x64-Portable.zip`):** Self-contained portable archive (staged binaries, `.ready`, licenses, and sanitized documentation — zero setup EXE inside) for side-by-side manual extraction. Requires the .NET 8.0 Desktop Runtime on the host PC.
 
 ---
 
@@ -116,8 +116,8 @@ Press **`F1`** (or pass `--open-settings` / click **Settings (F1)** in the top-r
 
 ## 7. Releases, Community Channels & Glossary
 
-- **Beta Release Distribution (`v0.3.1` Public Beta):**
-  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.1-win-x64.exe`, standalone `reSlate-v0.3.1-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs ([GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases)). *(Planned upgrade at `v0.6.0`: Dual Online + Offline Setup 8-file releases alongside `Unified Multi-Disc` automatic volume switching in `v0.4.0`, `DirectX 12` + `Safe Mode` in `v0.5.0`, `Standalone Raw-Media` JIT boot + `10-Rail` controller menu + `1-Step Quick-Save Undo` in `v0.6.0`, and `.reTexture`/`.reAudio`/`.reFont`/`.reLang`/`.reSub`/`.reMod` Hot-Reload + `Asset Dumper` / `hd_recipe` / `subtitle_recipe` authoring guides in `v0.7.0`.)*
+- **Beta Release Distribution (`v0.3.2` Public Beta):**
+  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.2-win-x64.exe`, standalone `reSlate-v0.3.2-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs ([GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases)). *(Planned upgrade at `v0.6.0`: Dual Online + Offline Setup 8-file releases alongside `Unified Multi-Disc` automatic volume switching in `v0.4.0`, `DirectX 12` + `Safe Mode` in `v0.5.0`, `Standalone Raw-Media` JIT boot + `10-Rail` controller menu + `1-Step Quick-Save Undo` in `v0.6.0`, and `.reTexture`/`.reAudio`/`.reFont`/`.reLang`/`.reSub`/`.reMod` Hot-Reload + `Asset Dumper` / `hd_recipe` / `subtitle_recipe` authoring guides in `v0.7.0`.)*
   - **Discord Dev Updates:** Automated release announcements and community build notes.
 - **Clean-Room `.decomp` Package:** Shareable clean-room decompilation metadata, offline Ghidra recipe scripts, and C/asset normalization descriptors containing zero copyrighted retail game media.
 - **Local AOT Cache (`data\cache\`):** Player-PC generated native assembly synthesized strictly locally from your own verified `data\rom\` media and clean-room recipe.

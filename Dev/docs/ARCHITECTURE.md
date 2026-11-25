@@ -1,6 +1,6 @@
 # reSlate — System Architecture & Symbol Map
 
-- **Synced Version:** `0.3.1` (`2026-11-20` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`; repository path `Personal/reStation`)
+- **Synced Version:** `0.3.2` (`2026-11-23` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`; repository path `Personal/reStation`)
 - **Scope:** Runtime Context, Assembly Dependency Graph, Execution Pipelines, File Inventory & Data Stores
 - **License:** Mozilla Public License Version 2.0 (`MPL-2.0`, root [`LICENSE`](../../LICENSE))
 
@@ -126,7 +126,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 | `Dev/src/reStation.Core/Enhancement/{MinimalPngDecoder,HdTexturePackStore,SubTickInterpolationSdk}.cs` | 419 / 141 / 99 | 368 / 99 / 68 | Pure `net8.0` PNG decoder, `HdPackResolver` containment store, `ISubTickFrameHook` interpolation SDK |
 | `Dev/src/reStation.Core/Audio/PsxSpu.cs` | 433 | 362 | `44.1 kHz` SPU mixer + `SetFastForwardDecimation` / `IsFastForwardDecimationActive` (`xaDrops == 0` under `2x..4x`) |
 | `Dev/src/reStation.Player/{PsxDrawerDescriptorProvider,SlideOverSettingsDrawer.Tabs,Program.FrameLoop.QoL}.cs` | 112 / 256 / 282 | 93 / 224 / 238 | Declarative 4-backend/Aspect/Overscan/HD Video tab, QoL System tab, `F6`/`Tab`-guard Fast-Forward & `F7` Cutscene Skip |
-| `Dev/src/reStation.Tests/*.cs` (`36` suites) | — | — | `310/310` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
+| `Dev/src/reStation.Tests/*.cs` (`36` suites) | — | — | `313/313` isolated tests passing in both `-c Release` and `-c Debug` (`APP_ISOLATED_TEST=1`, `0` warnings) |
 
 ---
 
@@ -165,7 +165,7 @@ All non-test C# and PowerShell source files comply strictly with the `400` code-
 
 ## 8. Testing Strategy Map
 
-- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`310/310` passing in both configurations, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
+- **Unit & Integration Suite (`reStation.Tests.dll`):** Run via `APP_ISOLATED_TEST=1 dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true` AND `-c Debug -p:TreatWarningsAsErrors=true` (`313/313` passing in both configurations, `0` warnings, `0` failures, `0` skipped) + 2-tier log sweep (`%LOCALAPPDATA%\Programs\...\logs\` read-only + `Dev\logs\`).
 - **Debug/Test-Only `Foundation.Automation` Stage 2 Sandbox E2E (`v0.3.1`):** `Dev\scripts\run_stage2_sandbox_e2e.ps1` rebuilds with `"-t:Rebuild,Publish"` for `-p:ReStationTestAutomation=true`, preserves OS known-folder env vars, verifies `Foundation\Dev\tools\run_sandbox_e2e.py` (`hostDiffCount == 0`), drives the visible `Setup Wizard`, drives visible SDL3 MediaGate & live `RunHostLoop` F1 Drawer (`OpenGL 3.3`/`Vulkan`/`ParallelCpu`/`Software`, `HD Texture Packs`, `Aspect Mode`, `Overscan Crop`, `Fast-Forward (F6)`, `Skip Cutscene (F7)`) & `settings.json` persistence, tests `SharedLibs\reSlate\v0.3.1\reSlate.Compiler` (`--help` via both EXE & `dotnet`), and verifies pure `Release` rejects `--automation-port` (`ExitCode = 2`).
 
 ---

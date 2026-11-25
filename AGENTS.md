@@ -1,6 +1,6 @@
 # Project Context: reSlate (`Personal/reStation`)
 
-- **Role:** SlateOne (R3000A) Static Recompilation Engine & `.decomp` Lifter (`v0.3.1` Public Beta -> `v0.4.0–v0.7.0` -> `v1.0.0` Gold -> `v2.0–v5.0` Horizon; `310/310` Release & Debug tests; outputs `reSlate.*`, `engines\reSlate\v<Ver>\`, `SharedLibs\reSlate\v<Ver>\`, preserving `reStation.{Contracts,Core}` ABI & `reStation.*` namespaces).
+- **Role:** SlateOne (R3000A) Static Recompilation Engine & `.decomp` Lifter (`v0.3.2` Public Beta -> `v0.4.0–v0.7.0` -> `v1.0.0` Gold -> `v2.0–v5.0` Horizon; `313/313` Release & Debug tests; outputs `reSlate.*`, `engines\reSlate\v<Ver>\`, `SharedLibs\reSlate\v<Ver>\`, preserving `reStation.{Contracts,Core}` ABI & `reStation.*` namespaces).
 - **Boundaries:** `Foundation\`, `reEngine\`, `_DevBible\` & `Research\*` (zero `Corpus\`) RO; `.recomp` supplies `data\rom\`; `APP_ISOLATED_TEST=1`; Debug/Test-only `Foundation.Automation` (`ExitCode=2` in `Release`); user `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v<Ver>\` (+ `.ready`, `data\config\settings.json` single-file exception expires `v0.5.0`, `data\hdpacks\`, `data\memcards\`).
 
 ## 1. Quartet, Security & State

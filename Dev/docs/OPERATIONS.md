@@ -1,6 +1,6 @@
 # reSlate — Operations & Verification Runbook
 
-- **Synced Version:** `0.3.1` (`2026-11-20` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.4.0` *(Pure-Static Promoter, Analog Rumble, CD-DA, Unified Multi-Disc, `--save-dir` & GitHub Polish)* $\rightarrow$ `v0.5.0`–`v0.7.0` $\rightarrow$ `v1.0.0` Gold $\rightarrow$ `v2.0–v5.0` Horizon
+- **Synced Version:** `0.3.2` (`2026-11-23` · Public Beta · `appId: "reslate"` · `engineId: "reSlate"` · Track `0.3.x`, Alias-Compatible with `0.2.x` / `0.1.x`) | **Next Target:** `v0.4.0` *(Pure-Static Promoter, Analog Rumble, CD-DA, Unified Multi-Disc, `--save-dir` & GitHub Polish)* $\rightarrow$ `v0.5.0`–`v0.7.0` $\rightarrow$ `v1.0.0` Gold $\rightarrow$ `v2.0–v5.0` Horizon
 - **Scope:** Install Topology, CLI Flags, `--doctor` Diagnostics, `v0.3.0 -> v0.3.1` Settings Migration, Framework-Dependent `SharedLibs`, Log Audit & Stage 2 Sandbox Verification
 - **Canonical Production Boundary:** Zero automated edits or unconfirmed writes to `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\` or any live installation during tests, builds, or audits.
 
@@ -76,21 +76,21 @@ Bundled [`Dev/data/settings.example.json`](../data/settings.example.json) provid
 
 ## 5. Build, Framework-Dependent `SharedLibs`, Stage 2 Sandbox E2E & CI
 
-1. **Dual-Config Zero-Warning Unit Suite (`310/310` Passing):**
+1. **Dual-Config Zero-Warning Unit Suite (`313/313` Passing):**
    ```powershell
    $env:APP_ISOLATED_TEST = "1"
    dotnet test Dev\src\reStation.slnx -c Release -p:TreatWarningsAsErrors=true --disable-build-servers -p:UseSharedCompilation=false
    dotnet test Dev\src\reStation.slnx -c Debug -p:TreatWarningsAsErrors=true --disable-build-servers -p:UseSharedCompilation=false
    ```
-2. **Single-Pass Release Packaging & Framework-Dependent `SharedLibs\reSlate\v0.3.1\` ([`build_release.ps1`](../scripts/build_release.ps1), [`package_helpers.ps1`](../scripts/package_helpers.ps1)):**
+2. **Single-Pass Release Packaging & Framework-Dependent `SharedLibs\reSlate\v0.3.2\` ([`build_release.ps1`](../scripts/build_release.ps1), [`package_helpers.ps1`](../scripts/package_helpers.ps1)):**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.3.1
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\build_release.ps1 -Version 0.3.2
    ```
-   - Enforces the `<= 400` code-only SLOC gate (`Dev\src\` non-test + `Dev\scripts\`), builds & tests `Release`, stages `Builds\v0.3.1\` (zero `AGENTS.md`, zero `Foundation.Automation`/`WinForms`), signs EXEs, creates 7-file NTFS-hardlinked `Releases\v0.3.1\` + `Latest\` + `-Portable.zip`, runs `audit_installer.ps1`, snapshots `Archive\reSlate-v0.3.1-src.7z`, and executes `Publish-SharedLibsSdk`:
-   - **`Publish-SharedLibsSdk` Dual EXE + DLL Verification:** Publishes `reSlate.Compiler` (`net8.0`, `--no-self-contained`, inheriting `reEngine.Host.dll`) and `reSlate.Player` (`net8.0-windows`, `--no-self-contained`) into `<ProjectsRoot>\SharedLibs\reSlate\v0.3.1\` + `Latest\`, asserts `runtimeconfig.json` is framework-dependent (zero `includedFrameworks`, resolving `hostpolicy.dll` error `0x80008083`), verifies zero `Foundation.Automation`/`System.Windows.Forms`/`Foundation.UI` bytes/refs, and executes live `reSlate.Compiler.exe --help`, `dotnet reSlate.Compiler.dll --help`, and `reSlate.Player.exe --version` smoke tests.
+   - Enforces the `<= 400` code-only SLOC gate (`Dev\src\` non-test + `Dev\scripts\`), builds & tests `Release`, stages `Builds\v0.3.2\` (zero `AGENTS.md`, zero `Foundation.Automation`/`WinForms`), signs EXEs, creates 7-file NTFS-hardlinked `Releases\v0.3.2\` + `Latest\` + `-Portable.zip`, runs `audit_installer.ps1`, snapshots `Archive\reSlate-v0.3.2-src.7z`, and executes `Publish-SharedLibsSdk`:
+   - **`Publish-SharedLibsSdk` Dual EXE + DLL Verification:** Publishes `reSlate.Compiler` (`net8.0`, `--no-self-contained`, inheriting `reEngine.Host.dll`) and `reSlate.Player` (`net8.0-windows`, `--no-self-contained`) into `<ProjectsRoot>\SharedLibs\reSlate\v0.3.2\` + `Latest\`, asserts `runtimeconfig.json` is framework-dependent (zero `includedFrameworks`, resolving `hostpolicy.dll` error `0x80008083`), verifies zero `Foundation.Automation`/`System.Windows.Forms`/`Foundation.UI` bytes/refs, and executes live `reSlate.Compiler.exe --help`, `dotnet reSlate.Compiler.dll --help`, and `reSlate.Player.exe --version` smoke tests.
 3. **4-Drive Stage 2 Sandbox E2E ([`run_stage2_sandbox_e2e.ps1`](../scripts/run_stage2_sandbox_e2e.ps1)):**
    ```powershell
-   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.1 -EvidenceDir <temp_dir>
+   powershell -NoProfile -ExecutionPolicy Bypass -File Dev\scripts\run_stage2_sandbox_e2e.ps1 -Version 0.3.2 -EvidenceDir <temp_dir>
    ```
    - Runs `Foundation\Dev\tools\run_sandbox_e2e.py` (`hostDiffCount == 0`), passes `"-t:Rebuild,Publish"` when building `-p:ReStationTestAutomation=true` Setup/Player test binaries (preventing stale incremental automation builds) while preserving Windows OS known-folder env vars (`SystemDrive`, `ProgramData`, `ProgramFiles`, `ALLUSERSPROFILE`, `PUBLIC`) inside `stage2_e2e_helpers.ps1`, drives visible Setup Wizard (`O:\`), drives visible SDL3 MediaGate & `RunHostLoop` Step `[3B/4]` across all 4 backend pills (`ParallelCpu <-> OpenGL` swap), `HD Texture Packs`, `Aspect Ratio`, `Overscan Crop`, `Fast-Forward` (`3x`), `Cutscene Skip`, `F3` HUD, verifies `settings.json` persistence, runs `Test-Stage2SharedLibsCompilerSmoke` (`EXE --help` + `dotnet DLL --help`), and verifies pure `Release` `ExitCode = 2`.
 4. **GitHub CI Release Workflow (`.github/workflows/release.yml` & Upcoming Ops Gates):** On `v*` tag push or `workflow_dispatch`, runs `build_release.ps1 -SkipSigning -SkipSourceArchive` under `APP_ISOLATED_TEST=1` and submits unsigned Setup artifacts for SignPath signing when configured. Upcoming scoped operational milestones:
