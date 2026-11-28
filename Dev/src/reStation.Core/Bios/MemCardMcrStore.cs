@@ -10,7 +10,7 @@ using Foundation.Core;
 
 namespace reStation.Core.Bios;
 
-public sealed class MemCardMcrStore
+public sealed partial class MemCardMcrStore
 {
     public const int CardSize = 131_072; // 128 KB: 16 blocks x 64 frames x 128 bytes
     public const int BlockSize = 8192;
@@ -21,17 +21,19 @@ public sealed class MemCardMcrStore
 
     private readonly string _dataDir;
     private readonly string _memcardsDir;
+    private readonly Action<string>? _warnLogger;
     private readonly byte[][] _slots = [new byte[CardSize], new byte[CardSize]];
     private readonly string[] _slotPaths = [string.Empty, string.Empty];
     private readonly byte[] _slotFlags = [FlagNewCard, FlagNewCard];
     private readonly bool[] _dirty = new bool[SlotCount];
     private long _lastFlushedVBlank = -1;
 
-    public MemCardMcrStore(string dataDir, string? cardIdentity = null, string? serialFallback = null)
+    public MemCardMcrStore(string dataDir, string? cardIdentity = null, string? serialFallback = null, Action<string>? warnLogger = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDir);
         _dataDir = Path.GetFullPath(dataDir);
         _memcardsDir = AppEnvironment.AssertPathContained(Path.Combine(_dataDir, "memcards"), _dataDir);
+        _warnLogger = warnLogger;
         Directory.CreateDirectory(_memcardsDir);
         MigrateLegacySavesNonDestructive();
         SetCardIdentity(cardIdentity, serialFallback);
@@ -71,7 +73,11 @@ public sealed class MemCardMcrStore
             _slotPaths[s] = path;
             _dirty[s] = false;
             _slotFlags[s] = FlagNewCard;
-            if (TryReadExistingCard(path, _slots[s])) continue;
+            if (TryReadExistingCard(path, _slots[s]))
+            {
+                if (HasValidHeader(_slots[s])) _ = ReclaimOrphanedNamelessBlocks(s);
+                continue;
+            }
             Format(s);
         }
     }

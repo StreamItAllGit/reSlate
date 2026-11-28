@@ -24,17 +24,7 @@ public sealed class Wave3Patch021RegressionTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_tempRoot))
-                Directory.Delete(_tempRoot, recursive: true);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+        TestTempCleanup.TryDeleteDirectory(_tempRoot, nameof(Wave3Patch021RegressionTests));
     }
 
     [Fact]

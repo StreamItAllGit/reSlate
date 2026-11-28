@@ -1,9 +1,11 @@
 // @module: reStation.Core.Gpu.ParallelBandRasterizer
 // @purpose: Deterministic 16px horizontal scanline band rasterizer (Parallel.For) and HD texture lookup cache.
-// @depends-on: System, System.Collections.Generic, System.Threading.Tasks, reStation.Core.Enhancement
+// @depends-on: System, System.Collections.Concurrent, System.Collections.Generic, System.Runtime.InteropServices, System.Threading.Tasks, reStation.Core.Enhancement
 // @exports: ParallelBandRasterizer, HdTextureLookupCache, CpuDrawKind, QueuedBandDrawOp, WideBandOp
 // @owner: devv-gpu-backends (T3/T4)
 
+using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using reStation.Core.Enhancement;
 
 namespace reStation.Core.Gpu;
@@ -35,6 +37,10 @@ internal readonly struct WideBandOp
 internal static class ParallelBandRasterizer
 {
     public const int BandHeight = 16;
+    private static readonly ConcurrentDictionary<int, ParallelOptions> s_parallelOptionsCache = new();
+
+    private static ParallelOptions GetParallelOptions(int workerThreads) =>
+        s_parallelOptionsCache.GetOrAdd(workerThreads, static t => new ParallelOptions { MaxDegreeOfParallelism = t });
 
     public static void ExecuteBands(
         uint[] hiVram, byte[] hiMask, ushort[] vram, int scale, int surfW, int surfH,
@@ -42,31 +48,29 @@ internal static class ParallelBandRasterizer
         uint[]? canonical1x = null, byte[]? canonicalMask1x = null)
     {
         if (ops.Count == 0) return;
-        QueuedBandDrawOp[] items = ops.ToArray();
         int hiH = surfH * scale;
         int bandCount = (hiH + BandHeight - 1) / BandHeight;
 
         if (workerThreads <= 1 || bandCount <= 1)
         {
-            ExecuteBandRange(hiVram, hiMask, vram, scale, surfW, surfH, items, 0, hiH - 1, useHd: true);
+            ExecuteBandRange(hiVram, hiMask, vram, scale, surfW, surfH, CollectionsMarshal.AsSpan(ops), 0, hiH - 1, useHd: true);
         }
         else
         {
-            var opts = new ParallelOptions { MaxDegreeOfParallelism = workerThreads };
-            Parallel.For(0, bandCount, opts, bandIdx =>
+            Parallel.For(0, bandCount, GetParallelOptions(workerThreads), bandIdx =>
             {
                 int bandMinY = bandIdx * BandHeight;
                 int bandMaxY = Math.Min(hiH - 1, bandMinY + BandHeight - 1);
-                ExecuteBandRange(hiVram, hiMask, vram, scale, surfW, surfH, items, bandMinY, bandMaxY, useHd: true);
+                ExecuteBandRange(hiVram, hiMask, vram, scale, surfW, surfH, CollectionsMarshal.AsSpan(ops), bandMinY, bandMaxY, useHd: true);
             });
         }
 
         if (canonical1x is not null && canonicalMask1x is not null)
-            ExecuteCanonical1x(canonical1x, canonicalMask1x, vram, scale, items);
+            ExecuteCanonical1x(canonical1x, canonicalMask1x, vram, scale, CollectionsMarshal.AsSpan(ops));
     }
 
     private static void ExecuteCanonical1x(
-        uint[] canonical1x, byte[] canonicalMask1x, ushort[] vram, int srcScale, QueuedBandDrawOp[] items)
+        uint[] canonical1x, byte[] canonicalMask1x, ushort[] vram, int srcScale, ReadOnlySpan<QueuedBandDrawOp> items)
     {
         float invScale = 1f / Math.Max(1, srcScale);
         for (int i = 0; i < items.Length; i++)
@@ -80,7 +84,7 @@ internal static class ParallelBandRasterizer
 
     private static void ExecuteBandRange(
         uint[] hiVram, byte[] hiMask, ushort[] vram, int scale, int surfW, int surfH,
-        QueuedBandDrawOp[] items, int bandMinY, int bandMaxY, bool useHd)
+        ReadOnlySpan<QueuedBandDrawOp> items, int bandMinY, int bandMaxY, bool useHd)
     {
         for (int i = 0; i < items.Length; i++)
         {
@@ -131,8 +135,7 @@ internal static class ParallelBandRasterizer
             return;
         }
 
-        var opts = new ParallelOptions { MaxDegreeOfParallelism = workerThreads };
-        Parallel.For(0, bandCount, opts, bandIdx =>
+        Parallel.For(0, bandCount, GetParallelOptions(workerThreads), bandIdx =>
         {
             int bandMinY = bandIdx * BandHeight;
             int bandMaxY = Math.Min(outH - 1, bandMinY + BandHeight - 1);

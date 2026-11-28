@@ -20,12 +20,7 @@ public sealed class Tier3IrAndJitTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempRoot))
-        {
-            try { Directory.Delete(_tempRoot, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
+        TestTempCleanup.TryDeleteDirectory(_tempRoot, nameof(Tier3IrAndJitTests));
     }
 
     [Fact]

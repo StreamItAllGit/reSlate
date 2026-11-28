@@ -1,0 +1,30 @@
+name: CI Build & Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    env:
+      APP_ISOLATED_TEST: "1"
+      FOUNDATION_SUPPRESS_MODALS: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Run isolated Release unit tests (zero warnings)
+        run: dotnet test Dev/src/reStation.slnx -c Release -p:TreatWarningsAsErrors=true --disable-build-servers -p:UseSharedCompilation=false
+
+      - name: Run isolated Debug unit tests (zero warnings)
+        run: dotnet test Dev/src/reStation.slnx -c Debug -p:TreatWarningsAsErrors=true --disable-build-servers -p:UseSharedCompilation=false

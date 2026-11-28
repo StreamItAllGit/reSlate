@@ -119,7 +119,7 @@ public static class DiscVerifierAndExtractor
         return map;
     }
 
-    private static async Task ExtractIsoEntriesAsync(
+    private static Task ExtractIsoEntriesAsync(
         string imagePath,
         string gameDataDir,
         DiscManifest manifest,
@@ -136,13 +136,7 @@ public static class DiscVerifierAndExtractor
                 gameDataDir);
             Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
 
-            await using (var fs = new FileStream(outPath, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                iso.CopyEntryTo(entry, fs);
-            }
-
-            string sha = await ComputeSha256Async(outPath, ct).ConfigureAwait(false);
-            long actualLen = new FileInfo(outPath).Length;
+            (string sha, long actualLen) = CopyAndHashEntry(iso, entry, outPath);
             isoFiles[entry.FullPath] = new VerifiedFileInfo(sha, actualLen);
             manifest.Files.Add(new DiscFileEntry
             {
@@ -154,6 +148,22 @@ public static class DiscVerifierAndExtractor
                 Sha256 = sha
             });
         }
+        return Task.CompletedTask;
+    }
+
+    private static (string Sha256, long ActualLength) CopyAndHashEntry(Iso9660RawReader iso, Iso9660Entry entry, string outPath)
+    {
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        long actualLen;
+        using (var fs = new FileStream(outPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 65_536))
+        {
+            using var hashingStream = new HashingWriteStream(fs, hasher);
+            iso.CopyEntryTo(entry, hashingStream);
+            actualLen = hashingStream.BytesWritten;
+        }
+        Span<byte> hashBytes = stackalloc byte[32];
+        hasher.GetHashAndReset(hashBytes);
+        return (Convert.ToHexString(hashBytes).ToLowerInvariant(), actualLen);
     }
 
     private static bool AllRequiredMatchedInContainer(
@@ -192,17 +202,44 @@ public static class DiscVerifierAndExtractor
         return null;
     }
 
-    private static async Task<string> ComputeSha256Async(string path, CancellationToken ct)
-    {
-        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65_536, useAsync: true);
-        return Convert.ToHexString(await SHA256.HashDataAsync(stream, ct).ConfigureAwait(false)).ToLowerInvariant();
-    }
-
     private static string NormalizeRel(string path) => path.Replace('\\', '/').TrimStart('/');
 
     private static DiscIngestResult Fail(ReStationLogger? logger, string message)
     {
         logger?.Warn("DISC", message);
         return new DiscIngestResult(false, message, null);
+    }
+
+    private sealed class HashingWriteStream(Stream inner, IncrementalHash hasher) : Stream
+    {
+        public long BytesWritten { get; private set; }
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => BytesWritten;
+        public override long Position { get => BytesWritten; set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            inner.Write(buffer, offset, count);
+            hasher.AppendData(buffer, offset, count);
+            BytesWritten += count;
+        }
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            inner.Write(buffer);
+            hasher.AppendData(buffer);
+            BytesWritten += buffer.Length;
+        }
+        public override void WriteByte(byte value)
+        {
+            inner.WriteByte(value);
+            Span<byte> b = [value];
+            hasher.AppendData(b);
+            BytesWritten++;
+        }
     }
 }

@@ -3,6 +3,7 @@
 // @depends-on: Foundation.Core.AppEnvironment, reStation.Contracts.AotRecipeSpec, reStation.Contracts.ReStationModuleManifest
 // @exports: PlayerMediaResolver, ResolvedPlayerMedia, MediaInputKind
 
+using System.Buffers;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
@@ -114,16 +115,11 @@ public static class PlayerMediaResolver
             if (TryVerifyExecutablesInDir(recipe, romDir, out ResolvedPlayerMedia? exeMatch))
                 return exeMatch!;
 
-            foreach (string ext in DiscExtensions)
+            string? selected = SelectBestDiscImage(romDir);
+            if (selected is not null)
             {
-                string[] discFiles = Directory.GetFiles(romDir, $"*{ext}", SearchOption.TopDirectoryOnly)
-                    .OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToArray();
-                if (discFiles.Length > 0)
-                {
-                    string selected = discFiles[0];
-                    string shaHex = ComputeFileSha256Hex(selected);
-                    return new ResolvedPlayerMedia(MediaInputKind.DiscImage, selected, shaHex, romDir);
-                }
+                string shaHex = ComputeFileSha256Hex(selected);
+                return new ResolvedPlayerMedia(MediaInputKind.DiscImage, selected, shaHex, romDir);
             }
         }
 
@@ -172,6 +168,33 @@ public static class PlayerMediaResolver
         return roots;
     }
 
+    private static string? SelectBestDiscImage(string romDir)
+    {
+        string? selected = null;
+        int bestPriority = int.MaxValue;
+        foreach (string candidate in Directory.EnumerateFiles(romDir, "*", SearchOption.TopDirectoryOnly))
+        {
+            int prio = GetDiscExtensionPriority(Path.GetExtension(candidate));
+            if (prio < 0 || prio > bestPriority) continue;
+            if (prio < bestPriority || StringComparer.OrdinalIgnoreCase.Compare(candidate, selected) < 0)
+            {
+                bestPriority = prio;
+                selected = candidate;
+            }
+        }
+        return selected;
+    }
+
+    private static int GetDiscExtensionPriority(string ext)
+    {
+        for (int i = 0; i < DiscExtensions.Length; i++)
+        {
+            if (string.Equals(ext, DiscExtensions[i], StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+        return -1;
+    }
+
     private static bool TryVerifyExecutablesInDir(AotRecipeSpec recipe, string romDir, out ResolvedPlayerMedia? resolved)
     {
         resolved = null;
@@ -190,12 +213,24 @@ public static class PlayerMediaResolver
                 string containerRel = exe.BootExePath[..hashIdx];
                 string? containerPath = FindMediaFile(romDir, containerRel);
                 if (containerPath is null) return false;
+                if (exe.TextSizeBytes <= 0)
+                {
+                    throw new InvalidDataException(
+                        $"ROM container slice checksum mismatch for '{exe.BootExePath}' in '{containerPath}': expected {exe.Sha256} ({exe.TextSizeBytes} bytes).");
+                }
                 if (!containerCache.TryGetValue(containerPath, out byte[]? containerBytes))
                 {
+                    if (exe.ContainerOffsetBytes is long hint && hint >= 0 &&
+                        TryVerifyContainerSliceAtOffset(containerPath, hint, exe.TextSizeBytes, exe.Sha256))
+                    {
+                        matchedPaths.Add(containerPath);
+                        shaConcat.Append(exe.Sha256.ToLowerInvariant());
+                        continue;
+                    }
                     containerBytes = File.ReadAllBytes(containerPath);
                     containerCache[containerPath] = containerBytes;
                 }
-                if (exe.TextSizeBytes <= 0 || !TryFindContainerSliceOffset(containerBytes, exe.TextSizeBytes, exe.Sha256, exe.ContainerOffsetBytes, out _))
+                if (!TryFindContainerSliceOffset(containerBytes, exe.TextSizeBytes, exe.Sha256, exe.ContainerOffsetBytes, out _))
                 {
                     throw new InvalidDataException(
                         $"ROM container slice checksum mismatch for '{exe.BootExePath}' in '{containerPath}': expected {exe.Sha256} ({exe.TextSizeBytes} bytes).");
@@ -230,6 +265,37 @@ public static class PlayerMediaResolver
         return true;
     }
 
+    private static bool TryVerifyContainerSliceAtOffset(
+        string containerPath,
+        long hintOffsetBytes,
+        int sliceLength,
+        string expectedSha256Hex)
+    {
+        if (hintOffsetBytes < 0 || sliceLength <= 0) return false;
+        Span<byte> expectedDigest = stackalloc byte[32];
+        if (!TryDecodeSha256Hex(expectedSha256Hex, expectedDigest))
+            return false;
+
+        using var fs = new FileStream(containerPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (fs.Length < sliceLength || hintOffsetBytes > fs.Length - sliceLength)
+            return false;
+
+        fs.Seek(hintOffsetBytes, SeekOrigin.Begin);
+        byte[] rented = ArrayPool<byte>.Shared.Rent(sliceLength);
+        try
+        {
+            Span<byte> slice = rented.AsSpan(0, sliceLength);
+            fs.ReadExactly(slice);
+            Span<byte> actualDigest = stackalloc byte[32];
+            SHA256.HashData(slice, actualDigest);
+            return actualDigest.SequenceEqual(expectedDigest);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
     /// <summary>Locates a <paramref name="sliceLength"/>-byte segment in <paramref name="containerBytes"/> whose SHA-256 matches <paramref name="expectedSha256Hex"/> (2048-byte sector scan first, then 4-byte scan).</summary>
     public static bool TryFindContainerSliceOffset(
         ReadOnlySpan<byte> containerBytes,
@@ -251,10 +317,10 @@ public static class PlayerMediaResolver
     {
         sliceOffset = -1;
         if (sliceLength <= 0 || sliceLength > containerBytes.Length) return false;
-        if (string.IsNullOrWhiteSpace(expectedSha256Hex) || expectedSha256Hex.Length != 64 || !expectedSha256Hex.All(Uri.IsHexDigit))
+        Span<byte> expectedDigest = stackalloc byte[32];
+        if (!TryDecodeSha256Hex(expectedSha256Hex, expectedDigest))
             return false;
 
-        byte[] expectedDigest = Convert.FromHexString(expectedSha256Hex);
         Span<byte> actualDigest = stackalloc byte[32];
         int limit = containerBytes.Length - sliceLength;
 
@@ -280,6 +346,28 @@ public static class PlayerMediaResolver
         return false;
     }
 
+    private static bool TryDecodeSha256Hex(string expectedSha256Hex, Span<byte> destination)
+    {
+        if (string.IsNullOrWhiteSpace(expectedSha256Hex) || expectedSha256Hex.Length != 64 || destination.Length < 32)
+            return false;
+        for (int i = 0; i < 32; i++)
+        {
+            int hi = HexVal(expectedSha256Hex[i * 2]);
+            int lo = HexVal(expectedSha256Hex[(i * 2) + 1]);
+            if (hi < 0 || lo < 0) return false;
+            destination[i] = (byte)((hi << 4) | lo);
+        }
+        return true;
+    }
+
+    private static int HexVal(char c) => c switch
+    {
+        >= '0' and <= '9' => c - '0',
+        >= 'a' and <= 'f' => c - 'a' + 10,
+        >= 'A' and <= 'F' => c - 'A' + 10,
+        _ => -1
+    };
+
     private static string? FindMediaFile(string romDir, string relativePath)
     {
         string normalizedRel = relativePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar)
@@ -297,8 +385,9 @@ public static class PlayerMediaResolver
         if (File.Exists(byName)) return byName;
 
         return Directory.EnumerateFiles(romDir, "*", SearchOption.AllDirectories)
+            .Where(p => string.Equals(Path.GetFileName(p), fileName, StringComparison.OrdinalIgnoreCase))
             .OrderBy(p => p, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(p => string.Equals(Path.GetFileName(p), fileName, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault();
     }
 
     private static bool ArchiveContainsEntry(string archivePath, string entryPath)

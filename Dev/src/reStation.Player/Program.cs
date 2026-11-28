@@ -122,16 +122,35 @@ internal static partial class Program
         if (options.VerifyOnly)
             return RunVerify(options, env, settings, manifest, moduleDir, logger);
 
+        bool isTray = env.PresentationMode == UiPresentationMode.TrayOrBackground || options.TrayOnly;
         DiscManifest? discManifest = DiscManifest.TryLoad(env.DataDirectory);
-        int mediaExit = TryResolveAndIngestMedia(options, env, settings, manifest, moduleDir, logger, ref discManifest);
-        if (mediaExit != 0) return mediaExit;
+        string? pendingUiIngestMedia = null;
+        if (isTray || manifest is null)
+        {
+            int mediaExit = TryResolveAndIngestMedia(options, env, settings, manifest, moduleDir, logger, ref discManifest);
+            if (mediaExit != 0) return mediaExit;
+        }
+        else
+        {
+            string? candidateMedia = ResolveMediaCandidate(options, manifest, moduleDir, discManifest);
+            if (!string.IsNullOrWhiteSpace(candidateMedia))
+            {
+                string fullMedia = Path.GetFullPath(candidateMedia);
+                if (!File.Exists(fullMedia))
+                {
+                    string missingMsg = $"Media file not found: '{candidateMedia}'.";
+                    logger.Error("DISC", missingMsg);
+                    Console.Error.WriteLine(missingMsg);
+                    return 4;
+                }
+                pendingUiIngestMedia = fullMedia;
+            }
+        }
 
         bool hdPacksEnabled = options.HdPacks ?? settings.IsHdTexturePackEnabled;
         if (hdPacksEnabled) settings.IsHdTexturePackEnabled = true;
         HdTexturePackStore hdPackStore = HdTexturePackStore.FromDataDirectory(env.DataDirectory, isEnabled: hdPacksEnabled);
 
-        bool isTray = env.PresentationMode == UiPresentationMode.TrayOrBackground || options.TrayOnly;
-        bool needsGate = !isTray && (manifest is null || discManifest is null);
         string winTitle = $"reSlate v{ReStationEngineInfo.Version} \u2014 F1 Settings | F3 HUD";
         string? requestedBackend = options.BackendId ?? options.RequireBackendId;
         using HostVideoSurface video = isTray
@@ -154,6 +173,21 @@ internal static partial class Program
             : null;
 #endif
 
+        if (pendingUiIngestMedia is not null && manifest is not null)
+        {
+            int ingestExit = IngestMediaWithUiPump(
+                pendingUiIngestMedia, video, env, settings, manifest, logger,
+                out DiscManifest? ingestedDisc, out bool ingestCancelled, bridge
+#if DEBUG || RESTATION_TEST_AUTOMATION
+                , automation
+#endif
+                );
+            if (ingestCancelled) return 0;
+            if (ingestExit != 0) return ingestExit;
+            if (ingestedDisc is not null) discManifest = ingestedDisc;
+        }
+
+        bool needsGate = !isTray && (manifest is null || discManifest is null);
         if (needsGate && !RunFirstRunMediaGate(video, env, settings, logger, ref manifest, ref moduleDir, ref discManifest, options, bridge
 #if DEBUG || RESTATION_TEST_AUTOMATION
                 , automation

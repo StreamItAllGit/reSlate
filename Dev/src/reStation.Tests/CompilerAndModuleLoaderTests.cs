@@ -314,7 +314,7 @@ public sealed class CompilerAndModuleLoaderTests : IDisposable
 
         ReStationModuleManifest loaded = ReStationModuleManifest.LoadFromFile(manifestPath);
         Assert.Equal("reSlate", loaded.EngineId);
-        Assert.Equal("0.3.2", loaded.EngineVersion);
+        Assert.Equal("0.3.3", loaded.EngineVersion);
         Assert.Equal("0.3.x", loaded.CompatibleEngineTrack);
         Assert.Equal(["0.3.x", "0.2.x", "0.1.x"], loaded.SupportedEngineTracks);
 

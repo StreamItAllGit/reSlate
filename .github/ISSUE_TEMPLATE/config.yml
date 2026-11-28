@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Vulnerability Disclosure
+    url: https://github.com/StreamItAllGit/reSlate/blob/main/SECURITY.md
+    about: Please follow our coordinated disclosure guide instead of filing public security issues.
+  - name: Pre-1.0 Beta Releases & Downloads
+    url: https://github.com/StreamItAllGit/reSlate/releases
+    about: Browse signed installers, portable ZIPs, checksums, and release notes.
+  - name: Documentation Site
+    url: https://streamitallgit.github.io/reSlate/
+    about: Read the User Guide, Architecture, Interfaces, and Operations manuals online.

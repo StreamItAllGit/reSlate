@@ -1,0 +1,30 @@
+name: Feature Request
+description: Propose a clean-room enhancement for reSlate, local AOT compilation, or .decomp tooling
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: Describe the static recompilation, AOT compiler, .decomp lifter, rendering/audio, or CLI gap
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed clean-room design
+      description: Outline expected CLI flags, contract seams, or settings behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: compliance
+    attributes:
+      label: Project Invariants
+      options:
+        - label: Zero background daemons or startup entries (`AllowAutoStart = false`)
+          required: true
+        - label: Zero copyrighted ROM/disc/BIOS data, extracted retail assets, or proprietary SDK files
+          required: true
+        - label: No silent generic interpreter fallback under `staticAotOnly`
+          required: true

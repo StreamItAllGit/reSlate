@@ -1,9 +1,10 @@
 // @module: reStation.Core.DiscIngestion.Iso9660RawReader
 // @purpose: Pure-C# ISO-9660 reader for 2048-byte .iso and raw 2352-byte Mode1/Mode2 .bin images (XA attribute + subheader Form2 detection) plus a minimal CUE sheet parser.
-// @depends-on: System, System.Buffers.Binary, System.Text
+// @depends-on: System, System.Buffers, System.Buffers.Binary, System.Text
 // @exports: Iso9660Entry, Iso9660RawReader, CueTrack, CueSheetReader
 // @owner: devv-audio-mdec (T3)
 
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
 using reStation.Core.CdRom;
@@ -147,22 +148,36 @@ public sealed class Iso9660RawReader : IDisposable
         if (entry.IsForm2Stream && IsRaw)
         {
             uint sectors = Math.Max(1U, (entry.ByteLength + UserSectorSize - 1U) / UserSectorSize);
-            byte[] raw = new byte[RawSectorSize];
-            for (uint s = 0; s < sectors && entry.Lba + s < _sectorCount; s++)
+            byte[] raw = ArrayPool<byte>.Shared.Rent(RawSectorSize);
+            try
             {
-                ReadRawSector(entry.Lba + s, raw);
-                destination.Write(raw, 16, RawSectorSize - 16);
+                for (uint s = 0; s < sectors && entry.Lba + s < _sectorCount; s++)
+                {
+                    ReadRawSector(entry.Lba + s, raw.AsSpan(0, RawSectorSize));
+                    destination.Write(raw, 16, RawSectorSize - 16);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(raw);
             }
             return;
         }
-        byte[] sec = new byte[UserSectorSize];
-        uint remaining = entry.ByteLength, cur = entry.Lba;
-        while (remaining > 0)
+        byte[] sec = ArrayPool<byte>.Shared.Rent(UserSectorSize);
+        try
         {
-            ReadUser(_stream, SectorStride, UserDataOffset, cur++, sec);
-            int take = (int)Math.Min(UserSectorSize, remaining);
-            destination.Write(sec, 0, take);
-            remaining -= (uint)take;
+            uint remaining = entry.ByteLength, cur = entry.Lba;
+            while (remaining > 0)
+            {
+                ReadUser(_stream, SectorStride, UserDataOffset, cur++, sec.AsSpan(0, UserSectorSize));
+                int take = (int)Math.Min(UserSectorSize, remaining);
+                destination.Write(sec, 0, take);
+                remaining -= (uint)take;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(sec);
         }
     }
 

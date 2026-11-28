@@ -196,6 +196,120 @@ internal static unsafe partial class Program
         return result;
     }
 
+    internal static int IngestMediaWithUiPump(
+        string fullMediaPath,
+        HostVideoSurface video,
+        AppEnvironment env,
+        RecompSettings settings,
+        ReStationModuleManifest manifest,
+        ReStationLogger logger,
+        out DiscManifest? discManifest,
+        out bool cancelled,
+        HostContractBridge? bridge = null
+#if DEBUG || RESTATION_TEST_AUTOMATION
+        , DebugAutomationHook? automation = null
+#endif
+        )
+    {
+        discManifest = null;
+        cancelled = false;
+        string fullMedia = Path.GetFullPath(fullMediaPath);
+        if (!File.Exists(fullMedia))
+        {
+            string missingMsg = $"Media file not found: '{fullMediaPath}'.";
+            logger.Error("DISC", missingMsg);
+            Console.Error.WriteLine(missingMsg);
+            return 4;
+        }
+
+        using var cts = new CancellationTokenSource();
+        Task<DiscIngestResult> ingestTask = Task.Run(
+            () => DiscVerifierAndExtractor.IngestAsync(fullMedia, env.DataDirectory, manifest, logger, AppContext.BaseDirectory, cts.Token),
+            cts.Token);
+
+        var statusView = new FirstRunMediaGateView();
+        byte* ev = stackalloc byte[128];
+        string fileName = Path.GetFileName(fullMedia);
+        int tick = 0;
+        do
+        {
+            while (video.SdlAvailable && Sdl3Native.SDL_PollEvent(ev) != 0)
+            {
+                uint type = Sdl3Native.EventType(ev);
+                if (type == Sdl3Native.EventQuit ||
+                    (type == Sdl3Native.EventKeyDown && Sdl3Native.EventKeyRepeat(ev) == 0 && Sdl3Native.EventScancode(ev) == Sdl3Native.ScEsc))
+                {
+                    cancelled = true;
+                    cts.Cancel();
+                    break;
+                }
+            }
+            if (!cancelled && bridge is not null)
+            {
+                bool escPressed = false;
+                bridge.DrainCommands(
+                    onPointerClick: (_, _) => { },
+                    onSyntheticScancode: sc => { if (sc == Sdl3Native.ScEsc) escPressed = true; });
+                if (escPressed)
+                {
+                    cancelled = true;
+                    cts.Cancel();
+                }
+            }
+
+            string dots = new string('.', (tick++ / 12) % 4);
+            statusView.RenderStatus(manifest, "Extracting & Verifying Disc Media", $"Unpacking {fileName} into isolated cache{dots}");
+            video.PresentRgba(FirstRunMediaGateView.CanvasWidth, FirstRunMediaGateView.CanvasHeight, statusView.Pixels);
+            if (bridge is not null)
+            {
+                bridge.PublishFramebufferRgba(FirstRunMediaGateView.CanvasWidth, FirstRunMediaGateView.CanvasHeight, statusView.Pixels);
+                bridge.SyncMediaGateWidgets(statusView, hasModule: true, settings.BackendId, settings.ExecutionTierMode);
+#if DEBUG || RESTATION_TEST_AUTOMATION
+                automation?.SyncWidgets(bridge.GetOverlayWidgets());
+#endif
+            }
+            if (!ingestTask.IsCompleted && !cancelled)
+                Thread.Sleep(video.HasWindow ? 25 : 5);
+        }
+        while (!ingestTask.IsCompleted && !cancelled);
+
+        DiscIngestResult ingest;
+        try
+        {
+            ingest = ingestTask.GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException) when (cancelled || cts.IsCancellationRequested)
+        {
+            cancelled = true;
+            logger.Info("DISC", $"Disc ingest cancelled by user for '{fileName}'.");
+            return 0;
+        }
+        catch (InvalidOperationException ex) when (IsContainmentViolation(ex.Message))
+        {
+            logger.Error("CONTAINMENT", ex.Message);
+            Console.Error.WriteLine(ex.Message);
+            return 3;
+        }
+
+        if (cancelled)
+        {
+            logger.Info("DISC", $"Disc ingest cancelled by user for '{fileName}'.");
+            return 0;
+        }
+        if (!ingest.Success)
+        {
+            bool containment = IsContainmentViolation(ingest.Message);
+            logger.Error(containment ? "CONTAINMENT" : "DISC", ingest.Message);
+            Console.Error.WriteLine(ingest.Message);
+            return containment ? 3 : 4;
+        }
+
+        discManifest = ingest.Manifest;
+        settings.LastDiscPath = fileName;
+        settings.Save(env.ConfigFilePath);
+        return 0;
+    }
+
     private static int RunDoctor(CliOptions options, AppEnvironment env, RecompSettings settings, ReStationLogger logger)
     {
         SandboxResolution sandbox = env.Sandbox;

@@ -14,12 +14,7 @@ public sealed class PsxD4CraftsmanshipValidatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempRoot))
-        {
-            try { Directory.Delete(_tempRoot, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
+        TestTempCleanup.TryDeleteDirectory(_tempRoot, nameof(PsxD4CraftsmanshipValidatorTests));
     }
 
     [Theory]

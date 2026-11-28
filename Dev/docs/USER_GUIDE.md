@@ -1,6 +1,6 @@
 # reSlate — User Guide
 
-> **Release Status:** **Beta (Pre-1.0 — `v0.3.2` `reSlate` Public Beta)**. All `0.x` releases are Beta pre-releases (`--prerelease`) until `v1.0.0` Desktop General Availability.
+> **Release Status:** **Beta (Pre-1.0 — `v0.3.3` `reSlate` Public Beta)**. All `0.x` releases are Beta pre-releases (`--prerelease`) until `v1.0.0` Desktop General Availability. Pre-1.0 builds display their active `v<Version>` string in the `F1` Settings header, the `F3` HUD, and an unobtrusive main-UI indicator.
 
 > **Note:** Clean-room SlateOne (`MIPS32 R3000A`) runtime, local Ahead-of-Time (AOT) compiler, and static recompilation engine (**never an emulator**). Users provide their own legally owned disc media or executables. Zero copyrighted vendor BIOS files, retail ROMs, disc images, save states, or pre-generated game binaries are bundled or distributed.
 
@@ -15,28 +15,28 @@
 ## 2. Install, Upgrade & Uninstall
 
 ### Canonical Install Layout
-`reSlate v0.3.1` installs per-user under `reEngine` (requiring **no administrator elevation**, including the required `.ready` discovery marker and `suiteId: "reEngine"` v2 manifest, and never auto-starting in the background):
+`reSlate v0.3.3` installs per-user under `reEngine` (requiring **no administrator elevation**, including the required `.ready` discovery marker and `suiteId: "reEngine"` v2 manifest, and never auto-starting in the background):
 
-- **Engine Binary Root:** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.1\` (`reSlate.exe`, `.ready`, `engine.manifest.json`, `settings.example.json`)
+- **Engine Binary Root:** `%LOCALAPPDATA%\Programs\StreamItAll\reEngine\engines\reSlate\v0.3.3\` (`reSlate.exe`, `.ready`, `engine.manifest.json`, `settings.example.json`)
 - **Application Binaries (`app\`):** `reSlate.Player.exe`, `reSlate.Compiler.exe`, `reSlate.Decomp.dll`, `reStation.Contracts.dll`, `reStation.Core.dll`, `reEngine.Core.dll`, `reEngine.Host.dll`, `SDL3.dll`, `7z.exe`, `7z.dll`, `LICENSE`, `LICENSE-7ZIP.txt`
 - **User Data & Local AOT Cache (`data\`):** `rom\`, `cache\`, `hdpacks\` (optional clean-room PNG texture packs), `saves\`, `memcards\` (Slot 1+2 `.mcr` virtual cards), `config\settings.json`, `settings.controls.json`
-- **Logs (`logs\`):** `runtime.log`, `crashes\`
+- **Logs (`logs\`):** `runtime.log`, `installer.log`, `crashes\`
 
 ### Installation Profiles (`--profile`)
 - **Lightweight (Default for Players):** Installs the slim `reSlate` player, local AOT compilation runtime, and `reEngine` launcher integration. Does not require an offline decompiler toolchain.
 - **Full (Developers & `.decomp` Creators):** Includes `Lightweight` capabilities plus integration for an offline Ghidra + OpenJDK toolchain placed alongside `reEngine` (`toolchain\`).
 
 ### Installer & Portable Options
-- **Signed Setup EXE (`reSlate-Setup-v0.3.2-win-x64.exe`):** Interactive wizard or silent CLI installer (`--install-dir <path>`, `--reengine-dir <path>`, `--profile Lightweight|Full`, `--migrate-legacy`, `--confirm-legacy-cleanup`, `--uninstall`). Automatically detects existing `reSlate`/`reEngine`/`reStation` install folders and saved `installProfile` preferences on upgrade without double-nesting `\StreamItAll\` or mistaking a populated `reEngine` folder for a direct engine leaf.
-- **Portable Bundle (`reSlate-v0.3.2-win-x64-Portable.zip`):** Self-contained portable archive (staged binaries, `.ready`, licenses, and sanitized documentation — zero setup EXE inside) for side-by-side manual extraction. Requires the .NET 8.0 Desktop Runtime on the host PC.
+- **Signed Setup EXE (`reSlate-Setup-v0.3.3-win-x64.exe`):** Interactive wizard or silent CLI installer (`--install-dir <path>`, `--reengine-dir <path>`, `--profile Lightweight|Full`, `--migrate-legacy`, `--confirm-legacy-cleanup`, `--uninstall`). Automatically detects existing `reSlate`/`reEngine`/`reStation` install folders and saved `installProfile` preferences on upgrade without double-nesting `\StreamItAll\` or mistaking a populated `reEngine` folder for a direct engine leaf.
+- **Portable Bundle (`reSlate-v0.3.3-win-x64-Portable.zip`):** Self-contained portable archive (staged binaries, `.ready`, licenses, and sanitized documentation — zero setup EXE inside) for side-by-side manual extraction. Requires the .NET 8.0 Desktop Runtime on the host PC.
 
 ---
 
 ## 3. First-Run Wizard & Local AOT Compilation
 
 1. **Choose `reEngine` Location & Profile:** Confirm your prefilled existing `reEngine` / `reSlate` install folders and saved profile (or pick `Lightweight` / `Full` and a custom target folder) in the setup wizard.
-2. **Legacy Upgrade & Settings Migration (`v0.3.0` -> `v0.3.1`):** Existing `0.1.x`–`0.3.0` modules (`reStation`) remain compatible via bidirectional `reSlate` / `reStation` alias resolution and preserved `reStation.{Contracts,Core}` ABI. When loading an older configuration, `<dataDir>\settings.json` migrates non-destructively to `<dataDir>\config\settings.json` (retaining `.bak`), legacy `isWidescreen16By9: true` upgrades automatically to `aspectRatioMode: "horPlus16By9"`, and legacy `<dataDir>\saves\memcard_*.mcr` files copy non-destructively into `<dataDir>\memcards\`.
-3. **First Game Launch (`data\cache\`):** Place your verified `SlateOne` disc image (`.bin`/`.cue`/`.chd`/`.iso`) or executable inside `<InstallDir>\data\rom\` (or select it in the first-run media picker). On cold launch of a clean-room `.recomp` package, `reSlate.Compiler.exe` compiles `<Game>.Generated.dll` locally on your PC into `<InstallDir>\data\cache\` and loads it straight from cache on every subsequent launch.
+2. **Legacy Upgrade & Settings Migration (`v0.3.x`):** Existing `0.1.x`–`0.3.x` modules (`reStation`) remain compatible via bidirectional `reSlate` / `reStation` alias resolution and preserved `reStation.{Contracts,Core}` ABI. When loading an older configuration, `<dataDir>\settings.json` migrates non-destructively to `<dataDir>\config\settings.json` (retaining `.bak`), legacy `isWidescreen16By9: true` upgrades automatically to `aspectRatioMode: "horPlus16By9"`, and legacy `<dataDir>\saves\memcard_*.mcr` files copy non-destructively into `<dataDir>\memcards\`.
+3. **First Game Launch & Cold Archive Progress (`data\cache\`):** Place your verified `SlateOne` disc image (`.bin`/`.cue`/`.chd`/`.iso`/`.7z`/`.zip`) or executable inside `<InstallDir>\data\rom\` (or select it in the first-run media picker). On interactive launches, `reSlate` opens its window immediately and displays live extraction progress when unpacking cold `.7z`/`.zip`/`.chd` archives (press `Esc` or close the window to cancel cleanly). On cold launch of a clean-room `.recomp` package, `reSlate.Compiler.exe` compiles `<Game>.Generated.dll` locally on your PC into `<InstallDir>\data\cache\` and loads it straight from cache on every subsequent launch.
 
 ---
 
@@ -100,6 +100,7 @@ Press **`F1`** (or pass `--open-settings` / click **Settings (F1)** in the top-r
 
 ### Memory Cards (`data\memcards\`)
 - In-game saves made through hardware `SIO0` or BIOS memory-card calls persist automatically to per-module 128 KB `.mcr` files for **Slot 1** and **Slot 2** under `<InstallDir>\data\memcards\`. Handheld dock probes (`0x58..0x5F`) receive an explicit NACK so save screens complete immediately.
+- When mounting an existing `.mcr`, `reSlate` scans directory blocks `1..15` for strictly orphaned nameless block chains (blocks marked allocated with empty filenames and zeroed save headers—never touching named saves or valid `'SC'` headers). If found, it writes an atomic `<mcrPath>.bak-<timestamp>` backup before reclaiming those orphaned blocks so free slots recover safely.
 
 ---
 
@@ -110,14 +111,14 @@ Press **`F1`** (or pass `--open-settings` / click **Settings (F1)** in the top-r
 - **"Fail-Closed Path Containment Violation" (`ExitCode = 3`):** A path inside `--data-dir`, `--config`, `--log-dir`, media ingestion, or `<dataDir>\hdpacks\hdpack.manifest.json` attempted `..` traversal, pointed outside its root, or used a directory junction/reparse point. Keep all HD pack PNGs strictly inside `<dataDir>\hdpacks\` as real directories/files.
 - **"Automation loopback (`--automation-port`) is disabled in Release builds" (`ExitCode = 2`):** Public `Release` binaries exclude automation hooks completely by design.
 - **Vulkan or OpenGL reverted to Software automatically:** Your display adapter or ICD lacks the required Vulkan/OpenGL 3.3 Core driver (`Video` tab banner and `runtime.log` `[VK_FALLBACK]` / `GL_FALLBACK` show the exact reason). `Software CPU` or `Parallel CPU` rendering continues without crashing.
-- **Cache rebuild after engine update:** Each `<Game>.Generated.dll` under `data\cache\` is keyed by module ID, media SHA-256, and engine version (`v0.3.1`), so stale caches from older versions are automatically rebuilt cleanly.
+- **Cache rebuild after engine update:** Each `<Game>.Generated.dll` under `data\cache\` is keyed by module ID, media SHA-256, and engine version (`v0.3.3`), so stale caches from older versions are automatically rebuilt cleanly.
 
 ---
 
 ## 7. Releases, Community Channels & Glossary
 
-- **Beta Release Distribution (`v0.3.2` Public Beta):**
-  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.2-win-x64.exe`, standalone `reSlate-v0.3.2-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs ([GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases)). *(Planned upgrade at `v0.6.0`: Dual Online + Offline Setup 8-file releases alongside `Unified Multi-Disc` automatic volume switching in `v0.4.0`, `DirectX 12` + `Safe Mode` in `v0.5.0`, `Standalone Raw-Media` JIT boot + `10-Rail` controller menu + `1-Step Quick-Save Undo` in `v0.6.0`, and `.reTexture`/`.reAudio`/`.reFont`/`.reLang`/`.reSub`/`.reMod` Hot-Reload + `Asset Dumper` / `hd_recipe` / `subtitle_recipe` authoring guides in `v0.7.0`.)*
+- **Beta Release Distribution (`v0.3.3` Public Beta):**
+  - **GitHub Releases (`--prerelease` Beta):** Official 7-file package containing signed `reSlate-Setup-v0.3.3-win-x64.exe`, standalone `reSlate-v0.3.3-win-x64-Portable.zip`, `.7z` archive, `SHA256SUMS.txt`, and sanitized docs ([GitHub Releases](https://github.com/StreamItAllGit/reSlate/releases)). *(Planned upgrade at `v0.6.0`: Dual Online + Offline Setup 8-file releases alongside `Unified Multi-Disc` automatic volume switching in `v0.4.0`, `DirectX 12` + `Safe Mode` in `v0.5.0`, `Standalone Raw-Media` JIT boot + `10-Rail` controller menu + `1-Step Quick-Save Undo` in `v0.6.0`, and `.reTexture`/`.reAudio`/`.reFont`/`.reLang`/`.reSub`/`.reMod` Hot-Reload + `Asset Dumper` / `hd_recipe` / `subtitle_recipe` authoring guides in `v0.7.0`.)*
   - **Discord Dev Updates:** Automated release announcements and community build notes.
 - **Clean-Room `.decomp` Package:** Shareable clean-room decompilation metadata, offline Ghidra recipe scripts, and C/asset normalization descriptors containing zero copyrighted retail game media.
 - **Local AOT Cache (`data\cache\`):** Player-PC generated native assembly synthesized strictly locally from your own verified `data\rom\` media and clean-room recipe.

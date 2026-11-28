@@ -118,7 +118,7 @@ if (Test-Path -LiteralPath $settingsExample) {
     Copy-Item -LiteralPath $settingsExample -Destination (Join-Path $stageDir "settings.example.json") -Force
 }
 
-Get-ChildItem $stageDir -Include *.pdb, *.xml -Recurse -File | Remove-Item -Force
+Get-ChildItem $stageDir -Include *.pdb, *.xml, createdump, createdump.exe, mscordaccore*.dll, mscordbi.dll, Microsoft.DiaSymReader*.dll -Recurse -File | Remove-Item -Force
 Prune-VersionDirectories -ParentDir $buildsRoot -KeepCount 2 -KeepVersionName "v$Version"
 
 if (-not $SkipSigning) {

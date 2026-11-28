@@ -33,6 +33,7 @@ public sealed class PsxSpu
     private uint _endx;
     private long _xaDrops, _outputOverflows, _xaFramesDecoded;
     private int _mainVolL = 0x3FFF, _mainVolR = 0x3FFF;
+    private double _cdScaleL = 1.0, _cdScaleR = 1.0, _mainScaleL = 1.0, _mainScaleR = 1.0;
     private bool? _fastForwardOverride;
     private double _fastForwardMultiplierOverride = 2.0;
     private double _ffSampleAccum;
@@ -48,6 +49,7 @@ public sealed class PsxSpu
         _regs[0x1B0 >> 1] = 0x7FFF;
         _regs[0x1B2 >> 1] = 0x7FFF;
         _regs[0x1AA >> 1] = 0xC001;
+        RefreshCachedScales();
     }
 
     public RecompSettings Settings { get; }
@@ -92,8 +94,10 @@ public sealed class PsxSpu
         }
         switch (reg)
         {
-            case 0x180: if ((value & 0x8000) == 0) _mainVolL = DecodeSigned15(value); break;
-            case 0x182: if ((value & 0x8000) == 0) _mainVolR = DecodeSigned15(value); break;
+            case 0x180: if ((value & 0x8000) == 0) { _mainVolL = DecodeSigned15(value); _mainScaleL = ScaleMainVol(_mainVolL); } break;
+            case 0x182: if ((value & 0x8000) == 0) { _mainVolR = DecodeSigned15(value); _mainScaleR = ScaleMainVol(_mainVolR); } break;
+            case 0x1B0: _cdScaleL = ScaleCdVol(value); break;
+            case 0x1B2: _cdScaleR = ScaleCdVol(value); break;
             case 0x188: KeyBits(0, value, true); break;
             case 0x18A: KeyBits(16, value, true); break;
             case 0x18C: KeyBits(0, value, false); break;
@@ -262,8 +266,8 @@ public sealed class PsxSpu
         bool cdEnabled = (cnt & 0x0001) != 0;
         if (!spuEnabled || !voicesUnmuted) { mixL = 0; mixR = 0; }
 
-        double cdScaleL = ScaleCdVol(_regs[0x1B0 >> 1]);
-        double cdScaleR = ScaleCdVol(_regs[0x1B2 >> 1]);
+        double cdScaleL = _cdScaleL;
+        double cdScaleR = _cdScaleR;
         bool cdAudible = spuEnabled && cdEnabled && (cdScaleL != 0.0 || cdScaleR != 0.0);
         bool carriesXa = false;
         if (_xaCount > 0)
@@ -308,8 +312,8 @@ public sealed class PsxSpu
         if (!spuEnabled) { mixL = 0; mixR = 0; }
         else
         {
-            mixL = ScaleSample(mixL, ScaleMainVol(_mainVolL));
-            mixR = ScaleSample(mixR, ScaleMainVol(_mainVolR));
+            mixL = ScaleSample(mixL, _mainScaleL);
+            mixR = ScaleSample(mixR, _mainScaleR);
         }
 
         double vol = Settings.MasterVolume;
@@ -371,8 +375,17 @@ public sealed class PsxSpu
         _ffSampleAccum = 0.0;
         if ((_regs[0x180 >> 1] & 0x8000) == 0) _mainVolL = DecodeSigned15(_regs[0x180 >> 1]);
         if ((_regs[0x182 >> 1] & 0x8000) == 0) _mainVolR = DecodeSigned15(_regs[0x182 >> 1]);
+        RefreshCachedScales();
         ActiveVoiceCount = active;
         Output.Clear();
+    }
+
+    private void RefreshCachedScales()
+    {
+        _mainScaleL = ScaleMainVol(_mainVolL);
+        _mainScaleR = ScaleMainVol(_mainVolR);
+        _cdScaleL = ScaleCdVol(_regs[0x1B0 >> 1]);
+        _cdScaleR = ScaleCdVol(_regs[0x1B2 >> 1]);
     }
 
     private void EnsureFastForwardOutputRoom()

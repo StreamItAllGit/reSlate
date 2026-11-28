@@ -87,7 +87,16 @@ internal sealed partial class SlideOverSettingsDrawer
             IsOpen = !IsOpen;
             if (!IsOpen) KeybindsTab.ClearListening();
         }, DrawerAction.MarkDirty, ControlId: "Drawer_TogglePill", Label: pillText));
-        if (!IsOpen) { CurrentDrawerRect = default; return; }
+        string versionTag = $"v{ReStationEngineInfo.Version}";
+        if (!IsOpen)
+        {
+            int badgeW = UiPaint.TextWidth(versionTag) + 16;
+            var verBadge = new UiRect(topPill.X + topPill.W - badgeW, topPill.Y + topPill.H + 6, badgeW, 22);
+            UiPaint.BorderRect(canvas, verBadge, new RgbaColor(0x14, 0x18, 0x22, 0xC8), UiPaint.Border, thickness: 1);
+            UiPaint.TextCentered(canvas, verBadge, versionTag, UiPaint.Muted);
+            CurrentDrawerRect = default;
+            return;
+        }
 
         canvas.FillRect(0, 0, w, h, UiPaint.Scrim);
         int dw = ActiveTab == 2 ? Math.Min(w, 800) : Math.Min(w, 600);
@@ -95,6 +104,7 @@ internal sealed partial class SlideOverSettingsDrawer
         CurrentDrawerRect = new UiRect(dx, 0, dw, h);
         UiPaint.BorderRect(canvas, CurrentDrawerRect, new RgbaColor(0x14, 0x18, 0x22), UiPaint.Accent);
         UiPaint.Text(canvas, dx + 20, 18, "Settings", UiPaint.AccentText, 3);
+        UiPaint.Text(canvas, dx + 20 + UiPaint.TextWidth("Settings", 3) + 14, 24, versionTag, UiPaint.Muted, UiPaint.TextScale);
 
         var closeBtn = new UiRect(w - 114, 14, 96, 32);
         UiPaint.Pill(canvas, closeBtn, "Close", active: false);

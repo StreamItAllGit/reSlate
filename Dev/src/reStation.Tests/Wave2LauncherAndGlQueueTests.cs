@@ -248,14 +248,14 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
         Assert.Contains("System_ToggleFastForward", e2eScript, StringComparison.Ordinal);
         Assert.Contains("System_SkipCutscene", e2eScript, StringComparison.Ordinal);
 
-        Assert.Equal("0.3.2", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
+        Assert.Equal("0.3.3", File.ReadAllText(Path.Combine(devDir, "version.txt")).Trim());
         using JsonDocument appManifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "app.manifest.json")));
-        Assert.Equal("0.3.2", appManifest.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.3", appManifest.RootElement.GetProperty("version").GetString());
         Assert.Equal("reslate", appManifest.RootElement.GetProperty("appId").GetString());
 
         using JsonDocument settingsExample = JsonDocument.Parse(File.ReadAllText(Path.Combine(devDir, "data", "settings.example.json")));
         Assert.Equal("reslate", settingsExample.RootElement.GetProperty("appId").GetString());
-        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.2", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
+        Assert.Equal("StreamItAll\\reEngine\\engines\\reSlate\\v0.3.3", settingsExample.RootElement.GetProperty("umbrellaSubpath").GetString());
     }
 
     [Fact]
@@ -322,7 +322,7 @@ public sealed class Wave2LauncherAndGlQueueTests : IDisposable
 
         using JsonDocument doc = JsonDocument.Parse(stdout);
         Assert.True(doc.RootElement.GetProperty("dryRun").GetBoolean());
-        Assert.Equal("0.3.2", doc.RootElement.GetProperty("version").GetString());
+        Assert.Equal("0.3.3", doc.RootElement.GetProperty("version").GetString());
         Assert.Contains("run_sandbox_e2e.py", doc.RootElement.GetProperty("sandboxRunner").GetString(), StringComparison.OrdinalIgnoreCase);
 
         string helpersPath = Path.Combine(devDir, "scripts", "stage2_e2e_helpers.ps1");

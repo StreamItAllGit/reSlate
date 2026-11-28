@@ -1,0 +1,45 @@
+name: Bug Report
+description: Report a bug, regression, rendering/audio issue, or crash in reSlate
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue! Please do **not** attach copyrighted game discs, ROM images, or console BIOS dumps.
+  - type: input
+    id: version
+    attributes:
+      label: reSlate Version
+      description: Output of `reSlate.exe --version`
+      placeholder: e.g. 0.3.3
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: OS, GPU & Render Backend
+      description: Windows version, GPU driver, and active backend (`opengl`, `vulkan`, `parallelCpu`, or `software`)
+      placeholder: e.g. Windows 11 24H2 / RTX 4070 / vulkan
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Clear description of the unexpected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Commands, flags (`--module`, `--disc`, `--backend`, `--aspect-mode`, `--doctor`), or UI actions
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output (no personal/secret paths)
+      description: Snippets from `<LogDir>\runtime.log` or `crashes\crash_*.json`
+      render: text

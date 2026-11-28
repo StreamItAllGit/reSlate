@@ -9,9 +9,9 @@
     <NuGetAudit>false</NuGetAudit>
     <Product>reSlate</Product>
     <Company>StreamItAll</Company>
-    <Version>0.3.2</Version>
-    <InformationalVersion>0.3.2</InformationalVersion>
-    <FileVersion>0.3.2.0</FileVersion>
+    <Version>0.3.3</Version>
+    <InformationalVersion>0.3.3</InformationalVersion>
+    <FileVersion>0.3.3.0</FileVersion>
     <AssemblyVersion>0.3.0.0</AssemblyVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ReStationLibDir>$(MSBuildThisFileDirectory)..\lib\</ReStationLibDir>

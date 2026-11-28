@@ -61,6 +61,12 @@ internal sealed class UiOverlayPresenter
             ? "[ORIG] "
             : settings.TargetFps == 0 ? "[MAX] " : "[ENH] ";
 
+    internal static string FormatHudText(RecompSettings settings, PsxTelemetrySnapshot telemetry)
+    {
+        string ffBadge = settings.IsFastForwardEnabled ? $"[FF {PsxDrawerDescriptorProvider.NormalizeFastForwardMultiplier(settings.FastForwardMultiplier):0.#}x] " : string.Empty;
+        return $"v{ReStationEngineInfo.Version} | {ffBadge}{FormatModeBadge(settings)}{telemetry.ToHudLine()}";
+    }
+
     public bool EnsureRendered(
         SlideOverSettingsDrawer drawer,
         RecompSettings settings,
@@ -69,8 +75,7 @@ internal sealed class UiOverlayPresenter
         bool loggingActive,
         PsxTelemetrySnapshot telemetry)
     {
-        string ffBadge = settings.IsFastForwardEnabled ? $"[FF {PsxDrawerDescriptorProvider.NormalizeFastForwardMultiplier(settings.FastForwardMultiplier):0.#}x] " : string.Empty;
-        string hudText = settings.IsFpsOverlayEnabled ? ffBadge + FormatModeBadge(settings) + telemetry.ToHudLine() : string.Empty;
+        string hudText = settings.IsFpsOverlayEnabled ? FormatHudText(settings, telemetry) : string.Empty;
         int bindingsDigest = ComputeBindingsDigest(drawer, settings);
         string activeBackend = drawer.ActiveBackendOverride ?? settings.BackendId;
         string aspectMode = settings.AspectRatioMode ?? string.Empty;

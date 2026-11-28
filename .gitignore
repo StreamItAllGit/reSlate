@@ -60,3 +60,7 @@ desktop.ini
 ehthumbs.db
 ._*
 Corpus/
+.beta.manifest.local.json
+*.local.json
+*.local.env
+.beta.env

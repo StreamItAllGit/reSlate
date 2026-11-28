@@ -2,22 +2,23 @@
   "schemaVersion": 2,
   "lifecycleState": "active",
   "name": "reSlate",
+  "projectLead": "Stream",
   "projectGroup": "Personal",
   "relativePath": "Personal/reStation",
   "containerTier": "Tier A (4-Folder)",
   "ecosystemTier": "Tier1_Infrastructure",
   "appArchetype": "ENGINE",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "activeMilestone": "0.4.0",
   "goalMajorVersion": "1.0.0",
   "stateChangedDate": "2026-11-20",
-  "lastVersionDate": "2026-11-23",
+  "lastVersionDate": "2026-11-28",
   "productionSubpath": "StreamItAll\\reEngine\\engines\\reSlate",
   "supersededBy": null,
   "tasklistDetailLevel": 3,
-  "openTaskCount": 26,
-  "completedTaskCount": 23,
-  "openReportCount": 1,
+  "openTaskCount": 24,
+  "completedTaskCount": 46,
+  "openReportCount": 3,
   "isPublicRepo": true,
   "requireHumanReviewBeforePush": false,
   "gates": {
@@ -27,7 +28,7 @@
     "isInspecterVerified": true,
     "isTessaSynced": true
   },
-  "notes": "reSlate v0.3.1 Public Beta (https://github.com/StreamItAllGit/reSlate | 310/310 Release+Debug /warnaserror tests, 0 warnings; Stage 2 4-drive Sandbox E2E + Release ExitCode=2 + SharedLibs dual EXE/DLL --help + audit_installer 0 findings PASS). Scoped 2026-11-20 path to v1.0.0 & v2.0–v5.0: v0.4.0 (Pure-Static R3 Promoter, Port 1+2 analog/rumble, Redbook CD-DA, Unified Multi-Disc Virtual Volume w/ 0 swap prompts, --save-dir & GitHub polish) -> v0.5.0 (Native 3D DX12 & GPU Vulkan parity, reEngine.Host v0.6 cutover, JIT toggle/RAM preload/FastBoot/SafeMode, VRR/21:9/Filters/F12, Dedicated Audio LP-HP/Jukebox, audioFillPct fix & domain-split settings) -> v0.6.0 (Standalone Raw-Media Tier 3 JIT Boot, 10-Rail Menu/Dynamic Prompts, Save/Password Vaults + Quick-Save 1-Step Undo, isLookYInverted & 8-file Dual-Installer) -> v0.7.0 (Catalog/Dumper/hd_recipe/subtitle_recipe/.re* Hot-Reload, Built-In PS1 Research Tools & Opt-In Runtime API/Clean-Capture) -> v1.0.0 (Symmetric 2+ Confirmed Gold: KingsFieldRecomp + HMBackToNature-Recomp) -> v2.0–v5.0 (10-Platform/Achievements -> Creator Suite/Rewind/.reTas -> Remix/Soft-Patch/Randomizer -> Connected Rollback Netplay).",
+  "notes": "reSlate v0.3.3 Public Beta (https://github.com/StreamItAllGit/reSlate | cold .7z/archive UI-pumped startup < 5s with Esc cancel, safe .mcr orphaned nameless block auto-backup & reclaim, zero-alloc ParallelBandRasterizer / stream-hashed ISO ingest / cached PsxSpu scales, pre-1.0 UI version visibility, stripped release runtime, GitHub CI/Pages/Community Profile polish & Dev/docs/CHARTER.md, preserving 0.1.x-0.3.x ABI, Foundation v0.5.2 & reEngine v0.5.0). Scoped path to v1.0.0 & v2.0-v5.0: v0.4.0 (Pure-Static R3 Promoter, Port 1+2 analog/rumble, Redbook CD-DA, Unified Multi-Disc Virtual Volume w/ 0 swap prompts, --save-dir & release polish) -> v0.5.0 (Native 3D DX12 & GPU Vulkan parity, reEngine.Host v0.6 cutover, JIT toggle/RAM preload/FastBoot/SafeMode, VRR/21:9/Filters/F12, Dedicated Audio LP-HP/Jukebox, audioFillPct fix & domain-split settings) -> v0.6.0 (Standalone Raw-Media Tier 3 JIT Boot, 10-Rail Menu/Dynamic Prompts, Save/Password Vaults + Quick-Save 1-Step Undo, isLookYInverted & 8-file Dual-Installer) -> v0.7.0 (Catalog/Dumper/hd_recipe/subtitle_recipe/.re* Hot-Reload, Built-In PS1 Research Tools & Opt-In Runtime API/Clean-Capture) -> v1.0.0 (Symmetric 2+ Confirmed Gold: KingsFieldRecomp + HMBackToNature-Recomp) -> v2.0-v5.0 (10-Platform/Achievements -> Creator Suite/Rewind/.reTas -> Remix/Soft-Patch/Randomizer -> Connected Rollback Netplay).",
   "discordPost": {
     "isEnabled": true,
     "serverName": null,
@@ -38,5 +39,5 @@
     "secretEnvKey": "DISCORD_WEBHOOK_FOUNDATION",
     "autoPostOnRelease": true
   },
-  "updatedAtUtc": "2026-11-23T19:41:00.000Z"
+  "updatedAtUtc": "2026-11-28T08:50:00.000Z"
 }

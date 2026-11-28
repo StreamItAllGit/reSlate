@@ -22,12 +22,7 @@ public sealed class Wave3RuntimeFixesTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempRoot))
-        {
-            try { Directory.Delete(_tempRoot, recursive: true); }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
-        }
+        TestTempCleanup.TryDeleteDirectory(_tempRoot, nameof(Wave3RuntimeFixesTests));
     }
 
     [Fact]

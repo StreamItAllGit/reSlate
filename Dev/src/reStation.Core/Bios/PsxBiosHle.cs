@@ -31,7 +31,10 @@ public sealed partial class PsxBiosHle
     public PsxBiosHle(PsxCpu cpu, string dataDir, string? cardIdentity = null)
     {
         _cpu = cpu ?? throw new ArgumentNullException(nameof(cpu));
-        MemCard = new MemCardMcrStore(dataDir, cardIdentity);
+        MemCard = new MemCardMcrStore(
+            dataDir,
+            cardIdentity,
+            warnLogger: msg => _cpu.Logger?.Warn("MEMCARD", msg.StartsWith("[MEMCARD] ", StringComparison.Ordinal) ? msg["[MEMCARD] ".Length..] : msg));
         EnsureKernelTables();
     }
 
